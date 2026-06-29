@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import { db } from "@/db/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -19,7 +19,12 @@ export interface TenantContext {
 
 export async function getTenantContext(): Promise<TenantContext | null> {
   const headersList = await headers();
-  const subdomain = headersList.get("x-tenant-subdomain");
+  let subdomain = headersList.get("x-tenant-subdomain");
+
+  if (!subdomain) {
+    const cookieStore = await cookies();
+    subdomain = cookieStore.get("x-tenant-subdomain")?.value || null;
+  }
 
   if (!subdomain) {
     return null;

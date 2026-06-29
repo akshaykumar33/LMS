@@ -20,6 +20,15 @@ interface LoginFormProps {
   subdomain: string;
 }
 
+const iconMap: Record<string, React.ComponentType<any>> = {
+  GraduationCap,
+  Briefcase,
+  Key,
+  ShieldCheck,
+  Users,
+  Terminal,
+};
+
 export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -82,59 +91,41 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
 
   const brandColor = primaryColor || "#0ea5e9";
 
-  const isParent = subdomain === "localhost" || subdomain === "" || subdomain === "www";
+  const isParent = subdomain === "localhost" || subdomain === "" || subdomain === "www" || subdomain === "vt";
   const activeSubdomain = isParent ? "intel" : subdomain;
 
-  const demoAccounts = isParent
-    ? [
-        {
-          roleName: "Super Admin",
-          email: "superadmin@vt.edu",
-          desc: "Full multi-tenant network access & platform management",
-          icon: Key,
-          color: "text-amber-400",
-          bg: "bg-amber-500/10",
-          border: "border-amber-500/20",
-        }
-      ]
-    : [
-        {
-          roleName: "Student",
-          email: `james.smith.0@student.${activeSubdomain}.com`,
-          desc: "Access design sandboxes, labs, and career portals",
-          icon: GraduationCap,
-          color: "text-sky-400",
-          bg: "bg-sky-500/10",
-          border: "border-sky-500/20",
-        },
-        {
-          roleName: "Faculty Instructor",
-          email: `faculty1@${activeSubdomain}.lms.com`,
-          desc: "Manage classes, set deadlines, upload transcripts",
-          icon: Briefcase,
-          color: "text-emerald-400",
-          bg: "bg-emerald-500/10",
-          border: "border-emerald-500/20",
-        },
-        {
-          roleName: "Academy Admin",
-          email: `admin@${activeSubdomain}.lms.com`,
-          desc: "Manage admissions pipeline, review documents",
-          icon: ShieldCheck,
-          color: "text-purple-400",
-          bg: "bg-purple-500/10",
-          border: "border-purple-500/20",
-        },
-        {
-          roleName: "Super Admin",
-          email: "superadmin@vt.edu",
-          desc: "Full multi-tenant network access",
-          icon: Key,
-          color: "text-amber-400",
-          bg: "bg-amber-500/10",
-          border: "border-amber-500/20",
-        }
-      ];
+  // Dynamically compile all sandbox credentials from quick-login-credentials.json
+  const allAccounts = [
+    ...quickLoginData.parent,
+    ...quickLoginData.tenant
+  ];
+
+  // Deduplicate by roleName to avoid double listing Super Admin
+  const uniqueRoles = new Map<string, typeof allAccounts[number]>();
+  for (const acc of allAccounts) {
+    uniqueRoles.set(acc.roleName, acc);
+  }
+
+  const demoAccounts = Array.from(uniqueRoles.values()).map(account => {
+    let email = account.email;
+    if (account.roleName === "Student (Certified)") {
+      email = "linus.torvalds@student.intel.com";
+    } else {
+      email = email.replace("{{subdomain}}", activeSubdomain);
+    }
+
+    const IconComp = iconMap[account.iconName] || Key;
+
+    return {
+      roleName: account.roleName,
+      email,
+      desc: account.desc,
+      icon: IconComp,
+      color: account.color,
+      bg: account.bg,
+      border: account.border,
+    };
+  });
 
   return (
     <TooltipProvider>

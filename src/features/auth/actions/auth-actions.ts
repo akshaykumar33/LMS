@@ -4,7 +4,7 @@ import { cookies, headers } from "next/headers";
 import { getTenantContext } from "../services/tenant";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../services/jwt";
 import { db } from "@/db/db";
-import { users } from "@/db/schema";
+import { users, tenants } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -34,38 +34,10 @@ export async function loginAction(formData: any) {
   }
 
   try {
-    let user;
-    if (!tenant) {
-      // 1. Fetch user globally (on root domain)
-      user = await db.query.users.findFirst({
-        where: eq(users.email, email),
-      });
-
-      if (user && user.role !== "SuperAdmin") {
-        return { 
-          success: false, 
-          error: "Access denied. Please access your academy's subdomain to log in." 
-        };
-      }
-    } else {
-      // 1. Fetch user by tenant & email
-      user = await db.query.users.findFirst({
-        where: and(
-          eq(users.tenantId, tenant.id),
-          eq(users.email, email)
-        ),
-      });
-
-      // Fallback: Check if this is a global SuperAdmin logging in via a tenant domain
-      if (!user) {
-        const globalUser = await db.query.users.findFirst({
-          where: eq(users.email, email),
-        });
-        if (globalUser && globalUser.role === "SuperAdmin") {
-          user = globalUser;
-        }
-      }
-    }
+    // 1. Fetch user globally by email
+    const user = await db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
 
     if (!user) {
       return { success: false, error: "Invalid email or password." };
@@ -97,6 +69,21 @@ export async function loginAction(formData: any) {
     const headersList = await headers();
     const host = headersList.get("host") || "";
     const cookieDomain = getCookieDomain(host);
+
+    // Sync subdomain cookie to match user's registered tenant (supports cross-tenant sandbox logins)
+    if (user.tenantId) {
+      const userTenant = await db.query.tenants.findFirst({
+        where: eq(tenants.id, user.tenantId),
+      });
+      if (userTenant) {
+        cookieStore.set("x-tenant-subdomain", userTenant.subdomain, {
+          path: "/",
+          maxAge: 60 * 60 * 24 * 30, // 30 days
+        });
+      }
+    } else {
+      cookieStore.delete("x-tenant-subdomain");
+    }
     
     cookieStore.set("access_token", accessToken, {
       httpOnly: true,
