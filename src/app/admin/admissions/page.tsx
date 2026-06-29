@@ -57,7 +57,7 @@ export default async function AdminAdmissionsPage() {
           phone: a.phone,
           status: a.status,
           createdAt: a.createdAt,
-          batch: { id: a.batch.id, name: a.batch.name },
+          batch: a.batch ? { id: a.batch.id, name: a.batch.name } : null,
           payments: a.payments.map((p: any) => ({
             id: p.id,
             amount: p.amount,

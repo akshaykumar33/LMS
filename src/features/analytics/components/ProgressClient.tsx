@@ -219,7 +219,7 @@ export function ProgressClient({
                         <span className="text-[8px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded uppercase tracking-wider">
                           Verified Credential
                         </span>
-                        <h4 className="text-xs font-extrabold text-foreground group-hover:text-primary pt-1">{cert.course.name}</h4>
+                        <h4 className="text-xs font-extrabold text-foreground group-hover:text-primary pt-1">{cert.course?.name || "Unknown Course"}</h4>
                         <p className="text-[9px] text-muted-foreground font-mono truncate max-w-[180px]">ID: {cert.certificateCode}</p>
                       </div>
                       <Trophy className="w-8 h-8 text-amber-400 shrink-0" />
@@ -374,7 +374,7 @@ export function ProgressClient({
 
               <p className="text-[10px] sm:text-[11px] text-muted-foreground max-w-md mx-auto leading-relaxed">
                 for demonstrating expert knowledge and successfully satisfying all academic assessments for the course:
-                <strong className="text-foreground block text-xs sm:text-sm font-black mt-1.5">{activeCert.course.name}</strong>
+                <strong className="text-foreground block text-xs sm:text-sm font-black mt-1.5">{activeCert.course?.name || "Unknown Course"}</strong>
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-border/30 text-left max-w-md mx-auto text-[9px] sm:text-[10px] text-muted-foreground w-full">

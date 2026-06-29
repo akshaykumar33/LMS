@@ -64,8 +64,8 @@ export default async function CareerPage() {
     resumeUrl: app.resumeUrl,
     createdAt: app.createdAt,
     job: {
-      title: app.job.title,
-      company: app.job.company
+      title: app.job?.title || "Unknown Position",
+      company: app.job?.company || "Unknown Company"
     }
   }));
 

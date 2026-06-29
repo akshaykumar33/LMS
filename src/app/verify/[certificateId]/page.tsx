@@ -78,7 +78,7 @@ export default async function VerifyCertificatePage({ params }: PageProps) {
             for successfully satisfying all competency standards, laboratory workspace scenarios, and academic assessments for the graduate-level specialization course:
           </p>
           <h3 className="text-lg md:text-2xl font-black text-white print:text-black">
-            {cert.course.name} ({cert.course.code})
+            {cert.course?.name || "Unknown Course"} ({cert.course?.code || "N/A"})
           </h3>
           <p className="text-xs text-slate-400">
             with an overall competency grade of <strong className="text-white print:text-black">{cert.metadata?.grade || "Passed"}</strong> (Average score of {cert.metadata?.avgScore || 70}%)
