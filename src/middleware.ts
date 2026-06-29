@@ -16,20 +16,26 @@ export function middleware(request: NextRequest) {
       subdomain = parts[0];
     }
   } else {
-    if (parts.length > 2) {
+    const isVercel = hostname.endsWith(".vercel.app");
+    if ((isVercel && parts.length > 3) || (!isVercel && parts.length > 2)) {
       subdomain = parts[0];
     }
   }
 
-  // Fallback to query parameter or custom header if available (useful for API testing)
+  // Fallback to query parameter or custom header if available
   const querySubdomain = url.searchParams.get("tenant");
+  const headerSubdomain = request.headers.get("x-tenant-subdomain");
+
   if (querySubdomain) {
     subdomain = querySubdomain;
-  }
-
-  const headerSubdomain = request.headers.get("x-tenant-subdomain");
-  if (headerSubdomain) {
+  } else if (headerSubdomain) {
     subdomain = headerSubdomain;
+  } else if (!subdomain) {
+    // Read from cookie if not on the root landing selection page
+    const cookieSubdomain = request.cookies.get("x-tenant-subdomain")?.value;
+    if (cookieSubdomain && url.pathname !== "/") {
+      subdomain = cookieSubdomain;
+    }
   }
 
   // Set the headers
@@ -60,27 +66,39 @@ export function middleware(request: NextRequest) {
   // Check auth cookies
   const accessToken = request.cookies.get("access_token")?.value;
 
+  let response: NextResponse | null = null;
+
   // Authentication guards
   if (!isStaticRoute && !isAuthRoute && !isAdmissionApplyRoute) {
     if (!accessToken) {
       const loginUrl = new URL("/login", request.url);
       // Retain the intended URL for redirection after login
       loginUrl.searchParams.set("callbackUrl", url.pathname);
-      return NextResponse.redirect(loginUrl);
+      response = NextResponse.redirect(loginUrl);
     }
   }
 
   // If logged in and hitting login page, redirect to dashboard
   if (isAuthRoute && accessToken) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    response = NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // Return the modified response
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+  if (!response) {
+    response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  }
+
+  // Apply tenant cookie sync to the final response
+  if (querySubdomain) {
+    response.cookies.set("x-tenant-subdomain", querySubdomain, { path: "/", maxAge: 60 * 60 * 24 * 30 });
+  } else if (url.pathname === "/" && !querySubdomain && request.cookies.has("x-tenant-subdomain")) {
+    response.cookies.delete("x-tenant-subdomain");
+  }
+
+  return response;
 }
 
 export const config = {

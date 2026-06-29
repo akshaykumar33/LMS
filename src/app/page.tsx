@@ -113,7 +113,13 @@ export default async function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto w-full">
             {activeAcademies.map((org: any) => {
-              const devUrl = `http://${org.subdomain}.localhost${portSuffix}`;
+              const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+              const isVercel = host.endsWith(".vercel.app");
+              const devUrl = isLocal
+                ? `http://${org.subdomain}.localhost${portSuffix}`
+                : isVercel
+                ? `/?tenant=${org.subdomain}`
+                : `https://${org.subdomain}.${host}`;
               let pColor = org.branding?.primaryColor || "#0ea5e9";
               let sColor = org.branding?.secondaryColor || "#0ea5e9";
               

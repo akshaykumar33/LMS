@@ -269,9 +269,13 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                   filteredTenants.map((t) => {
                     // Exclude vt parent itself from routing/testing options
                     const isParent = t.subdomain === "vt";
-                    const isLocal = typeof window !== "undefined" && window.location.hostname.includes("localhost");
-                    const devSuffix = isLocal ? ".localhost:3000" : ".lms.com";
-                    const portalUrl = `http://${t.subdomain}${devSuffix}`;
+                    const isLocal = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
+                    const isVercel = typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app");
+                    const portalUrl = isLocal
+                      ? `http://${t.subdomain}.localhost:3000`
+                      : isVercel
+                      ? `/?tenant=${t.subdomain}`
+                      : `https://${t.subdomain}.${window.location.host}`;
 
                     return (
                       <tr key={t.id} className="hover:bg-card transition-colors">
