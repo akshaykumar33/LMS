@@ -15,6 +15,11 @@ function getCookieDomain(host: string): string | undefined {
   if (cleanHost === "localhost" || cleanHost.endsWith(".localhost") || cleanHost === "127.0.0.1") {
     return undefined;
   }
+
+  // Prevent browser from rejecting cookies on Vercel preview/production domains
+  if (cleanHost.endsWith(".vercel.app")) {
+    return undefined;
+  }
   
   const parts = cleanHost.split(".");
   if (parts.length > 2) {

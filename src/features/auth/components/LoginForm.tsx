@@ -318,7 +318,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
 
         {/* ── Command Center Dialog ── */}
         <Dialog open={showEmulator} onOpenChange={setShowEmulator}>
-          <DialogContent className="max-w-lg p-0 gap-0 bg-slate-950/98 border-slate-700/60 shadow-[0_0_60px_rgba(0,0,0,0.5),0_0_30px_rgba(245,158,11,0.08)] overflow-hidden backdrop-blur-xl [&>button]:text-slate-400 [&>button]:hover:text-white">
+          <DialogContent className="sm:max-w-lg p-0 gap-0 bg-slate-950/98 border-slate-700/60 shadow-[0_0_60px_rgba(0,0,0,0.5),0_0_30px_rgba(245,158,11,0.08)] overflow-hidden backdrop-blur-xl [&>button]:text-slate-400 [&>button]:hover:text-white">
             {/* Terminal-style header */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-800/80 to-slate-900 border-b border-slate-700/50 px-5 py-3.5 flex items-center gap-3">
               <div className="flex items-center gap-1.5">
@@ -363,11 +363,11 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
                       </div>
                       <div className="min-w-0 flex-1 text-left">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white group-hover:text-primary transition-colors">{account.roleName}</span>
+                          <span className="text-xs font-bold text-white group-hover:opacity-90 transition-opacity">{account.roleName}</span>
                           <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-white transition-colors" />
                         </div>
-                        <p className="text-[10px] text-slate-500 mt-0.5 leading-normal font-normal">{account.desc}</p>
-                        <span className="text-[9px] font-mono text-slate-600 mt-1 block truncate font-normal">{account.email}</span>
+                        <p className="text-[10px] text-slate-400 mt-0.5 leading-normal font-normal">{account.desc}</p>
+                        <span className="text-[9px] font-mono text-slate-500 mt-1 block truncate font-normal">{account.email}</span>
                       </div>
                     </Button>
                   );
