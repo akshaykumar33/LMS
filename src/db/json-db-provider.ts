@@ -359,6 +359,24 @@ function buildWhereFromDrizzle(where: any, drizzleTable: any, meta: TableMeta): 
   return { clause: whereClause, params };
 }
 
+function isOneRelation(rel: any): boolean {
+  if (!rel) return false;
+  return (
+    rel instanceof operators.One ||
+    rel[Symbol.for("drizzle:entityKind")] === "One" ||
+    rel.constructor?.name === "One"
+  );
+}
+
+function isManyRelation(rel: any): boolean {
+  if (!rel) return false;
+  return (
+    rel instanceof operators.Many ||
+    rel[Symbol.for("drizzle:entityKind")] === "Many" ||
+    rel.constructor?.name === "Many"
+  );
+}
+
 /** Resolve `with` relations for a set of rows */
 function resolveRelations(
   rows: any[],
@@ -387,7 +405,7 @@ function resolveRelations(
       const targetMeta = tableMetas[targetTableName];
       if (!targetMeta) continue;
 
-      if (rel.constructor.name === "One") {
+      if (isOneRelation(rel)) {
         // One-to-one or Many-to-one relation
         const localColName = rel.config?.fields?.[0]?.name;
         const refColName = rel.config?.references?.[0]?.name;
@@ -422,7 +440,7 @@ function resolveRelations(
             enriched[relName] = null;
           }
         }
-      } else if (rel.constructor.name === "Many") {
+      } else if (isManyRelation(rel)) {
         // One-to-many relation
         // Find the inverse One relation on the target table that points back to us
         const targetSchemaKey = d._.tableNamesMap[`public.${targetTableName}`] || d._.tableNamesMap[targetTableName];
@@ -432,7 +450,7 @@ function resolveRelations(
           let refCol: string | null = null;
 
           for (const targetRel of Object.values(targetSchema.relations) as any[]) {
-            if (targetRel.constructor.name === "One" && targetRel.referencedTableName === tableName) {
+            if (isOneRelation(targetRel) && targetRel.referencedTableName === tableName) {
               fkCol = targetRel.config?.fields?.[0]?.name;
               refCol = targetRel.config?.references?.[0]?.name;
               break;
