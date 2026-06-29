@@ -16,6 +16,7 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { randomUUID } from "crypto";
 import * as schema from "./schema";
 import * as operators from "drizzle-orm";
+import dbDataRaw from "../../db.json";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -686,27 +687,31 @@ export function initJsonDb() {
 
   console.log("[json-db] Initializing JSON database provider...");
 
-  // Source db.json (bundled with the deployment, read-only on Vercel)
-  const sourceDbJsonPath = join(process.cwd(), "db.json");
-
-  // On serverless platforms (Vercel), the project directory is read-only.
-  // We copy db.json to /tmp on first init and persist all writes there.
   const isVercel = !!process.env.VERCEL;
   const tmpDbJsonPath = join(tmpdir(), "db.json");
 
   if (isVercel) {
-    // Use /tmp copy if it exists (warm instance), otherwise copy from source
-    if (!existsSync(tmpDbJsonPath)) {
-      console.log("[json-db] Copying db.json to /tmp for writable access...");
-      copyFileSync(sourceDbJsonPath, tmpDbJsonPath);
-    }
     dbJsonPath = tmpDbJsonPath;
   } else {
-    dbJsonPath = sourceDbJsonPath;
+    dbJsonPath = join(process.cwd(), "db.json");
   }
 
-  const raw = readFileSync(dbJsonPath, "utf8");
-  const data = JSON.parse(raw);
+  let data = dbDataRaw;
+
+  // On local, if the file exists, read from it to load any previous local mutations.
+  // On Vercel, if /tmp/db.json exists, read from it, otherwise use the bundled dbDataRaw.
+  try {
+    if (existsSync(dbJsonPath)) {
+      const raw = readFileSync(dbJsonPath, "utf8");
+      data = JSON.parse(raw);
+    } else if (isVercel) {
+      // Create the file in /tmp so any subsequent writeFileSync doesn't fail
+      writeFileSync(dbJsonPath, JSON.stringify(dbDataRaw, null, 2), "utf8");
+    }
+  } catch (err) {
+    console.warn("[json-db] Failed to read from dbJsonPath, falling back to bundled data:", err);
+    data = dbDataRaw;
+  }
 
   sqlite = new DatabaseSync(":memory:");
   tableMetas = buildTableMetas();
