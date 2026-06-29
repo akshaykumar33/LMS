@@ -1,0 +1,119 @@
+import { redirect } from "next/navigation";
+import { getTenantContext } from "@/features/auth/services/tenant";
+import { requireAuth } from "@/features/auth/services/session";
+import { CourseRepository } from "@/features/course/repository/course-repository";
+import { QuizRepository } from "@/features/quiz/repository/quiz-repository";
+import { db } from "@/db/db";
+import { students, users, quizzes } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { WorkspaceClient } from "@/features/course/components/WorkspaceClient";
+
+interface PageProps {
+  params: Promise<{ courseId: string }>;
+  searchParams: Promise<{ lessonId?: string; quizId?: string }>;
+}
+
+export default async function CourseWorkspacePage({ params, searchParams }: PageProps) {
+  const tenant = await getTenantContext();
+  if (!tenant) redirect("/");
+
+  const user = await requireAuth();
+
+  // Redirect admin/staff roles to their respective dashboards
+  if (["Faculty", "Mentor"].includes(user.role)) {
+    redirect("/faculty");
+  }
+
+  if (["Owner", "Admin", "Program Manager"].includes(user.role)) {
+    redirect("/admin/admissions");
+  }
+
+  if (user.role === "Placement Officer") {
+    redirect("/admin/placement");
+  }
+
+  if (user.role === "SuperAdmin") {
+    redirect("/super-admin");
+  }
+
+  // Resolve params
+  const { courseId } = await params;
+  const { lessonId, quizId } = await searchParams;
+
+  // Fetch course detail outline
+  const courseDetails = await CourseRepository.getCourseDetails(tenant.id, courseId);
+  if (!courseDetails) {
+    redirect("/dashboard");
+  }
+
+  // Fetch quizzes of this course
+  const courseQuizzes = await db
+    .select({ id: quizzes.id, title: quizzes.title, lessonId: quizzes.lessonId })
+    .from(quizzes)
+    .where(eq(quizzes.courseId, courseId));
+
+  // Get first lesson as default if nothing is selected
+  let activeLessonId = lessonId;
+  let activeQuizId = quizId;
+
+  if (!activeLessonId && !activeQuizId) {
+    const firstMod = courseDetails.modules[0];
+    const firstLesson = firstMod?.lessons[0];
+    if (firstLesson) {
+      activeLessonId = firstLesson.id;
+    }
+  }
+
+  // Load active content
+  let activeLesson = null;
+  if (activeLessonId) {
+    activeLesson = await CourseRepository.getLesson(tenant.id, activeLessonId);
+  }
+
+  let activeQuiz = null;
+  if (activeQuizId) {
+    if (activeQuizId === "any") {
+      const firstQuiz = courseQuizzes[0];
+      if (firstQuiz) {
+        activeQuiz = await QuizRepository.getQuizDetails(tenant.id, firstQuiz.id);
+      }
+    } else {
+      activeQuiz = await QuizRepository.getQuizDetails(tenant.id, activeQuizId);
+    }
+  }
+
+  // Fetch student profile details
+  const studentProfile = await db.query.students.findFirst({
+    where: eq(students.userId, user.userId),
+    with: {
+      batch: true,
+    },
+  });
+
+  const dbUser = await db.query.users.findFirst({
+    where: eq(users.id, user.userId),
+  });
+
+  const userData = {
+    userId: user.userId,
+    firstName: dbUser?.firstName || "Student",
+    lastName: dbUser?.lastName || "",
+    email: dbUser?.email || user.email,
+    role: user.role,
+  };
+
+  return (
+    <DashboardLayout user={userData} tenant={tenant} studentProfile={studentProfile}>
+      <WorkspaceClient
+        course={courseDetails}
+        quizzes={courseQuizzes}
+        activeLesson={activeLesson}
+        activeQuiz={activeQuiz}
+        tenantName={tenant.name}
+        primaryColor={tenant.branding?.primaryColor}
+        user={userData}
+      />
+    </DashboardLayout>
+  );
+}
