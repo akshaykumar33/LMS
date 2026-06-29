@@ -557,15 +557,21 @@ function buildOrderBy(orderBy: any, drizzleTable: any): string {
     if (!item) continue;
     // Drizzle orderBy items are SQL objects; extract from queryChunks
     if (item.queryChunks) {
+      const itemParts: string[] = [];
       for (const chunk of item.queryChunks) {
         if (chunk && chunk.name) {
           // It's a column reference
           const tableName = chunk.table?.[Symbol.for("drizzle:Name")] || "";
-          parts.push(`"${tableName}"."${chunk.name}"`);
+          itemParts.push(`"${tableName}"."${chunk.name}"`);
         } else if (chunk && chunk.value) {
           const val = Array.isArray(chunk.value) ? chunk.value.join("") : chunk.value;
-          if (val.trim()) parts.push(val.trim());
+          if (val.trim()) {
+            itemParts.push(val.trim());
+          }
         }
+      }
+      if (itemParts.length > 0) {
+        parts.push(itemParts.join(" "));
       }
     }
   }
