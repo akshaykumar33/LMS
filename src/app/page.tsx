@@ -128,13 +128,16 @@ export default async function Home() {
               }
 
               return (
-                <a
+                 <a
                   key={org.subdomain}
                   href={devUrl}
-                  className="flex flex-col justify-between p-6 rounded-3xl bg-card border border-border/80 text-left transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl hover:border-slate-500 group relative overflow-hidden"
+                  className="flex flex-col justify-between p-6 rounded-3xl bg-card border border-border/80 text-left transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl hover:border-[var(--tenant-color)] group relative overflow-hidden"
                   style={{ "--tenant-color": pColor } as React.CSSProperties}
                 >
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-all" />
+                  <div 
+                    className="absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl opacity-[0.05] group-hover:opacity-[0.10] transition-all" 
+                    style={{ backgroundColor: pColor }}
+                  />
                   
                   <div className="space-y-5">
                     <div className="flex items-center justify-between">
@@ -144,7 +147,7 @@ export default async function Home() {
                       </span>
                     </div>
                     <div>
-                      <h2 className="text-sm font-black text-foreground mb-1 group-hover:text-primary transition-colors">{org.name}</h2>
+                      <h2 className="text-sm font-black text-foreground mb-1 group-hover:text-[var(--tenant-color)] transition-colors">{org.name}</h2>
                       <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 font-semibold">
                         Access physical-layout labs, CAD simulation nodes, and verified job postings from international semiconductor partners.
                       </p>
