@@ -1,0 +1,308 @@
+{
+  "timestamp": "2026-06-30T07:12:16.658Z",
+  "studentId": "97710a66-3f76-416e-ab65-012e47646afb",
+  "userRole": "Owner",
+  "userTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantSubdomain": "intel"
+}
+---
+ERROR: Student not found.
+Stack: Error: Student not found.
+    at FacultyRepository.getStudentProfileStats (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:475:19)
+    at async getStudentProfileStatsAction (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:634:23)
+    at async executeActionAndPrepareForRender (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:5248)
+    at async A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:1986
+    at async handleAction (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:62:25687)
+    at async renderToHTMLOrFlightImpl (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:69:55695)
+    at async doRender (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4032:28)
+    at async AppPageRouteModule.handleResponse (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:71:66429)
+    at async handleResponse (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4343:32)
+    at async Module.handler (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4749:20)
+    at async DevServer.renderToResponseWithComponentsImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1462:9)
+    at async DevServer.renderPageComponent (A:\LMS\node_modules\next\dist\server\base-server.js:1514:24)
+    at async DevServer.renderToResponseImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1564:32)
+    at async DevServer.pipeImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1044:25)
+    at async NextNodeServer.handleCatchallRenderRequest (A:\LMS\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (A:\LMS\node_modules\next\dist\server\base-server.js:935:17)
+    at async A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (A:\LMS\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (A:\LMS\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (A:\LMS\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (A:\LMS\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (A:\LMS\node_modules\next\dist\server\lib\start-server.js:225:13)
+---
+{
+  "timestamp": "2026-06-30T07:28:43.670Z",
+  "studentId": "97710a66-3f76-416e-ab65-012e47646afb",
+  "userRole": "Faculty",
+  "userTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantSubdomain": "intel"
+}
+---
+ERROR: Student not found.
+Stack: Error: Student not found.
+    at FacultyRepository.getStudentProfileStats (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:475:19)
+    at async getStudentProfileStatsAction (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:634:23)
+    at async executeActionAndPrepareForRender (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:5248)
+    at async A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:1986
+    at async handleAction (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:62:25687)
+    at async renderToHTMLOrFlightImpl (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:69:55695)
+    at async doRender (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4032:28)
+    at async AppPageRouteModule.handleResponse (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:71:66429)
+    at async handleResponse (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4343:32)
+    at async Module.handler (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4749:20)
+    at async DevServer.renderToResponseWithComponentsImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1462:9)
+    at async DevServer.renderPageComponent (A:\LMS\node_modules\next\dist\server\base-server.js:1514:24)
+    at async DevServer.renderToResponseImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1564:32)
+    at async DevServer.pipeImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1044:25)
+    at async NextNodeServer.handleCatchallRenderRequest (A:\LMS\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (A:\LMS\node_modules\next\dist\server\base-server.js:935:17)
+    at async A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (A:\LMS\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (A:\LMS\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (A:\LMS\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (A:\LMS\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (A:\LMS\node_modules\next\dist\server\lib\start-server.js:225:13)
+---
+{
+  "timestamp": "2026-06-30T07:28:57.694Z",
+  "studentId": "52858d0c-3e0f-4a21-bde8-e395ec1e93c9",
+  "userRole": "Faculty",
+  "userTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantSubdomain": "intel"
+}
+---
+ERROR: Student not found.
+Stack: Error: Student not found.
+    at FacultyRepository.getStudentProfileStats (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:475:19)
+    at async getStudentProfileStatsAction (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:634:23)
+    at async executeActionAndPrepareForRender (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:5248)
+    at async A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:1986
+    at async handleAction (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:62:25687)
+    at async renderToHTMLOrFlightImpl (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:69:55695)
+    at async doRender (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4032:28)
+    at async AppPageRouteModule.handleResponse (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:71:66429)
+    at async handleResponse (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4343:32)
+    at async Module.handler (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4749:20)
+    at async DevServer.renderToResponseWithComponentsImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1462:9)
+    at async DevServer.renderPageComponent (A:\LMS\node_modules\next\dist\server\base-server.js:1514:24)
+    at async DevServer.renderToResponseImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1564:32)
+    at async DevServer.pipeImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1044:25)
+    at async NextNodeServer.handleCatchallRenderRequest (A:\LMS\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (A:\LMS\node_modules\next\dist\server\base-server.js:935:17)
+    at async A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (A:\LMS\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (A:\LMS\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (A:\LMS\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (A:\LMS\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (A:\LMS\node_modules\next\dist\server\lib\start-server.js:225:13)
+---
+[ADMISSION ACTION] starting submission with: {"batchId":"295158f2-6a83-40b0-8cc5-8669836151c9","email":"robert.noyce.test@intel.com","firstName":"Robert","lastName":"Noyce","phone":"+91 9999999999","dateOfBirth":"1995-12-12","academicHistory":{"highestDegree":"PhD Microelectronics","institution":"MIT","gpaOrPercentage":"9.8","graduationYear":2018,"experienceMonths":48}}
+[ADMISSION ACTION] resolved tenant: 666cf140-edc0-4423-8f1c-1b8e3585a22e (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: f9689984-e717-4175-9db7-5894e9e069d9
+[ADMISSION DOCUMENT] starting doc submit: f9689984-e717-4175-9db7-5894e9e069d9, Undergraduate Degree Transcript, https://dummy-bucket.s3.amazonaws.com/admissions/docs/mock_upload_1782806322366.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: 7626ec1e-8e63-4600-a920-c795d6d6ef40
+[ADMISSION ACTION] starting submission with: {"batchId":"295158f2-6a83-40b0-8cc5-8669836151c9","email":"gordon.moore@intel.com","firstName":"Gordon","lastName":"Moore","phone":"+91 8888888888","dateOfBirth":"1994-01-03","academicHistory":{"highestDegree":"Master of Silicon Engineering","institution":"Stanford","gpaOrPercentage":"9.9","graduationYear":2017,"experienceMonths":60}}
+[ADMISSION ACTION] resolved tenant: 666cf140-edc0-4423-8f1c-1b8e3585a22e (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: bfca1a77-26d8-4775-b1a5-1d0f64138fbb
+[ADMISSION DOCUMENT] starting doc submit: bfca1a77-26d8-4775-b1a5-1d0f64138fbb, Undergraduate Degree Transcript, https://dummy-bucket.s3.amazonaws.com/admissions/docs/mock_upload_1782806754122.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: 76993de3-745a-427e-a8b0-660ba1f2beb1
+[ADMISSION ACTION] starting submission with: {"batchId":"295158f2-6a83-40b0-8cc5-8669836151c9","email":"gordon.moore@intel.com","firstName":"Gordon","lastName":"Moore","phone":"+91 8888888888","dateOfBirth":"1994-01-03","academicHistory":{"highestDegree":"Master of Silicon Engineering","institution":"Stanford","gpaOrPercentage":"9.9","graduationYear":2017,"experienceMonths":60}}
+[ADMISSION ACTION] resolved tenant: 666cf140-edc0-4423-8f1c-1b8e3585a22e (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] CATCH ERROR: An active application with this email already exists.
+Stack: Error: An active application with this email already exists.
+    at AdmissionService.submitApplication (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1ztoxlm._.js:305:19)
+    at async submitAdmissionApplicationAction (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1ztoxlm._.js:611:21)
+    at async executeActionAndPrepareForRender (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:5248)
+    at async A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:1986
+    at async handleAction (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:62:25687)
+    at async renderToHTMLOrFlightImpl (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:69:55695)
+    at async doRender (A:\LMS\.next\dev\server\chunks\ssr\node_modules_0uaou7j._.js:4222:28)
+    at async AppPageRouteModule.handleResponse (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:71:66429)
+    at async handleResponse (A:\LMS\.next\dev\server\chunks\ssr\node_modules_0uaou7j._.js:4533:32)
+    at async Module.handler (A:\LMS\.next\dev\server\chunks\ssr\node_modules_0uaou7j._.js:4939:20)
+    at async DevServer.renderToResponseWithComponentsImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1462:9)
+    at async DevServer.renderPageComponent (A:\LMS\node_modules\next\dist\server\base-server.js:1514:24)
+    at async DevServer.renderToResponseImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1564:32)
+    at async DevServer.pipeImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1044:25)
+    at async NextNodeServer.handleCatchallRenderRequest (A:\LMS\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (A:\LMS\node_modules\next\dist\server\base-server.js:935:17)
+    at async A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (A:\LMS\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (A:\LMS\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (A:\LMS\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (A:\LMS\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (A:\LMS\node_modules\next\dist\server\lib\start-server.js:225:13)
+[ADMISSION ACTION] starting submission with: {"batchId":"295158f2-6a83-40b0-8cc5-8669836151c9","email":"gordon.moore.test@intel.com","firstName":"Gordon","lastName":"Moore","phone":"+91 8888888888","dateOfBirth":"1994-01-03","academicHistory":{"highestDegree":"Master of Silicon Engineering","institution":"Stanford","gpaOrPercentage":"9.9","graduationYear":2017,"experienceMonths":60}}
+[ADMISSION ACTION] resolved tenant: 666cf140-edc0-4423-8f1c-1b8e3585a22e (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 7ffb095e-7718-442d-88c4-879bb17cb574
+[ADMISSION DOCUMENT] starting doc submit: 7ffb095e-7718-442d-88c4-879bb17cb574, Undergraduate Degree Transcript, https://dummy-bucket.s3.amazonaws.com/admissions/docs/mock_upload_1782807265748.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: d0dda457-887e-484e-a329-d8464f9c97b1
+[ADMISSION ACTION] starting submission with: {"batchId":"295158f2-6a83-40b0-8cc5-8669836151c9","email":"gordon.moore.test2@intel.com","firstName":"Gordon","lastName":"Moore","phone":"+91 8888888888","dateOfBirth":"1994-01-03","academicHistory":{"highestDegree":"Master of Silicon Engineering","institution":"Stanford","gpaOrPercentage":"9.9","graduationYear":2017,"experienceMonths":60}}
+[ADMISSION ACTION] resolved tenant: 666cf140-edc0-4423-8f1c-1b8e3585a22e (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 522ea36c-a474-4f46-abfe-1a20d1cb3e83
+[ADMISSION DOCUMENT] starting doc submit: 522ea36c-a474-4f46-abfe-1a20d1cb3e83, Undergraduate Degree Transcript, https://dummy-bucket.s3.amazonaws.com/admissions/docs/mock_upload_1782807587863.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: 21c5321e-c169-4c08-9a70-98cc45662c6a
+[ADMISSION ACTION] starting submission with: {"batchId":"295158f2-6a83-40b0-8cc5-8669836151c9","email":"gordon.moore.success@intel.com","firstName":"Gordon","lastName":"Moore","phone":"+91 8888888888","dateOfBirth":"1994-01-03","academicHistory":{"highestDegree":"Master of Silicon Engineering","institution":"Stanford","gpaOrPercentage":"9.9","graduationYear":2017,"experienceMonths":60}}
+[ADMISSION ACTION] resolved tenant: 666cf140-edc0-4423-8f1c-1b8e3585a22e (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 7bc39e08-43bf-4973-9904-0f5a41d51ac2
+[ADMISSION DOCUMENT] starting doc submit: 7bc39e08-43bf-4973-9904-0f5a41d51ac2, Undergraduate Degree Transcript, https://dummy-bucket.s3.amazonaws.com/admissions/docs/mock_upload_1782807985129.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: e9f2632a-86e5-47b7-8631-983d83ce8b11
+[ADMISSION ACTION] starting submission with: {"batchId":"295158f2-6a83-40b0-8cc5-8669836151c9","email":"gordon.moore.success@intel.com","firstName":"Gordon","lastName":"Moore","phone":"+91 8888888888","dateOfBirth":"1994-01-03","academicHistory":{"highestDegree":"Master of Silicon Engineering","institution":"Stanford","gpaOrPercentage":"9.9","graduationYear":2017,"experienceMonths":60}}
+[ADMISSION ACTION] resolved tenant: 666cf140-edc0-4423-8f1c-1b8e3585a22e (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] CATCH ERROR: An active application with this email already exists.
+Stack: Error: An active application with this email already exists.
+    at AdmissionService.submitApplication (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1ztoxlm._.js:305:19)
+    at async submitAdmissionApplicationAction (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1ztoxlm._.js:611:21)
+    at async executeActionAndPrepareForRender (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:5248)
+    at async A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:1986
+    at async handleAction (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:62:25687)
+    at async renderToHTMLOrFlightImpl (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:69:55695)
+    at async doRender (A:\LMS\.next\dev\server\chunks\ssr\node_modules_0uaou7j._.js:4222:28)
+    at async AppPageRouteModule.handleResponse (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:71:66429)
+    at async handleResponse (A:\LMS\.next\dev\server\chunks\ssr\node_modules_0uaou7j._.js:4533:32)
+    at async Module.handler (A:\LMS\.next\dev\server\chunks\ssr\node_modules_0uaou7j._.js:4939:20)
+    at async DevServer.renderToResponseWithComponentsImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1462:9)
+    at async DevServer.renderPageComponent (A:\LMS\node_modules\next\dist\server\base-server.js:1514:24)
+    at async DevServer.renderToResponseImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1564:32)
+    at async DevServer.pipeImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1044:25)
+    at async NextNodeServer.handleCatchallRenderRequest (A:\LMS\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (A:\LMS\node_modules\next\dist\server\base-server.js:935:17)
+    at async A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (A:\LMS\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (A:\LMS\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (A:\LMS\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (A:\LMS\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (A:\LMS\node_modules\next\dist\server\lib\start-server.js:225:13)
+[ADMISSION ACTION] starting submission with: {"batchId":"295158f2-6a83-40b0-8cc5-8669836151c9","email":"gordon.moore.success4@intel.com","firstName":"Gordon","lastName":"Moore","phone":"+91 8888888888","dateOfBirth":"1994-01-03","academicHistory":{"highestDegree":"Master of Silicon Engineering","institution":"Stanford","gpaOrPercentage":"9.9","graduationYear":2017,"experienceMonths":60}}
+[ADMISSION ACTION] resolved tenant: 666cf140-edc0-4423-8f1c-1b8e3585a22e (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 4afdb297-0697-435e-9b17-9f4b44fbc4d9
+[ADMISSION DOCUMENT] starting doc submit: 4afdb297-0697-435e-9b17-9f4b44fbc4d9, Undergraduate Degree Transcript, https://dummy-bucket.s3.amazonaws.com/admissions/docs/mock_upload_1782808317753.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: 9c0c553d-3c53-4216-8255-f38575565dec
+{
+  "timestamp": "2026-06-30T09:11:45.335Z",
+  "studentId": "221463b0-bbcd-4c01-90da-a8286a130abc",
+  "userRole": "Faculty",
+  "userTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantSubdomain": "intel"
+}
+---
+ERROR: Student not found.
+Stack: Error: Student not found.
+    at FacultyRepository.getStudentProfileStats (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:475:19)
+    at async getStudentProfileStatsAction (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:634:23)
+    at async executeActionAndPrepareForRender (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:5248)
+    at async A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:1986
+    at async handleAction (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:62:25687)
+    at async renderToHTMLOrFlightImpl (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:69:55695)
+    at async doRender (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4032:28)
+    at async AppPageRouteModule.handleResponse (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:71:66429)
+    at async handleResponse (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4343:32)
+    at async Module.handler (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4749:20)
+    at async DevServer.renderToResponseWithComponentsImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1462:9)
+    at async DevServer.renderPageComponent (A:\LMS\node_modules\next\dist\server\base-server.js:1514:24)
+    at async DevServer.renderToResponseImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1564:32)
+    at async DevServer.pipeImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1044:25)
+    at async NextNodeServer.handleCatchallRenderRequest (A:\LMS\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (A:\LMS\node_modules\next\dist\server\base-server.js:935:17)
+    at async A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (A:\LMS\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (A:\LMS\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (A:\LMS\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (A:\LMS\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (A:\LMS\node_modules\next\dist\server\lib\start-server.js:225:13)
+---
+{
+  "timestamp": "2026-06-30T09:11:51.244Z",
+  "studentId": "a67e43ad-57e9-4b39-86ba-3aa4ffa1ea7d",
+  "userRole": "Faculty",
+  "userTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantSubdomain": "intel"
+}
+---
+ERROR: Student not found.
+Stack: Error: Student not found.
+    at FacultyRepository.getStudentProfileStats (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:475:19)
+    at async getStudentProfileStatsAction (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:634:23)
+    at async executeActionAndPrepareForRender (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:5248)
+    at async A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:1986
+    at async handleAction (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:62:25687)
+    at async renderToHTMLOrFlightImpl (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:69:55695)
+    at async doRender (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4032:28)
+    at async AppPageRouteModule.handleResponse (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:71:66429)
+    at async handleResponse (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4343:32)
+    at async Module.handler (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4749:20)
+    at async DevServer.renderToResponseWithComponentsImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1462:9)
+    at async DevServer.renderPageComponent (A:\LMS\node_modules\next\dist\server\base-server.js:1514:24)
+    at async DevServer.renderToResponseImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1564:32)
+    at async DevServer.pipeImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1044:25)
+    at async NextNodeServer.handleCatchallRenderRequest (A:\LMS\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (A:\LMS\node_modules\next\dist\server\base-server.js:935:17)
+    at async A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (A:\LMS\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (A:\LMS\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (A:\LMS\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (A:\LMS\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (A:\LMS\node_modules\next\dist\server\lib\start-server.js:225:13)
+---
+{
+  "timestamp": "2026-06-30T09:11:55.594Z",
+  "studentId": "221463b0-bbcd-4c01-90da-a8286a130abc",
+  "userRole": "Faculty",
+  "userTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantId": "666cf140-edc0-4423-8f1c-1b8e3585a22e",
+  "resolvedTenantSubdomain": "intel"
+}
+---
+ERROR: Student not found.
+Stack: Error: Student not found.
+    at FacultyRepository.getStudentProfileStats (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:475:19)
+    at async getStudentProfileStatsAction (A:\LMS\.next\dev\server\chunks\ssr\[root-of-the-server]__1mkxcq-._.js:634:23)
+    at async executeActionAndPrepareForRender (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:5248)
+    at async A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:64:1986
+    at async handleAction (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:62:25687)
+    at async renderToHTMLOrFlightImpl (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:69:55695)
+    at async doRender (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4032:28)
+    at async AppPageRouteModule.handleResponse (A:\LMS\node_modules\next\dist\compiled\next-server\app-page-turbo.runtime.dev.js:71:66429)
+    at async handleResponse (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4343:32)
+    at async Module.handler (A:\LMS\.next\dev\server\chunks\ssr\node_modules_08_v614._.js:4749:20)
+    at async DevServer.renderToResponseWithComponentsImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1462:9)
+    at async DevServer.renderPageComponent (A:\LMS\node_modules\next\dist\server\base-server.js:1514:24)
+    at async DevServer.renderToResponseImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1564:32)
+    at async DevServer.pipeImpl (A:\LMS\node_modules\next\dist\server\base-server.js:1044:25)
+    at async NextNodeServer.handleCatchallRenderRequest (A:\LMS\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (A:\LMS\node_modules\next\dist\server\base-server.js:935:17)
+    at async A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (A:\LMS\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (A:\LMS\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (A:\LMS\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (A:\LMS\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (A:\LMS\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (A:\LMS\node_modules\next\dist\server\lib\start-server.js:225:13)
+---

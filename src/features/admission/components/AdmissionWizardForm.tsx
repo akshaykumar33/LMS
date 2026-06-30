@@ -126,7 +126,6 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
 
       // Redirect immediately to payment screen
       router.push(`/checkout?appId=${appId}`);
-      router.refresh();
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred during submission.");
       setLoading(false);

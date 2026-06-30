@@ -38,12 +38,12 @@ export class FacultyRepository {
   static async getBatchRoster(tenantId: string, batchId: string) {
     return db
       .select({
-        studentId: students.id,
+        studentId: sql<string>`${students.id}`.as("studentId"),
         rollNumber: students.rollNumber,
         firstName: users.firstName,
         lastName: users.lastName,
         email: users.email,
-        userId: users.id,
+        userId: sql<string>`${users.id}`.as("userId"),
       })
       .from(students)
       .innerJoin(users, eq(students.userId, users.id))

@@ -130,6 +130,7 @@ export async function updateLessonAction(
     contentType?: string;
     zoomMeetingId?: string;
     zoomPasscode?: string;
+    fileUrl?: string;
   }
 ) {
   try {
@@ -161,6 +162,7 @@ export async function updateLessonAction(
         contentType: formData.contentType || lesson.contentType,
         zoomMeetingId: formData.zoomMeetingId || lesson.zoomMeetingId,
         zoomPasscode: formData.zoomPasscode || lesson.zoomPasscode,
+        fileUrl: formData.fileUrl !== undefined ? formData.fileUrl : lesson.fileUrl,
         updatedAt: new Date(),
       })
       .where(eq(schema.lessons.id, lessonId));
@@ -171,5 +173,148 @@ export async function updateLessonAction(
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to update lesson." };
+  }
+}
+
+/**
+ * Elective Catalog Action: self-enroll in an elective course.
+ */
+export async function enrollStudentInElectiveAction(courseId: string) {
+  try {
+    const user = await requireAuth(["Student"]);
+    const student = await db.query.students.findFirst({
+      where: eq(schema.students.userId, user.userId),
+    });
+
+    if (!student) {
+      return { success: false, error: "Student profile not found." };
+    }
+
+    // Verify batch association exists
+    if (!student.batchId) {
+      return { success: false, error: "No batch assigned to student." };
+    }
+
+    // Check if link already exists
+    const existing = await db.query.courseBatches.findFirst({
+      where: and(
+        eq(schema.courseBatches.courseId, courseId),
+        eq(schema.courseBatches.batchId, student.batchId)
+      ),
+    });
+
+    if (!existing) {
+      await db.insert(schema.courseBatches).values({
+        courseId,
+        batchId: student.batchId,
+      });
+    }
+
+    revalidatePath("/courses");
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to self-enroll in elective." };
+  }
+}
+
+/**
+ * Lesson Completion Action: toggle completed state for student.
+ */
+export async function toggleLessonCompletionAction(lessonId: string, completed: boolean) {
+  try {
+    const user = await requireAuth(["Student"]);
+    const student = await db.query.students.findFirst({
+      where: eq(schema.students.userId, user.userId),
+    });
+
+    if (!student) {
+      return { success: false, error: "Student profile not found." };
+    }
+
+    // Check if progress entry already exists
+    const existing = await db.query.lessonProgress.findFirst({
+      where: and(
+        eq(schema.lessonProgress.studentId, student.id),
+        eq(schema.lessonProgress.lessonId, lessonId)
+      ),
+    });
+
+    if (existing) {
+      await db
+        .update(schema.lessonProgress)
+        .set({
+          completed,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.lessonProgress.id, existing.id));
+    } else {
+      await db.insert(schema.lessonProgress).values({
+        studentId: student.id,
+        lessonId,
+        completed,
+        updatedAt: new Date(),
+      });
+    }
+
+    revalidatePath(`/courses/[courseId]`, "page");
+    revalidatePath("/dashboard");
+    revalidatePath("/progress");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to update lesson progress." };
+  }
+}
+
+/**
+ * Capstone Project Action: submit Git repository and documentation link.
+ */
+export async function submitProjectAction(projectId: string, gitRepoUrl: string, documentationUrl: string) {
+  try {
+    const user = await requireAuth(["Student"]);
+    const student = await db.query.students.findFirst({
+      where: eq(schema.students.userId, user.userId),
+    });
+
+    if (!student) {
+      return { success: false, error: "Student profile not found." };
+    }
+
+    // Check if a submission already exists
+    const existing = await db.query.projectSubmissions.findFirst({
+      where: and(
+        eq(schema.projectSubmissions.projectId, projectId),
+        eq(schema.projectSubmissions.studentId, student.id)
+      ),
+    });
+
+    if (existing) {
+      await db
+        .update(schema.projectSubmissions)
+        .set({
+          gitRepoUrl,
+          documentationUrl,
+          status: "pending",
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.projectSubmissions.id, existing.id));
+    } else {
+      await db.insert(schema.projectSubmissions).values({
+        tenantId: user.tenantId,
+        projectId,
+        studentId: student.id,
+        gitRepoUrl,
+        documentationUrl,
+        status: "pending",
+        submittedAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+
+    revalidatePath(`/courses/[courseId]`, "page");
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to submit capstone project." };
   }
 }

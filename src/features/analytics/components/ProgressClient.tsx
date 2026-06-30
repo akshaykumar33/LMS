@@ -26,6 +26,7 @@ interface CourseProgress {
   bestScore: number | null;
   totalAttempts: number;
   hasPassed: boolean;
+  progressPercent?: number;
 }
 
 interface Certificate {
@@ -264,23 +265,24 @@ export function ProgressClient({
                       {c.hasPassed ? "Passed" : c.totalAttempts > 0 ? "Fail" : "Locked"}
                     </span>
                   </div>
-                  {c.bestScore !== null && (
-                    <div className="space-y-1.5">
-                      <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                        <div 
-                          className="h-full rounded-full transition-all" 
-                          style={{ 
-                            width: `${c.bestScore}%`, 
-                            backgroundColor: c.hasPassed ? "#10b981" : "#f43f5e" 
-                          }} 
-                        />
-                      </div>
-                      <div className="flex justify-between text-[9px] text-muted-foreground font-semibold">
-                        <span>Best Score: {c.bestScore}%</span>
-                        <span>Attempts: {c.totalAttempts}</span>
-                      </div>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[9px] text-muted-foreground font-semibold">
+                      <span>Lesson Progress</span>
+                      <span>{c.progressPercent ?? 0}%</span>
                     </div>
-                  )}
+                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                      <div 
+                        className="h-full rounded-full bg-primary transition-all" 
+                        style={{ 
+                          width: `${c.progressPercent ?? 0}%`, 
+                        }} 
+                      />
+                    </div>
+                    <div className="flex justify-between text-[9px] text-muted-foreground font-semibold pt-1">
+                      <span>Best Score: {c.bestScore !== null ? `${c.bestScore}%` : "No Attempts"}</span>
+                      <span>Attempts: {c.totalAttempts}</span>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

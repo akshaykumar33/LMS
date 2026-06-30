@@ -3,7 +3,7 @@ import { getTenantContext } from "@/features/auth/services/tenant";
 import { requireAuth } from "@/features/auth/services/session";
 import { CourseRepository } from "@/features/course/repository/course-repository";
 import { db } from "@/db/db";
-import { students, users } from "@/db/schema";
+import { students, users, courses } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { CoursesListClient } from "@/features/course/components/CoursesListClient";
@@ -45,6 +45,25 @@ export default async function CoursesPage() {
     })
   );
 
+  // Fetch all available courses for the tenant to show in elective catalog
+  const allAvailableRaw = await db.query.courses.findMany({
+    where: eq(courses.tenantId, tenant.id),
+  });
+
+  const allAvailableCourses = await Promise.all(
+    allAvailableRaw.map(async (course: any) => {
+      const details = await CourseRepository.getCourseDetails(tenant.id, course.id);
+      const moduleCount = details?.modules.length || 0;
+      const lessonCount = details?.modules.reduce((acc: number, m: any) => acc + m.lessons.length, 0) || 0;
+      return {
+        ...course,
+        moduleCount,
+        lessonCount,
+        syllabus: details?.syllabus || null,
+      };
+    })
+  );
+
   const dbUser = await db.query.users.findFirst({
     where: eq(users.id, user.userId),
   });
@@ -61,6 +80,7 @@ export default async function CoursesPage() {
     <DashboardLayout user={userData} tenant={tenant} studentProfile={studentProfile}>
       <CoursesListClient
         courses={coursesWithDetails}
+        allAvailableCourses={allAvailableCourses}
         batchName={studentProfile.batch?.name || "Your Cohort"}
         primaryColor={tenant.branding?.primaryColor || "#0ea5e9"}
       />

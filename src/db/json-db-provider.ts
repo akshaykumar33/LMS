@@ -163,6 +163,87 @@ function persistToJson() {
   writeFileSync(dbJsonPath, JSON.stringify(data, null, 2), "utf8");
 }
 
+// Helper to translate PostgreSQL FILTER (WHERE condition) clause to SQLite CASE WHEN format
+function translateFilterClauses(sql: string): string {
+  let index = 0;
+  while (true) {
+    const filterIndex = sql.toLowerCase().indexOf(" filter", index);
+    if (filterIndex === -1) break;
+
+    const openParenIndex = sql.indexOf("(", filterIndex);
+    if (openParenIndex === -1) {
+      index = filterIndex + 6;
+      continue;
+    }
+
+    let depth = 1;
+    let closeParenIndex = -1;
+    for (let i = openParenIndex + 1; i < sql.length; i++) {
+      if (sql[i] === "(") depth++;
+      else if (sql[i] === ")") depth--;
+
+      if (depth === 0) {
+        closeParenIndex = i;
+        break;
+      }
+    }
+
+    if (closeParenIndex === -1) {
+      index = openParenIndex + 1;
+      continue;
+    }
+
+    const filterContent = sql.substring(openParenIndex + 1, closeParenIndex).trim();
+    const condition = filterContent.replace(/^\s*where\s+/i, "");
+
+    let aggStart = -1;
+    let aggName = "";
+    let aggParam = "";
+
+    let parenDepth = 0;
+    let aggCloseParen = -1;
+    for (let i = filterIndex - 1; i >= 0; i--) {
+      if (sql[i] === ")") {
+        if (aggCloseParen === -1) {
+          aggCloseParen = i;
+        }
+        parenDepth++;
+      } else if (sql[i] === "(") {
+        parenDepth--;
+        if (parenDepth === 0) {
+          let nameStart = i - 1;
+          while (nameStart >= 0 && /[a-zA-Z0-9_]/.test(sql[nameStart])) {
+            nameStart--;
+          }
+          nameStart++;
+          aggName = sql.substring(nameStart, i).trim().toUpperCase();
+          aggParam = sql.substring(i + 1, aggCloseParen).trim();
+          aggStart = nameStart;
+          break;
+        }
+      }
+    }
+
+    if (aggStart !== -1 && ["COUNT", "SUM", "AVG", "MIN", "MAX"].includes(aggName)) {
+      let replacement = "";
+      if (aggName === "COUNT" && aggParam === "*") {
+        replacement = `SUM(CASE WHEN ${condition} THEN 1 ELSE 0 END)`;
+      } else if (aggName === "COUNT") {
+        replacement = `COUNT(CASE WHEN ${condition} THEN ${aggParam} ELSE NULL END)`;
+      } else {
+        replacement = `${aggName}(CASE WHEN ${condition} THEN ${aggParam} ELSE NULL END)`;
+      }
+
+      sql = sql.substring(0, aggStart) + replacement + sql.substring(closeParenIndex + 1);
+      index = aggStart + replacement.length;
+    } else {
+      index = closeParenIndex + 1;
+    }
+  }
+
+  return sql;
+}
+
 // ── PG → SQLite SQL translation ────────────────────────────────────────────
 
 function translateSQL(pgSQL: string, params: any[]): { sql: string; params: any[] } {
@@ -170,6 +251,9 @@ function translateSQL(pgSQL: string, params: any[]): { sql: string; params: any[
 
   // Replace $1, $2, ... with ?
   sql = sql.replace(/\$(\d+)/g, "?");
+
+  // Replace TRUNCATE with DELETE FROM for SQLite compatibility
+  sql = sql.replace(/truncate\s+table\s+("?[a-zA-Z0-9_]+"?)(\s+cascade)?/gi, "DELETE FROM $1");
 
   // Replace PG-specific functions
   sql = sql.replace(/gen_random_uuid\(\)/gi, "'" + randomUUID() + "'");
@@ -180,6 +264,9 @@ function translateSQL(pgSQL: string, params: any[]): { sql: string; params: any[
   sql = sql.replace(/::uuid/gi, "");
   sql = sql.replace(/::jsonb/gi, "");
   sql = sql.replace(/::json/gi, "");
+
+  // Translate FILTER (WHERE ...) clauses
+  sql = translateFilterClauses(sql);
 
   // Handle "returning" clause - SQLite supports RETURNING in newer versions
   // but node:sqlite may not. We'll handle it specially.
@@ -197,10 +284,142 @@ function translateSQL(pgSQL: string, params: any[]): { sql: string; params: any[
   return { sql, params: translatedParams };
 }
 
+// Helper to fill defaults/UUIDs for SQLite INSERT queries where columns/values are omitted or set to DEFAULT
+function fillInsertDefaults(sql: string): string {
+  const insertRegex = /^\s*insert\s+into\s+("?[a-zA-Z0-9_]+"?)?\s*\(([^)]+)\)\s+values\s+([\s\S]+)$/i;
+  const match = sql.match(insertRegex);
+  if (!match) return sql;
+
+  const rawTableName = match[1] || "";
+  const tableName = rawTableName.replace(/"/g, "").trim();
+  const columnsStr = match[2];
+  const valuesBlock = match[3];
+
+  const meta = tableMetas[tableName];
+  if (!meta) return sql;
+
+  // Split columns by comma and trim quotes
+  const cols = columnsStr.split(",").map(c => c.trim().replace(/"/g, ""));
+
+  // Separate VALUES from RETURNING
+  let valuesPart = valuesBlock;
+  let returningPart = "";
+  const returningMatch = valuesBlock.match(/\s+returning\s+[\s\S]+$/i);
+  if (returningMatch) {
+    returningPart = returningMatch[0];
+    valuesPart = valuesBlock.substring(0, valuesBlock.length - returningPart.length);
+  }
+
+  // Parse row values: find all text inside parentheses
+  const rows: string[][] = [];
+  let depth = 0;
+  let currentWord = "";
+  let currentRow: string[] = [];
+  let inRow = false;
+
+  for (let i = 0; i < valuesPart.length; i++) {
+    const char = valuesPart[i];
+    if (char === "(" && !inRow) {
+      inRow = true;
+      currentRow = [];
+      currentWord = "";
+    } else if (char === ")" && inRow) {
+      if (currentWord.trim()) currentRow.push(currentWord.trim());
+      rows.push(currentRow);
+      inRow = false;
+    } else if (inRow) {
+      if (char === ",") {
+        currentRow.push(currentWord.trim());
+        currentWord = "";
+      } else {
+        currentWord += char;
+      }
+    }
+  }
+
+  if (rows.length === 0) return sql;
+
+  // Find omitted columns that need default values supplied
+  const finalCols = [...cols];
+  const colsToAdd: typeof meta.columns = [];
+
+  for (const col of meta.columns) {
+    if (!cols.includes(col.name)) {
+      if (col.primaryKey || col.name === "id" || (col.hasDefault && col.notNull)) {
+        colsToAdd.push(col);
+        finalCols.push(col.name);
+      }
+    }
+  }
+
+  // Process rows
+  const newRowsStr = rows.map(rowVals => {
+    const finalRowVals = [...rowVals];
+
+    // 1. Replace explicit default/NULL values on primary keys/defaults
+    for (let i = 0; i < cols.length; i++) {
+      const colName = cols[i];
+      const col = meta.columns.find(c => c.name === colName);
+      if (!col) continue;
+
+      const val = finalRowVals[i] ? finalRowVals[i].trim().toLowerCase() : "";
+      if (val === "default" || (val === "null" && (col.primaryKey || col.name === "id" || (col.notNull && col.hasDefault)))) {
+        if (col.primaryKey || col.name === "id") {
+          finalRowVals[i] = `'${randomUUID()}'`;
+        } else if (col.hasDefault) {
+          if (col.dataType === "date" || col.columnType.toLowerCase().includes("timestamp")) {
+            finalRowVals[i] = `'${new Date().toISOString()}'`;
+          } else if (col.dataType === "boolean") {
+            if (col.name === "is_active" || col.name === "isActive") {
+              finalRowVals[i] = "1";
+            } else {
+              finalRowVals[i] = "0";
+            }
+          } else if (col.name === "status") {
+            finalRowVals[i] = "'pending'";
+          } else {
+            finalRowVals[i] = "NULL";
+          }
+        } else {
+          finalRowVals[i] = "NULL";
+        }
+      }
+    }
+
+    // 2. Append values for omitted columns
+    for (const col of colsToAdd) {
+      if (col.primaryKey || col.name === "id") {
+        finalRowVals.push(`'${randomUUID()}'`);
+      } else if (col.dataType === "date" || col.columnType.toLowerCase().includes("timestamp")) {
+        finalRowVals.push(`'${new Date().toISOString()}'`);
+      } else if (col.dataType === "boolean") {
+        if (col.name === "is_active" || col.name === "isActive") {
+          finalRowVals.push("1");
+        } else {
+          finalRowVals.push("0");
+        }
+      } else if (col.name === "status") {
+        finalRowVals.push("'pending'");
+      } else {
+        finalRowVals.push("NULL");
+      }
+    }
+
+    return `(${finalRowVals.join(", ")})`;
+  });
+
+  const finalColsStr = finalCols.map(c => `"${c}"`).join(", ");
+  return `INSERT INTO ${rawTableName} (${finalColsStr}) VALUES ${newRowsStr.join(", ")}${returningPart}`;
+}
+
 // ── Execute SQL on SQLite ──────────────────────────────────────────────────
 
 function executeSQLite(pgSQL: string, pgParams: any[]): any[] {
-  const { sql, params } = translateSQL(pgSQL, pgParams);
+  let { sql, params } = translateSQL(pgSQL, pgParams);
+
+  if (/^\s*insert/i.test(sql)) {
+    sql = fillInsertDefaults(sql);
+  }
   const isSelect = /^\s*select/i.test(sql);
   const isInsert = /^\s*insert/i.test(sql);
   const isUpdate = /^\s*update/i.test(sql);
@@ -240,15 +459,7 @@ function executeSQLite(pgSQL: string, pgParams: any[]): any[] {
     }
 
     if (isInsert || isUpdate || isDelete) {
-      // Handle INSERT with "default" values - replace with actual defaults
-      let fixedSql = sql;
-      if (isInsert) {
-        // Replace bare "default" keyword with NULL (SQLite doesn't support DEFAULT in VALUES)
-        fixedSql = fixedSql.replace(/,\s*default\s*([,)])/gi, ", NULL$1");
-        fixedSql = fixedSql.replace(/\(\s*default\s*,/gi, "(NULL,");
-        fixedSql = fixedSql.replace(/,\s*default\s*\)/gi, ", NULL)");
-      }
-      const stmt = sqlite.prepare(fixedSql);
+      const stmt = sqlite.prepare(sql);
       stmt.run(...params);
       persistToJson();
       return [];
@@ -685,7 +896,8 @@ function buildQueryProxy(): Record<string, any> {
     "admissionPayments", "students", "courses", "courseBatches",
     "modules", "lessons", "quizzes", "quizQuestions",
     "quizAttempts", "notifications", "jobPostings", "jobApplications",
-    "certificates", "auditLogs",
+    "certificates", "auditLogs", "digitalLibrary", "lessonProgress",
+    "projects", "projectSubmissions",
   ];
 
   for (const key of schemaKeys) {

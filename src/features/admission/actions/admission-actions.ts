@@ -16,24 +16,35 @@ import { establishSessionAction } from "@/features/auth/actions/auth-actions";
  * Public Action: Submit new applicant application.
  */
 export async function submitAdmissionApplicationAction(formData: any) {
-  const tenant = await getTenantContext();
-  if (!tenant) {
-    throw new Error("No tenant resolved from context.");
-  }
-
-  // Validate form inputs
-  const parsed = admissionApplicationSchema.safeParse(formData);
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.issues.map((e: any) => e.message).join(", "),
-    };
-  }
+  const fs = require("fs");
+  const path = require("path");
+  const logFile = path.join(process.cwd(), "debug.log");
 
   try {
+    fs.appendFileSync(logFile, `[ADMISSION ACTION] starting submission with: ${JSON.stringify(formData)}\n`);
+    const tenant = await getTenantContext();
+    if (!tenant) {
+      fs.appendFileSync(logFile, `[ADMISSION ACTION] ERROR: No tenant context.\n`);
+      throw new Error("No tenant resolved from context.");
+    }
+    fs.appendFileSync(logFile, `[ADMISSION ACTION] resolved tenant: ${tenant.id} (${tenant.subdomain})\n`);
+
+    const parsed = admissionApplicationSchema.safeParse(formData);
+    if (!parsed.success) {
+      const errStr = parsed.error.issues.map((e: any) => e.message).join(", ");
+      fs.appendFileSync(logFile, `[ADMISSION ACTION] Zod validation failed: ${errStr}\n`);
+      return {
+        success: false,
+        error: errStr,
+      };
+    }
+
+    fs.appendFileSync(logFile, `[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication\n`);
     const app = await AdmissionService.submitApplication(tenant.id, parsed.data);
+    fs.appendFileSync(logFile, `[ADMISSION ACTION] submitApplication success: ${app.id}\n`);
     return { success: true, applicationId: app.id };
   } catch (error: any) {
+    fs.appendFileSync(logFile, `[ADMISSION ACTION] CATCH ERROR: ${error.message || error}\nStack: ${error.stack}\n`);
     return { success: false, error: error.message || "Failed to submit application." };
   }
 }
@@ -42,18 +53,27 @@ export async function submitAdmissionApplicationAction(formData: any) {
  * Public Action: Submit document details for application.
  */
 export async function submitDocumentAction(applicationId: string, documentName: string, fileUrl: string) {
-  const tenant = await getTenantContext();
-  if (!tenant) throw new Error("No tenant context.");
-
-  const parsed = documentUploadSchema.safeParse({ documentName, fileUrl });
-  if (!parsed.success) {
-    return { success: false, error: "Invalid document details." };
-  }
+  const fs = require("fs");
+  const path = require("path");
+  const logFile = path.join(process.cwd(), "debug.log");
 
   try {
+    fs.appendFileSync(logFile, `[ADMISSION DOCUMENT] starting doc submit: ${applicationId}, ${documentName}, ${fileUrl}\n`);
+    const tenant = await getTenantContext();
+    if (!tenant) throw new Error("No tenant context.");
+
+    const parsed = documentUploadSchema.safeParse({ documentName, fileUrl });
+    if (!parsed.success) {
+      fs.appendFileSync(logFile, `[ADMISSION DOCUMENT] invalid schema\n`);
+      return { success: false, error: "Invalid document details." };
+    }
+
+    fs.appendFileSync(logFile, `[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument\n`);
     const doc = await AdmissionService.uploadDocument(tenant.id, applicationId, documentName, fileUrl);
+    fs.appendFileSync(logFile, `[ADMISSION DOCUMENT] uploadDocument success: ${doc.id}\n`);
     return { success: true, documentId: doc.id };
   } catch (error: any) {
+    fs.appendFileSync(logFile, `[ADMISSION DOCUMENT] CATCH ERROR: ${error.message || error}\nStack: ${error.stack}\n`);
     return { success: false, error: error.message };
   }
 }
@@ -299,7 +319,12 @@ export async function getPublicApplicationDetailsAction(applicationId: string) {
         lastName: details.lastName,
         email: details.email,
         phone: details.phone,
-        dateOfBirth: details.dateOfBirth ? details.dateOfBirth.toISOString().split("T")[0] : "",
+        dateOfBirth: details.dateOfBirth 
+          ? (typeof details.dateOfBirth === "string" 
+              ? new Date(details.dateOfBirth) 
+              : details.dateOfBirth
+            ).toISOString().split("T")[0] 
+          : "",
         batchId: details.batchId,
         status: details.status,
       }

@@ -7,7 +7,7 @@ import { FacultyRepository } from "@/features/faculty/repository/faculty-reposit
 import { ScheduleClassForm } from "@/features/faculty/components/ScheduleClassForm";
 import { FacultyQuickConfigForm } from "@/features/faculty/components/FacultyQuickConfigForm";
 import { db } from "@/db/db";
-import { courses, users } from "@/db/schema";
+import { courses, users, projectSubmissions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { FacultyDashboardClient } from "@/features/faculty/components/FacultyDashboardClient";
 
@@ -52,6 +52,24 @@ export default async function FacultyPage({ searchParams }: PageProps) {
 
   // 4. Fetch recent quiz attempts
   const recentAttempts = await FacultyRepository.getRecentAttempts(tenant.id);
+
+  // 5. Fetch project submissions
+  const projectSubmissionsList = await db.query.projectSubmissions.findMany({
+    where: eq(projectSubmissions.tenantId, tenant.id),
+    orderBy: (ps: any, { desc }: any) => [desc(ps.submittedAt)],
+    with: {
+      project: {
+        with: {
+          course: true,
+        },
+      },
+      student: {
+        with: {
+          user: true,
+        },
+      },
+    },
+  });
 
   const dbUser = await db.query.users.findFirst({
     where: eq(users.id, user.userId),
@@ -105,6 +123,7 @@ export default async function FacultyPage({ searchParams }: PageProps) {
         selectedBatchId={selectedBatchId}
         primaryColor={primaryColor}
         courses={coursesWithModules}
+        projectSubmissions={projectSubmissionsList}
       />
     </DashboardLayout>
   );

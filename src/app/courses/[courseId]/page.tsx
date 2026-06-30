@@ -4,8 +4,8 @@ import { requireAuth } from "@/features/auth/services/session";
 import { CourseRepository } from "@/features/course/repository/course-repository";
 import { QuizRepository } from "@/features/quiz/repository/quiz-repository";
 import { db } from "@/db/db";
-import { students, users, quizzes } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { students, users, quizzes, lessonProgress, projects, projectSubmissions } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkspaceClient } from "@/features/course/components/WorkspaceClient";
 
@@ -91,6 +91,34 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
     },
   });
 
+  if (!studentProfile) {
+    redirect("/dashboard");
+  }
+
+  // Fetch lesson completions for this student
+  const progresses = await db.query.lessonProgress.findMany({
+    where: eq(lessonProgress.studentId, studentProfile.id),
+  });
+
+  const completedLessonIds = progresses
+    .filter((p) => p.completed)
+    .map((p) => p.lessonId);
+
+  // Fetch capstone project details for this course
+  const capstoneProject = await db.query.projects.findFirst({
+    where: eq(projects.courseId, courseId),
+  });
+
+  let capstoneSubmission = null;
+  if (capstoneProject) {
+    capstoneSubmission = await db.query.projectSubmissions.findFirst({
+      where: and(
+        eq(projectSubmissions.projectId, capstoneProject.id),
+        eq(projectSubmissions.studentId, studentProfile.id)
+      ),
+    });
+  }
+
   const dbUser = await db.query.users.findFirst({
     where: eq(users.id, user.userId),
   });
@@ -110,6 +138,9 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
         quizzes={courseQuizzes}
         activeLesson={activeLesson}
         activeQuiz={activeQuiz}
+        completedLessonIds={completedLessonIds}
+        capstoneProject={capstoneProject}
+        capstoneSubmission={capstoneSubmission}
         tenantName={tenant.name}
         primaryColor={tenant.branding?.primaryColor}
         user={userData}

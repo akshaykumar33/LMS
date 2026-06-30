@@ -119,9 +119,10 @@ export function DashboardLayout({ children, user, tenant, studentProfile }: Dash
         {
           title: "Learning Hub",
           items: [
-            { name: "Dashboard", href: "/dashboard", icon: Home },
-            { name: "Active Courses", href: "/courses", icon: BookOpen },
-            { name: "Progress & Analytics", href: "/progress", icon: BarChart3 },
+            {name: "Dashboard", href: "/dashboard", icon: Home},
+            {name: "Active Courses", href: "/courses", icon: BookOpen},
+            {name: "Digital Library", href: "/library", icon: Sparkles},
+            {name: "Progress & Analytics", href: "/progress", icon: BarChart3},
           ]
         },
         {

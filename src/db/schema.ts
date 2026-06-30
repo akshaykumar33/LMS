@@ -401,6 +401,7 @@ export const jobPostings = pgTable("job_postings", {
   salary: varchar("salary", { length: 100 }),
   location: varchar("location", { length: 255 }).notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  type: varchar("type", { length: 50 }).notNull().default("job"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -470,6 +471,80 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   tenant: one(tenants, { fields: [auditLogs.tenantId], references: [tenants.id] }),
   actor: one(users, { fields: [auditLogs.actorId], references: [users.id] }),
 }));
+
+// 23. DIGITAL LIBRARY TABLE
+export const digitalLibrary = pgTable("digital_library", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  author: varchar("author", { length: 255 }),
+  description: text("description"),
+  fileUrl: text("file_url").notNull(),
+  category: varchar("category", { length: 100 }).notNull().default("book"), // book, research_paper, manual, worksheet
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const digitalLibraryRelations = relations(digitalLibrary, ({ one }) => ({
+  tenant: one(tenants, { fields: [digitalLibrary.tenantId], references: [tenants.id] }),
+}));
+
+// 24. LESSON PROGRESS TABLE (Real progress tracking)
+export const lessonProgress = pgTable("lesson_progress", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  studentId: uuid("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  lessonId: uuid("lesson_id").notNull().references(() => lessons.id, { onDelete: "cascade" }),
+  completed: boolean("completed").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => {
+  return {
+    studentLessonIdx: index("lesson_progress_student_lesson_idx").on(table.studentId, table.lessonId),
+  };
+});
+
+export const lessonProgressRelations = relations(lessonProgress, ({ one }) => ({
+  student: one(students, { fields: [lessonProgress.studentId], references: [students.id] }),
+  lesson: one(lessons, { fields: [lessonProgress.lessonId], references: [lessons.id] }),
+}));
+
+// 25. CAPSTONE PROJECTS TABLE
+export const projects = pgTable("projects", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  courseId: uuid("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  difficulty: varchar("difficulty", { length: 50 }).notNull().default("Intermediate"), // Easy, Intermediate, Advanced
+  durationWeeks: integer("duration_weeks").notNull().default(4),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [projects.tenantId], references: [tenants.id] }),
+  course: one(courses, { fields: [projects.courseId], references: [courses.id] }),
+  submissions: many(projectSubmissions),
+}));
+
+// 26. PROJECT SUBMISSIONS TABLE
+export const projectSubmissions = pgTable("project_submissions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  studentId: uuid("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  gitRepoUrl: text("git_repo_url").notNull(),
+  documentationUrl: text("documentation_url"),
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, reviewed, changes_requested
+  grade: varchar("grade", { length: 50 }),
+  feedback: text("feedback"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const projectSubmissionsRelations = relations(projectSubmissions, ({ one }) => ({
+  tenant: one(tenants, { fields: [projectSubmissions.tenantId], references: [tenants.id] }),
+  project: one(projects, { fields: [projectSubmissions.projectId], references: [projects.id] }),
+  student: one(students, { fields: [projectSubmissions.studentId], references: [students.id] }),
+}));
+
 
 
 

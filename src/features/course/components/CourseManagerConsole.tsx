@@ -15,6 +15,7 @@ interface Lesson {
   contentType: string;
   content: string | null;
   videoUrl: string | null;
+  fileUrl?: string | null;
   order: number;
 }
 
@@ -109,6 +110,7 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7" 
       title: editingLesson.title,
       content: editingLesson.content || "",
       videoUrl: editingLesson.videoUrl || "",
+      fileUrl: editingLesson.fileUrl || "",
     });
     setIsSubmitting(false);
 
@@ -438,6 +440,17 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7" 
                 value={editingLesson.videoUrl || ""}
                 placeholder="https://youtube.com/... or cloudflarestream.com/..."
                 onChange={(e) => setEditingLesson({ ...editingLesson, videoUrl: e.target.value })}
+                className="h-10 text-xs"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground font-bold uppercase">Worksheet PDF / Document URL (Optional)</Label>
+              <Input
+                type="url"
+                value={editingLesson.fileUrl || ""}
+                placeholder="https://example.com/handout.pdf"
+                onChange={(e) => setEditingLesson({ ...editingLesson, fileUrl: e.target.value })}
                 className="h-10 text-xs"
               />
             </div>

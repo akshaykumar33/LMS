@@ -1,6 +1,6 @@
 import { db } from "@/db/db";
-import { quizAttempts, quizzes, courses, students, courseBatches, admissionApplications, users } from "@/db/schema";
-import { eq, and, desc, count, avg, sql } from "drizzle-orm";
+import { quizAttempts, quizzes, courses, students, courseBatches, admissionApplications, users, modules, lessons, lessonProgress } from "@/db/schema";
+import { eq, and, desc, count, avg, sql, inArray } from "drizzle-orm";
 
 export class AnalyticsRepository {
   /**
@@ -53,12 +53,50 @@ export class AnalyticsRepository {
 
     const scoreMap = new Map<any, any>(bestScores.map(s => [s.courseId, s]));
 
-    return enrolledCourses.map(c => ({
-      ...c,
-      bestScore: scoreMap.get(c.id)?.bestScore ?? null,
-      totalAttempts: scoreMap.get(c.id)?.totalAttempts ?? 0,
-      hasPassed: scoreMap.get(c.id)?.hasPassed ?? false,
-    }));
+    const courseIds = enrolledCourses.map(c => c.id);
+    let modulesList: any[] = [];
+    let completedList: any[] = [];
+
+    if (courseIds.length > 0) {
+      modulesList = await db.query.modules.findMany({
+        where: inArray(modules.courseId, courseIds),
+        with: {
+          lessons: true
+        }
+      });
+
+      completedList = await db.query.lessonProgress.findMany({
+        where: and(
+          eq(lessonProgress.studentId, studentId),
+          eq(lessonProgress.completed, true)
+        )
+      });
+    }
+
+    // Map courseId -> all lessons
+    const courseLessonsMap = new Map<string, string[]>();
+    for (const mod of modulesList) {
+      const existing = courseLessonsMap.get(mod.courseId) || [];
+      const lessonIds = (mod.lessons || []).map((l: any) => l.id);
+      courseLessonsMap.set(mod.courseId, [...existing, ...lessonIds]);
+    }
+
+    const completedLessonIdsSet = new Set(completedList.map(p => p.lessonId));
+
+    return enrolledCourses.map(c => {
+      const courseLessonIds = courseLessonsMap.get(c.id) || [];
+      const totalLessons = courseLessonIds.length;
+      const completedCount = courseLessonIds.filter(id => completedLessonIdsSet.has(id)).length;
+      const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
+
+      return {
+        ...c,
+        bestScore: scoreMap.get(c.id)?.bestScore ?? null,
+        totalAttempts: scoreMap.get(c.id)?.totalAttempts ?? 0,
+        hasPassed: scoreMap.get(c.id)?.hasPassed ?? false,
+        progressPercent,
+      };
+    });
   }
 
   /**

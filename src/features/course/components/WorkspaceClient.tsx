@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { QuizWorkspace } from "@/features/quiz/components/QuizWorkspace";
+import { toggleLessonCompletionAction, submitProjectAction } from "../actions/course-actions";
 
 interface Lesson {
   id: string;
@@ -19,6 +20,7 @@ interface Lesson {
   videoUrl: string | null;
   zoomMeetingId?: string | null;
   zoomPasscode?: string | null;
+  fileUrl?: string | null;
 }
 
 interface Module {
@@ -47,9 +49,13 @@ interface WorkspaceClientProps {
   quizzes: QuizItem[];
   activeLesson: Lesson | null;
   activeQuiz: any | null;
+  completedLessonIds: string[];
+  capstoneProject?: any | null;
+  capstoneSubmission?: any | null;
   tenantName: string;
   primaryColor?: string;
   user: {
+    userId: string;
     firstName: string;
     lastName: string;
   };
@@ -60,6 +66,9 @@ export function WorkspaceClient({
   quizzes, 
   activeLesson, 
   activeQuiz, 
+  completedLessonIds = [],
+  capstoneProject,
+  capstoneSubmission,
   tenantName, 
   primaryColor = "#0ea5e9",
   user
@@ -67,7 +76,30 @@ export function WorkspaceClient({
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<"material" | "whiteboard" | "notes" | "chat">("material");
+  const [activeTab, setActiveTab] = useState<"material" | "whiteboard" | "notes" | "chat" | "capstone">("material");
+
+  // Lesson completions
+  const [completedLessons, setCompletedLessons] = useState<string[]>(completedLessonIds);
+  const [updatingProgress, setUpdatingProgress] = useState(false);
+  const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Capstone submission local states
+  const [isResubmitting, setIsResubmitting] = useState(false);
+  const [submittingProject, setSubmittingProject] = useState(false);
+  const [projectGitUrl, setProjectGitUrl] = useState("");
+  const [projectDocUrl, setProjectDocUrl] = useState("");
+  const [localSubmission, setLocalSubmission] = useState<any>(null);
+
+  useEffect(() => {
+    setLocalSubmission(capstoneSubmission);
+    setProjectGitUrl(capstoneSubmission?.gitRepoUrl || "");
+    setProjectDocUrl(capstoneSubmission?.documentationUrl || "");
+    setIsResubmitting(false);
+  }, [capstoneSubmission]);
+
+  useEffect(() => {
+    setCompletedLessons(completedLessonIds);
+  }, [completedLessonIds]);
 
   // Notes Auto-saving state
   const [notes, setNotes] = useState("");
@@ -138,6 +170,76 @@ export function WorkspaceClient({
     }, 1000);
     return () => clearTimeout(delayDebounce);
   }, [notes, activeLesson]);
+
+  const handleToggleComplete = async (lessonId: string) => {
+    const isCompleted = completedLessons.includes(lessonId);
+    setUpdatingProgress(true);
+    try {
+      const res = await toggleLessonCompletionAction(lessonId, !isCompleted);
+      if (res.success) {
+        if (!isCompleted) {
+          confetti({
+            particleCount: 80,
+            spread: 50,
+            origin: { y: 0.8 }
+          });
+          setCompletedLessons(prev => [...prev, lessonId]);
+          setNotification({
+            type: "success",
+            message: "Lesson completed! +50 XP awarded to your learning profile.",
+          });
+        } else {
+          setCompletedLessons(prev => prev.filter(id => id !== lessonId));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUpdatingProgress(false);
+      setTimeout(() => setNotification(null), 5000);
+    }
+  };
+
+  const handleProjectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!capstoneProject) return;
+    setSubmittingProject(true);
+    try {
+      const res = await submitProjectAction(capstoneProject.id, projectGitUrl, projectDocUrl);
+      if (res.success) {
+        confetti({
+          particleCount: 100,
+          spread: 60,
+          origin: { y: 0.8 }
+        });
+        setLocalSubmission({
+          gitRepoUrl: projectGitUrl,
+          documentationUrl: projectDocUrl,
+          status: "pending",
+          score: null,
+          feedback: null
+        } as any);
+        setIsResubmitting(false);
+        setNotification({
+          type: "success",
+          message: "Capstone project submitted successfully! Our faculty will review it soon.",
+        });
+      } else {
+        setNotification({
+          type: "error",
+          message: res.error || "Submission failed. Please try again.",
+        });
+      }
+    } catch (err: any) {
+      setNotification({
+        type: "error",
+        message: err.message || "An unexpected error occurred.",
+      });
+    } finally {
+      setSubmittingProject(false);
+      setTimeout(() => setNotification(null), 5000);
+    }
+  };
 
   // Whiteboard drawing functions with dynamic container size synchronization
   useEffect(() => {
@@ -339,17 +441,22 @@ export function WorkspaceClient({
                     <div key={les.id} className="space-y-0.5">
                       <a
                         href={`/courses/${course.id}?lessonId=${les.id}`}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                        className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
                           isActive 
                             ? "bg-primary/10 text-primary border-l-2" 
                             : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
                         }`}
                         style={isActive ? { borderLeftColor: primaryColor, color: primaryColor } : undefined}
                       >
-                        <span className="shrink-0 text-sm">
-                          {les.contentType === "video" ? "📺" : les.contentType === "live_class" ? "🎥" : "📄"}
-                        </span>
-                        <span className="truncate flex-1">{les.title}</span>
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span className="shrink-0 text-sm">
+                            {les.contentType === "video" ? "📺" : les.contentType === "live_class" ? "🎥" : "📄"}
+                          </span>
+                          <span className="truncate flex-1">{les.title}</span>
+                        </div>
+                        {completedLessons.includes(les.id) && (
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        )}
                       </a>
 
                       {lessonQuiz && (
@@ -460,12 +567,18 @@ export function WorkspaceClient({
               {/* Tab Navigation header */}
               <div className="h-11 border-b border-border bg-card/25 flex items-center justify-between px-6 shrink-0">
                 <div className="flex gap-2">
-                  {[
-                    { id: "material", label: "Study Materials", icon: FileText },
-                    { id: "whiteboard", label: "Drawing Board", icon: BrainCircuit },
-                    { id: "notes", label: "Notebook", icon: Edit3 },
-                    { id: "chat", label: "Discussion Hub", icon: MessageSquare }
-                  ].map((tab) => {
+                  {((): any[] => {
+                    const list = [
+                      { id: "material", label: "Study Materials", icon: FileText },
+                      { id: "whiteboard", label: "Drawing Board", icon: BrainCircuit },
+                      { id: "notes", label: "Notebook", icon: Edit3 },
+                      { id: "chat", label: "Discussion Hub", icon: MessageSquare }
+                    ];
+                    if (capstoneProject) {
+                      list.push({ id: "capstone", label: "Capstone Project", icon: Award });
+                    }
+                    return list;
+                  })().map((tab) => {
                     const Icon = tab.icon;
                     const isSel = activeTab === tab.id;
                     return (
@@ -493,9 +606,22 @@ export function WorkspaceClient({
                   </span>
                 )}
               </div>
-
-              {/* Tab content display */}
+                         {/* Tab content display */}
               <div className="flex-1 overflow-y-auto p-6 bg-card/10">
+                {notification && (
+                  <div className={`mb-6 p-4 rounded-xl text-xs font-semibold flex items-center justify-between border animate-in slide-in-from-top duration-300 ${
+                    notification.type === "success"
+                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500 dark:text-emerald-400"
+                      : "bg-red-500/10 border-red-500/20 text-red-500 dark:text-red-400"
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-500" />
+                      <span>{notification.message}</span>
+                    </div>
+                    <button onClick={() => setNotification(null)} className="text-muted-foreground hover:text-foreground p-1 text-sm font-bold">✕</button>
+                  </div>
+                )}
+
                 {activeTab === "material" && (
                   <div className="space-y-5 max-w-3xl">
                     <div className="space-y-2">
@@ -504,6 +630,52 @@ export function WorkspaceClient({
                         {activeLesson.content || "Read the conceptual transcript notes. Use the Notebook tab to capture equations or notes."}
                       </p>
                     </div>
+
+                    {activeLesson.fileUrl && (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-primary/5 border border-primary/20 p-4 rounded-xl">
+                        <div className="space-y-1">
+                          <span className="text-[9px] font-black uppercase text-primary tracking-wider">Lesson Attachment</span>
+                          <h4 className="text-xs font-bold text-foreground">Practical Handout / Worksheet PDF</h4>
+                          <p className="text-[10px] text-muted-foreground">Download the exercises and practice problems for this module.</p>
+                        </div>
+                        <a 
+                          href={activeLesson.fileUrl} 
+                          download
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 bg-primary hover:opacity-95 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer self-stretch sm:self-auto justify-center"
+                          style={{ backgroundColor: primaryColor }}
+                        >
+                          <Download className="w-3.5 h-3.5" /> Download Worksheet
+                        </a>
+                      </div>
+                    )}
+
+                    <div className="border-t border-border/60 pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                      <div className="space-y-0.5">
+                        <h4 className="text-xs font-bold text-foreground">Lesson Completion</h4>
+                        <p className="text-[10px] text-muted-foreground">Mark this lesson as completed to update your learning streak and earn +50 XP.</p>
+                      </div>
+                      <button
+                        onClick={() => handleToggleComplete(activeLesson.id)}
+                        disabled={updatingProgress}
+                        className={`h-10 px-5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer ${
+                          completedLessons.includes(activeLesson.id)
+                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20"
+                            : "text-white hover:opacity-95"
+                        }`}
+                        style={!completedLessons.includes(activeLesson.id) ? { backgroundColor: primaryColor } : undefined}
+                      >
+                        {completedLessons.includes(activeLesson.id) ? (
+                          <>
+                            <CheckCircle className="w-4 h-4 text-emerald-500" /> Lesson Completed
+                          </>
+                        ) : (
+                          "Mark as Complete (+50 XP)"
+                        )}
+                      </button>
+                    </div>
+
                     <div className="bg-secondary/10 border border-border p-4 rounded-xl space-y-2 text-xs text-muted-foreground leading-relaxed font-sans">
                       <strong className="text-foreground block text-[10px] uppercase font-black tracking-wider">Fabrication Guidelines</strong>
                       <p>
@@ -666,6 +838,151 @@ export function WorkspaceClient({
                         <Send className="w-3.5 h-3.5" />
                       </button>
                     </form>
+                  </div>
+                )}
+
+                {activeTab === "capstone" && (
+                  <div className="space-y-6 max-w-3xl">
+                    {!capstoneProject ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                        <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center text-lg">
+                          🏆
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-xs font-bold text-foreground">No Capstone Project Assigned</h4>
+                          <p className="text-[10px] text-muted-foreground">This course does not require a capstone project submission.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Project Header details */}
+                        <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent border border-border p-6 rounded-2xl space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black uppercase text-amber-500 tracking-wider">Course Capstone</span>
+                            <div className="flex gap-2">
+                              <span className="text-[9px] font-black bg-secondary border px-2 py-0.5 rounded text-muted-foreground">{capstoneProject.difficulty}</span>
+                              <span className="text-[9px] font-black bg-secondary border px-2 py-0.5 rounded text-muted-foreground">{capstoneProject.durationWeeks} Weeks Duration</span>
+                            </div>
+                          </div>
+                          <h3 className="text-sm font-extrabold text-foreground">{capstoneProject.title}</h3>
+                          <div className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line font-sans border-t border-border/60 pt-4">
+                            {capstoneProject.description}
+                          </div>
+                        </div>
+
+                        {/* Submission status or form */}
+                        {localSubmission && !isResubmitting ? (
+                          <div className="bg-card border border-border p-6 rounded-2xl space-y-4 shadow-sm animate-in fade-in duration-200">
+                            <div className="flex items-center justify-between border-b border-border/80 pb-3">
+                              <h4 className="text-xs font-extrabold text-foreground">Your Submission</h4>
+                              <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md border ${
+                                localSubmission.status === "approved" 
+                                  ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-500" 
+                                  : localSubmission.status === "failed"
+                                    ? "bg-red-500/15 border-red-500/30 text-red-500"
+                                    : "bg-amber-500/15 border-amber-500/30 text-amber-500"
+                              }`}>
+                                {localSubmission.status === "approved" ? "Approved" : localSubmission.status === "failed" ? "Changes Requested" : "Pending Review"}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                              <div className="space-y-1">
+                                <span className="text-[9px] font-bold text-muted-foreground block">Git Repository:</span>
+                                <a href={localSubmission.gitRepoUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold break-all">
+                                  {localSubmission.gitRepoUrl}
+                                </a>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-[9px] font-bold text-muted-foreground block">Design Report:</span>
+                                <a href={localSubmission.documentationUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold break-all">
+                                  {localSubmission.documentationUrl}
+                                </a>
+                              </div>
+                            </div>
+
+                            {localSubmission.score !== null && (
+                              <div className="bg-secondary/20 border border-border/40 p-4 rounded-xl space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Grade Evaluation</span>
+                                  <span className="text-xs font-black text-foreground">{localSubmission.score} / 100</span>
+                                </div>
+                                {localSubmission.feedback && (
+                                  <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                                    "{localSubmission.feedback}"
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            {localSubmission.status !== "approved" && (
+                              <button
+                                onClick={() => setIsResubmitting(true)}
+                                className="w-full h-10 rounded-xl text-xs font-extrabold border border-border hover:bg-secondary flex items-center justify-center transition-all cursor-pointer"
+                              >
+                                Edit and Re-submit Project
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          /* Submission Form */
+                          <form onSubmit={handleProjectSubmit} className="bg-card border border-border p-6 rounded-2xl space-y-4 shadow-sm animate-in fade-in duration-200">
+                            <div className="border-b border-border/80 pb-3">
+                              <h4 className="text-xs font-extrabold text-foreground">
+                                {isResubmitting ? "Edit Project Submission" : "Submit Your Capstone Project"}
+                              </h4>
+                              <p className="text-[10px] text-muted-foreground">Provide repository and design documentation URLs below.</p>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Git Repository URL</label>
+                                <input
+                                  type="url"
+                                  required
+                                  placeholder="https://github.com/username/vlsi-capstone"
+                                  value={projectGitUrl}
+                                  onChange={(e) => setProjectGitUrl(e.target.value)}
+                                  className="w-full px-3.5 py-2 bg-secondary/25 border border-border rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Design Report / PDF Link</label>
+                                <input
+                                  type="url"
+                                  required
+                                  placeholder="https://drive.google.com/file/d/.../view"
+                                  value={projectDocUrl}
+                                  onChange={(e) => setProjectDocUrl(e.target.value)}
+                                  className="w-full px-3.5 py-2 bg-secondary/25 border border-border rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                              {isResubmitting && (
+                                <button
+                                  type="button"
+                                  onClick={() => setIsResubmitting(false)}
+                                  className="flex-1 h-10 rounded-xl text-xs font-extrabold border border-border hover:bg-secondary flex items-center justify-center transition-all cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                              <button
+                                type="submit"
+                                disabled={submittingProject}
+                                className="flex-[2] h-10 rounded-xl text-xs font-extrabold text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                                style={{ backgroundColor: primaryColor }}
+                              >
+                                {submittingProject ? "Submitting..." : "Submit Project"}
+                              </button>
+                            </div>
+                          </form>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { StudentProfileModal } from "./StudentProfileModal";
 import { ScheduleClassForm } from "./ScheduleClassForm";
 import { FacultyQuickConfigForm } from "./FacultyQuickConfigForm";
+import { gradeProjectSubmissionAction } from "../actions/faculty-actions";
 import { 
   Search, 
   Users, 
@@ -25,6 +26,7 @@ interface FacultyDashboardClientProps {
   selectedBatchId: string;
   primaryColor: string;
   courses: any[];
+  projectSubmissions?: any[];
 }
 
 export function FacultyDashboardClient({
@@ -33,7 +35,8 @@ export function FacultyDashboardClient({
   batchesList,
   selectedBatchId,
   primaryColor,
-  courses
+  courses,
+  projectSubmissions = []
 }: FacultyDashboardClientProps) {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,15 +44,59 @@ export function FacultyDashboardClient({
   // Tab state (syncs with URL query param if present)
   const [activeTab, setActiveTab] = useState("overview");
 
+  // Project evaluation states
+  const [submissionsList, setSubmissionsList] = useState<any[]>(projectSubmissions);
+  const [selectedSubmission, setSelectedSubmission] = useState<any | null>(null);
+  const [gradeStatus, setGradeStatus] = useState<"approved" | "failed">("approved");
+  const [gradeScore, setGradeScore] = useState<number>(90);
+  const [gradeFeedback, setGradeFeedback] = useState<string>("");
+  const [isGradingSubmitting, setIsGradingSubmitting] = useState(false);
+  const [gradingMessage, setGradingMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    setSubmissionsList(projectSubmissions);
+  }, [projectSubmissions]);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam && ["overview", "roster", "schedule", "curriculum"].includes(tabParam)) {
+      if (tabParam && ["overview", "roster", "schedule", "curriculum", "submissions"].includes(tabParam)) {
         setActiveTab(tabParam);
       }
     }
   }, []);
+
+  const handleGradeSubmission = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSubmission) return;
+    setIsGradingSubmitting(true);
+    setGradingMessage(null);
+
+    const res = await gradeProjectSubmissionAction(selectedSubmission.id, {
+      status: gradeStatus,
+      score: gradeScore,
+      feedback: gradeFeedback,
+    });
+
+    setIsGradingSubmitting(false);
+    if (res.success) {
+      setGradingMessage({ type: "success", text: "Project evaluation submitted successfully!" });
+      setSubmissionsList(prev => prev.map(s => s.id === selectedSubmission.id ? {
+        ...s,
+        status: gradeStatus,
+        grade: gradeScore.toString(),
+        feedback: gradeFeedback
+      } : s));
+      
+      setTimeout(() => {
+        setSelectedSubmission(null);
+        setGradingMessage(null);
+      }, 1200);
+    } else {
+      setGradingMessage({ type: "error", text: res.error || "Failed to submit evaluation." });
+    }
+  };
 
   // Search states
   const [rosterSearch, setRosterSearch] = useState("");
@@ -107,6 +154,7 @@ export function FacultyDashboardClient({
         {[
           { id: "overview", label: "Overview", icon: Trophy },
           { id: "roster", label: "Cohort Roster", icon: Users },
+          { id: "submissions", label: "Capstone Projects", icon: Trophy },
           { id: "schedule", label: "Live Classrooms", icon: Video },
           { id: "curriculum", label: "Curriculum Config", icon: Layers }
         ].map((tab) => {
@@ -455,7 +503,228 @@ export function FacultyDashboardClient({
           </div>
         )}
 
+        {/* SUBMISSIONS TAB */}
+        {activeTab === "submissions" && (
+          <div className="space-y-6">
+            <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-3">
+                <div className="space-y-0.5">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-foreground flex items-center gap-1.5">
+                    <Trophy className="w-4 h-4 text-primary" style={{ color: primaryColor }} /> Capstone Project Submissions
+                  </h3>
+                  <p className="text-[9px] text-muted-foreground">Review, test, and evaluate Capstone Projects submitted by trainees.</p>
+                </div>
+              </div>
+
+              {submissionsList.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px] text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-border/60 text-muted-foreground font-black uppercase tracking-wider text-[9px]">
+                        <th className="py-3 px-4">Trainee</th>
+                        <th className="py-3 px-4">Project</th>
+                        <th className="py-3 px-4">Git Repository</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-center">Score</th>
+                        <th className="py-3 px-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40 font-medium">
+                      {submissionsList.map((sub) => {
+                        const studentName = sub.student?.user 
+                          ? `${sub.student.user.firstName} ${sub.student.user.lastName || ""}`
+                          : "Trainee";
+                        const rollNumber = sub.student?.rollNumber || "N/A";
+                        const projectTitle = sub.project?.title || "Capstone Project";
+                        const courseName = sub.project?.course?.name || "Course";
+
+                        return (
+                          <tr key={sub.id} className="hover:bg-secondary/15 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-foreground">{studentName}</div>
+                              <div className="text-[9px] text-muted-foreground font-mono">{rollNumber}</div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-foreground">{projectTitle}</div>
+                              <div className="text-[9px] text-muted-foreground">{courseName}</div>
+                            </td>
+                            <td className="py-3.5 px-4 font-mono text-[10px]">
+                              <div className="flex items-center gap-2">
+                                <a 
+                                  href={sub.gitRepoUrl} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="text-primary hover:underline font-bold flex items-center gap-0.5"
+                                >
+                                  Repo URL ↗
+                                </a>
+                                {sub.documentationUrl && (
+                                  <a 
+                                    href={sub.documentationUrl} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="text-muted-foreground hover:text-foreground hover:underline flex items-center gap-0.5"
+                                  >
+                                    Docs ↗
+                                  </a>
+                                )}
+                              </div>
+                              <div className="text-[9px] text-muted-foreground mt-0.5">
+                                Sub: {new Date(sub.submittedAt).toLocaleDateString()}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <Badge 
+                                variant="outline" 
+                                className={`text-[8.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${
+                                  sub.status === "approved"
+                                    ? "bg-emerald-500/10 text-emerald-450 border-emerald-500/20"
+                                    : sub.status === "failed"
+                                      ? "bg-rose-500/10 text-rose-450 border-rose-500/20"
+                                      : "bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse"
+                                }`}
+                              >
+                                {sub.status}
+                              </Badge>
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-bold text-foreground">
+                              {sub.grade ? `${sub.grade}/100` : "-"}
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <button
+                                onClick={() => {
+                                  setSelectedSubmission(sub);
+                                  setGradeStatus(sub.status === "failed" ? "failed" : "approved");
+                                  setGradeScore(sub.grade ? parseInt(sub.grade) : 90);
+                                  setGradeFeedback(sub.feedback || "");
+                                  setGradingMessage(null);
+                                }}
+                                className="text-[9px] font-black uppercase tracking-wider bg-primary/10 hover:bg-primary text-primary hover:text-white px-3 py-1.5 rounded-lg border border-primary/20 transition-all cursor-pointer"
+                                style={{ borderColor: primaryColor }}
+                              >
+                                {sub.grade ? "Re-evaluate" : "Evaluate"}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground text-xs font-semibold">
+                  No trainee project submissions recorded yet.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
+
+      {/* Evaluation Modal */}
+      {selectedSubmission && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleGradeSubmission}
+            className="bg-popover border border-border p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl animate-in zoom-in-95 duration-200"
+          >
+            <div className="flex justify-between items-center border-b border-border pb-3">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-primary" style={{ color: primaryColor }}>
+                  Project Evaluation
+                </h3>
+                <h4 className="text-sm font-bold text-foreground mt-1">
+                  {selectedSubmission.student?.user?.firstName} {selectedSubmission.student?.user?.lastName || ""}
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSubmission(null)}
+                className="text-muted-foreground hover:text-foreground text-sm font-bold w-6 h-6 flex items-center justify-center rounded-lg border border-border cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {gradingMessage && (
+              <div 
+                className={`p-3 rounded-lg text-xs font-bold ${
+                  gradingMessage.type === "success" 
+                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                    : "bg-red-500/10 text-red-400 border border-red-500/20"
+                }`}
+              >
+                {gradingMessage.text}
+              </div>
+            )}
+
+            <div className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold">Capstone Project</span>
+                <p className="font-bold text-foreground">{selectedSubmission.project?.title}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-muted-foreground uppercase font-bold">Evaluation Status</label>
+                  <select
+                    value={gradeStatus}
+                    onChange={(e: any) => setGradeStatus(e.target.value)}
+                    className="w-full bg-secondary/35 border border-border rounded-lg p-2 text-foreground focus:outline-none"
+                  >
+                    <option value="approved">Approved / Pass</option>
+                    <option value="failed">Failed / Resubmit</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-muted-foreground uppercase font-bold">Score (0-100)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    required
+                    value={gradeScore}
+                    onChange={(e: any) => setGradeScore(parseInt(e.target.value) || 0)}
+                    className="w-full bg-secondary/35 border border-border rounded-lg p-2 text-foreground focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-muted-foreground uppercase font-bold">Evaluation Feedback / Comments</label>
+                <textarea
+                  required
+                  rows={4}
+                  value={gradeFeedback}
+                  placeholder="Provide structured feedback detailing code quality, circuit layout accuracy, testing coverage, etc."
+                  onChange={(e: any) => setGradeFeedback(e.target.value)}
+                  className="w-full bg-secondary/35 border border-border rounded-lg p-2.5 text-foreground focus:outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-3 border-t border-border/60">
+              <button
+                type="button"
+                onClick={() => setSelectedSubmission(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-secondary hover:bg-secondary/80 border border-border text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isGradingSubmitting}
+                className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-primary cursor-pointer disabled:opacity-50"
+                style={{ backgroundColor: primaryColor }}
+              >
+                {isGradingSubmitting ? "Submitting..." : "Submit Grade"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
     </div>
   );

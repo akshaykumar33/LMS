@@ -18,6 +18,7 @@ interface JobPosting {
   requirements: string;
   salary: string | null;
   location: string;
+  type: string;
   createdAt: Date | string;
 }
 
@@ -45,6 +46,7 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [opportunityType, setOpportunityType] = useState<"all" | "job" | "internship">("all");
   const [resumeUrl, setResumeUrl] = useState("");
 
   const [applications, setApplications] = useState<StudentApplication[]>(initialApplications);
@@ -107,12 +109,17 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
     }
   };
 
-  // Filter jobs by search query
-  const filteredJobs = jobs.filter(job => 
-    job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    job.location.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter jobs by search query and opportunity type
+  const filteredJobs = jobs.filter(job => {
+    const matchesSearch = 
+      job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      job.location.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesType = opportunityType === "all" || job.type === opportunityType;
+
+    return matchesSearch && matchesType;
+  });
 
   // Kanban Columns
   const kanbanStages = ["applied", "interviewing", "offered", "selected", "rejected"];
@@ -151,15 +158,46 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
         </div>
 
         {activeView === "jobs" && (
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-            <Input
-              type="text"
-              placeholder="Filter company or role..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-8 text-[11px] bg-transparent border-border rounded-lg"
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex bg-secondary/30 border border-border/80 rounded-lg p-0.5 text-[10px]">
+              <button
+                type="button"
+                onClick={() => setOpportunityType("all")}
+                className={`px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                  opportunityType === "all" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpportunityType("job")}
+                className={`px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                  opportunityType === "job" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Jobs
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpportunityType("internship")}
+                className={`px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                  opportunityType === "internship" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Internships
+              </button>
+            </div>
+            <div className="relative w-48">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="Filter company or role..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-8 text-[11px] bg-transparent border-border rounded-lg"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -212,15 +250,24 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
                         </p>
                       </div>
 
-                      {hasApplied ? (
-                        <Badge variant="secondary" className="text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-450 border border-emerald-500/25 py-1 px-2.5 rounded-lg">
-                          ✓ Applied
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        {hasApplied ? (
+                          <Badge variant="secondary" className="text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-450 border border-emerald-500/25 py-1 px-2.5 rounded-lg">
+                            ✓ Applied
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest bg-primary/5 text-primary border border-primary/20 py-1 px-2.5 rounded-lg">
+                            Open
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className={`text-[8px] font-black uppercase tracking-widest py-0.5 px-2 rounded-full border ${
+                          job.type === "internship" 
+                            ? "bg-amber-500/15 text-amber-400 border-amber-500/20" 
+                            : "bg-blue-500/15 text-blue-450 border-blue-500/20"
+                        }`}>
+                          {job.type === "internship" ? "Internship" : "Full-Time"}
                         </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest bg-primary/5 text-primary border border-primary/20 py-1 px-2.5 rounded-lg">
-                          Open
-                        </Badge>
-                      )}
+                      </div>
                     </div>
 
                     <p className="text-muted-foreground leading-relaxed text-[11px] line-clamp-2">{job.description}</p>

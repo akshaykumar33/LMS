@@ -8,6 +8,10 @@ async function main() {
 
   // 1. Clean existing database records (Safe reset for fresh seed)
   console.log("🧹 Cleaning existing data...");
+  await db.execute(sql`TRUNCATE TABLE ${schema.projectSubmissions} CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE ${schema.projects} CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE ${schema.digitalLibrary} CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE ${schema.lessonProgress} CASCADE`);
   await db.execute(sql`TRUNCATE TABLE ${schema.quizAttempts} CASCADE`);
   await db.execute(sql`TRUNCATE TABLE ${schema.quizQuestions} CASCADE`);
   await db.execute(sql`TRUNCATE TABLE ${schema.quizzes} CASCADE`);
@@ -440,6 +444,82 @@ async function main() {
 
     const seededCourses = await db.insert(schema.courses).values(coursesData).returning();
 
+    // Seed Capstone Projects for each Course
+    console.log(`🏆 Seeding Capstone Projects for ${tenant.name}...`);
+    for (const course of seededCourses) {
+      await db.insert(schema.projects).values({
+        tenantId: tenant.id,
+        courseId: course.id,
+        title: `${course.name} - Capstone Project`,
+        description: `This capstone project requires designing and implementing a complete silicon component block for ${course.name}. 
+
+You must submit:
+1. A fully documented Git Repository link with your RTL codes, testbenches, and physical design scripts.
+2. A comprehensive Design Report PDF detailing your floorplanning, timing analysis constraints, DRC violations report, and power analysis.
+
+**Submission Guidelines**:
+- Ensure your repository has a descriptive README.md.
+- Double-check setup and hold slack timings. All paths must meet zero negative slack (MET).
+- The grade will be assigned based on design efficiency, layout optimization, and timing margins.`,
+        difficulty: "Advanced",
+        durationWeeks: 6,
+      });
+    }
+
+    // Seed Digital Library for each Tenant
+    console.log(`📚 Seeding Digital Library for ${tenant.name}...`);
+    const libraryAssets = [
+      {
+        tenantId: tenant.id,
+        title: "CMOS VLSI Design: A Circuits and Systems Perspective (4th Edition)",
+        author: "Neil Weste & David Harris",
+        description: "The classic reference textbook covering CMOS circuit design, VLSI layouts, layout rules, layout constraints, timing analysis, and hardware modeling.",
+        fileUrl: "https://www.rose-hulman.edu/~herring/ece300/Weste&Harris_4th.pdf",
+        category: "book",
+      },
+      {
+        tenantId: tenant.id,
+        title: "FinFETs and Other Multi-Gate Transistors",
+        author: "J.P. Colinge",
+        description: "An advanced reference detailing 3D multi-gate transistors, sub-threshold leakage controls, electrostatic gate tuning, and nanotechnology process limits.",
+        fileUrl: "https://link.springer.com/book/10.1007/978-0-387-71751-7",
+        category: "book",
+      },
+      {
+        tenantId: tenant.id,
+        title: "EUV Lithography Systems & Technical Manual",
+        author: "Intel Lithography Center of Excellence",
+        description: "Cleanroom processes, tin plasma light sources, reflective mirror alignment, high-NA optical calculations, and defect mitigation procedures.",
+        fileUrl: "https://www.intel.com/content/www/us/en/newsroom/resources/euvi-technology.html",
+        category: "manual",
+      },
+      {
+        tenantId: tenant.id,
+        title: "Sub-3nm Gate-All-Around (GAA) Transistor Performance Study",
+        author: "Dr. Grace Hopper, Steve Mentor",
+        description: "A research publication investigating structural parasitics, device channel lengths, and timing performance comparing FinFET vs GAA nanosheets.",
+        fileUrl: "https://arxiv.org/abs/2103.11192",
+        category: "research_paper",
+      },
+      {
+        tenantId: tenant.id,
+        title: "VLSI Layout Design & DRC Verification Sheet",
+        author: "Prof. Anantha Chandrakasan",
+        description: "Hands-on worksheet detailing design rule checks (DRC), layout spacing constraints, metal layer routing practices, and parasitics extraction exercises.",
+        fileUrl: "https://www.ece.ucsb.edu/~canyon/ece124a/drc_rules_lab.pdf",
+        category: "worksheet",
+      },
+      {
+        tenantId: tenant.id,
+        title: "EUV Lithography Resolution & NA Practice Problems",
+        author: "ASML Lithography Operations Team",
+        description: "Practice calculations for numerical aperture (NA), resolution bounds, depth of focus (DoF), and tin plasma light reflectivity calculations.",
+        fileUrl: "https://www.asml.com/-/media/asml/files/technology/euv-lithography-equations-handout.pdf",
+        category: "worksheet",
+      }
+    ];
+    await db.insert(schema.digitalLibrary).values(libraryAssets);
+
     const cbLinks: any[] = [];
     for (const course of seededCourses) {
       for (const batch of seededBatches) {
@@ -453,6 +533,7 @@ async function main() {
       await db.insert(schema.courseBatches).values(cbLinks);
     }
 
+    const tenantQuizzes: any[] = [];
     for (const course of seededCourses) {
       const [mod1] = await db.insert(schema.modules).values({
         courseId: course.id,
@@ -499,6 +580,7 @@ async function main() {
           title: "1.4 Timing Analysis & Static Slack Calculation",
           content: `Deep technical lecture on setup and hold constraints. Learn about timing paths, clock jitter, skew budgets, and how cell delay is calculated using Non-Linear Delay Models (NLDM) and Composite Current Source (CCS) models.`,
           contentType: "text",
+          fileUrl: "https://www.analog.com/media/en/training-seminars/tutorials/MT-001.pdf",
           order: 4,
         }
       ];
@@ -542,6 +624,7 @@ async function main() {
         description: "Evaluate your comprehensive understanding of the physical layout, transistor models, and timing stages.",
         passingScore: 60,
       }).returning();
+      tenantQuizzes.push(quiz);
 
       const quizQuestionsList = [
         {
@@ -626,6 +709,7 @@ async function main() {
         salary: "$110,000 - $135,000",
         location: "Austin, TX / Hillsboro, OR / Bangalore, IN",
         isActive: true,
+        type: "job",
       },
       {
         tenantId: tenant.id,
@@ -636,6 +720,7 @@ async function main() {
         salary: "$115,000 - $140,000",
         location: "San Jose, CA / Hsinchu, TW / Bangalore, IN",
         isActive: true,
+        type: "job",
       },
       {
         tenantId: tenant.id,
@@ -646,6 +731,18 @@ async function main() {
         salary: "$130,500 - $160,000",
         location: "Hsinchu, Taiwan / Hillsboro, OR",
         isActive: true,
+        type: "job",
+      },
+      {
+        tenantId: tenant.id,
+        title: "VLSI Design Intern",
+        company: tenant.subdomain === "intel" ? "Intel R&D Labs" : tenant.subdomain === "amd" ? "AMD India Design" : "TSMC Advanced Technology Development",
+        description: "Looking for an internship trainee to participate in register-transfer level (RTL) coding, logic simulation, and micro-architecture specs validation.",
+        requirements: "Basic knowledge of Verilog/VHDL, digital electronics principles, and scripting languages (Python/Tcl). Enrolled in a graduate program.",
+        salary: "$3,500 / month",
+        location: "Hillsboro, OR / San Jose, CA / Hsinchu, TW / Bangalore, IN",
+        isActive: true,
+        type: "internship",
       }
     ];
 
@@ -781,6 +878,25 @@ async function main() {
           isRead: true,
         }
       ]);
+    }
+
+    // Seed Quiz Attempts for all approved students of this tenant
+    console.log(`📝 Seeding Quiz Attempts for ${tenant.name}...`);
+    const tenantStudentsForQuiz = await db.select().from(schema.students).where(eq(schema.students.tenantId, tenant.id));
+    for (const student of tenantStudentsForQuiz) {
+      for (const quiz of tenantQuizzes) {
+        // Deterministic score based on student's roll suffix, but within passing range mostly
+        const hashVal = student.rollNumber ? student.rollNumber.charCodeAt(student.rollNumber.length - 1) : 5;
+        const score = 55 + (hashVal % 9) * 5; // Scores: 55, 60, 65, 70, 75, 80, 85, 90, 95
+        const passed = score >= quiz.passingScore;
+        await db.insert(schema.quizAttempts).values({
+          tenantId: tenant.id,
+          studentId: student.id,
+          quizId: quiz.id,
+          score,
+          passed,
+        });
+      }
     }
   }
 

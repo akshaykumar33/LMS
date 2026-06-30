@@ -220,7 +220,6 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
           <button
             onClick={() => {
               router.push(`/signup?appId=${application.id}`);
-              router.refresh();
             }}
             className="w-full max-w-md h-12 rounded-xl text-xs font-bold text-white hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer"
             style={{ backgroundColor: brandColor }}
@@ -399,15 +398,14 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
 
                 <div className="flex flex-col sm:flex-row items-center gap-5 bg-background/50 border border-border/80 p-5 rounded-2xl">
                   {/* QR Code graphic */}
-                  <div className="w-28 h-28 bg-white p-2 rounded-xl flex flex-col items-center justify-center shrink-0 shadow-inner relative overflow-hidden">
-                    <div className="w-full h-full border border-slate-200 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:12px_12px] relative">
-                      <div className="absolute top-0 left-0 w-4 h-4 border-4 border-slate-900"></div>
-                      <div className="absolute top-0 right-0 w-4 h-4 border-4 border-slate-900"></div>
-                      <div className="absolute bottom-0 left-0 w-4 h-4 border-4 border-slate-900"></div>
-                      <div className="absolute top-6 left-6 w-5 h-5 border-4 border-slate-900/40"></div>
-                    </div>
+                  <div className="w-28 h-28 bg-white p-1 rounded-xl flex items-center justify-center shrink-0 shadow-lg relative overflow-hidden">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`upi://pay?pa=enrollment@intel.lms.com&pn=${encodeURIComponent("Intel Semiconductor Academy")}&am=1500&cu=USD`)}`} 
+                      alt="UPI Payment QR Code" 
+                      className="w-full h-full object-contain"
+                    />
                     {/* scanning laser */}
-                    <div className="absolute inset-x-0 h-0.5 bg-sky-500/80 shadow-[0_0_8px_rgba(14,165,233,1)] animate-pulse"></div>
+                    <div className="absolute inset-x-0 h-0.5 bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,1)] animate-laser pointer-events-none"></div>
                   </div>
 
                   <div className="space-y-3 flex-1 text-center sm:text-left">
@@ -624,6 +622,14 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
         }
         .animate-infinite-loading {
           animation: infinite-loading 1.8s infinite ease-in-out;
+        }
+        @keyframes laser-sweep {
+          0% { top: 0%; opacity: 0.3; }
+          50% { top: 100%; opacity: 1; }
+          100% { top: 0%; opacity: 0.3; }
+        }
+        .animate-laser {
+          animation: laser-sweep 2.5s infinite linear;
         }
       `}</style>
     </div>

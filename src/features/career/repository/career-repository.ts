@@ -1,6 +1,6 @@
 import { db } from "@/db/db";
 import { jobPostings, jobApplications, students, users } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 export class CareerRepository {
   /**
@@ -146,11 +146,11 @@ export class CareerRepository {
   static async getJobApplicationsForJob(tenantId: string, jobId: string) {
     return db
       .select({
-        applicationId: jobApplications.id,
+        applicationId: sql<string>`${jobApplications.id}`.as("applicationId"),
         status: jobApplications.status,
         resumeUrl: jobApplications.resumeUrl,
         createdAt: jobApplications.createdAt,
-        studentId: students.id,
+        studentId: sql<string>`${students.id}`.as("studentId"),
         rollNumber: students.rollNumber,
         firstName: users.firstName,
         lastName: users.lastName,
