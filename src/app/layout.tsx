@@ -108,13 +108,13 @@ export default async function RootLayout({
   if (!themeMode) {
     const themeSet = cookieStore.get("theme_set")?.value;
     if (themeSet) {
-      themeMode = "dark";
+      themeMode = themeSet === "dark" ? "dark" : "light";
     } else {
-      themeMode = "dark";
+      themeMode = "light";
     }
   }
   
-  const preset = themePresets[themeMode] || themePresets["dark"];
+  const preset = themePresets[themeMode] || themePresets["light"];
   let tenantPrimary = tenant?.branding?.primaryColor || "#0ea5e9";
   let tenantSecondary = tenant?.branding?.secondaryColor || "#1e293b";
 
@@ -125,6 +125,10 @@ export default async function RootLayout({
 
   const primaryColor = preset.primary || tenantPrimary;
   const ringColor = preset.ring || tenantPrimary;
+
+  const primarySvgColor = primaryColor.replace("#", "%23");
+  const secondarySvgColor = tenantSecondary.replace("#", "%23");
+  const gridBoxStroke = themeMode === "light" ? "rgba%2815,23,42,0.015%29" : "rgba%28255,255,255,0.015%29";
 
   const brandingStyles = `:root {
   --background: ${preset.background};
@@ -148,6 +152,7 @@ export default async function RootLayout({
   --surface-raised: ${preset.surfaceRaised};
   --surface-overlay: ${preset.surfaceOverlay};
   --border-subtle: ${preset.borderSubtle};
+  --background-image-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cpath d='M10 10h40v40H10zm0 80h40v40H10zm80-80h40v40H80zm0 80h40v40H80z' stroke='${gridBoxStroke}' stroke-width='1' fill='none'/%3E%3Cpath d='M50 30h30m50 0h30M30 50v30m0 50v30M110 50v30m0 50v30M50 110h30m50 0h30' stroke='${primarySvgColor}08' stroke-width='1'/%3E%3Ccircle cx='30' cy='30' r='2' fill='${primarySvgColor}15'/%3E%3Ccircle cx='110' cy='30' r='2' fill='${primarySvgColor}15'/%3E%3Ccircle cx='30' cy='110' r='2' fill='${primarySvgColor}15'/%3E%3Ccircle cx='110' cy='110' r='2' fill='${primarySvgColor}15'/%3E%3Ccircle cx='80' cy='80' r='3' fill='${secondarySvgColor}1a'/%3E%3Cpath d='M80 50v10m0 40v10M50 80h10m40 0h10' stroke='${secondarySvgColor}0f' stroke-width='1'/%3E%3C/svg%3E");
 }`;
 
   return (

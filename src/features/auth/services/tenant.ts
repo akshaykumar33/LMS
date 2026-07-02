@@ -39,12 +39,25 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       return null;
     }
 
+    let branding = tenant.branding;
+    if (branding) {
+      let primary = branding.primaryColor || "#0ea5e9";
+      const secondary = branding.secondaryColor || "#1e293b";
+      if (primary === "#000000" || primary.toLowerCase() === "black") {
+        primary = secondary !== "#000000" ? secondary : "#0ea5e9";
+      }
+      branding = {
+        ...branding,
+        primaryColor: primary,
+      };
+    }
+
     return {
       id: tenant.id,
       name: tenant.name,
       subdomain: tenant.subdomain,
       customDomain: tenant.customDomain,
-      branding: tenant.branding,
+      branding,
       status: tenant.status,
     };
   } catch (error) {

@@ -85,7 +85,7 @@ export function CoursesListClient({
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Page Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-primary/10 via-indigo-500/5 to-transparent border border-border rounded-3xl p-6 lg:p-8 shadow-xl">
+      <div className="relative overflow-hidden bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-border rounded-3xl p-6 lg:p-8 shadow-xl">
         <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
         <div className="relative z-10 space-y-2">
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-primary">

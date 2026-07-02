@@ -113,9 +113,9 @@
 body {
   background-color: var(--background);
   background-image: 
-    radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.08) 0%, transparent 50%),
-    radial-gradient(circle at 100% 60%, rgba(99, 102, 241, 0.04) 0%, transparent 40%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cpath d='M10 10h40v40H10zm0 80h40v40H10zm80-80h40v40H80zm0 80h40v40H80z' stroke='rgba%28255,255,255,0.015%29' stroke-width='1' fill='none'/%3E%3Cpath d='M50 30h30m50 0h30M30 50v30m0 50v30M110 50v30m0 50v30M50 110h30m50 0h30' stroke='rgba%2814,165,233,0.03%29' stroke-width='1'/%3E%3Ccircle cx='30' cy='30' r='2' fill='rgba%2814,165,233,0.08%29'/%3E%3Ccircle cx='110' cy='30' r='2' fill='rgba%2814,165,233,0.08%29'/%3E%3Ccircle cx='30' cy='110' r='2' fill='rgba%2814,165,233,0.08%29'/%3E%3Ccircle cx='110' cy='110' r='2' fill='rgba%2814,165,233,0.08%29'/%3E%3Ccircle cx='80' cy='80' r='3' fill='rgba%2899,102,241,0.06%29'/%3E%3Cpath d='M80 50v10m0 40v10M50 80h10m40 0h10' stroke='rgba%2899,102,241,0.04%29' stroke-width='1'/%3E%3C/svg%3E");
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 8%, transparent) 0%, transparent 50%),
+    radial-gradient(circle at 100% 60%, color-mix(in srgb, var(--secondary) 4%, transparent) 0%, transparent 40%),
+    var(--background-image-svg);
   background-attachment: fixed;
   font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   transition: background-color 0.35s ease, color 0.35s ease;

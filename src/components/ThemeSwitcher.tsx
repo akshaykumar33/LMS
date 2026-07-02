@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Sun, Moon } from "lucide-react";
 
 export function ThemeSwitcher() {
-  const [themeMode, setThemeMode] = useState<"light" | "dark">("dark");
+  const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -17,7 +17,8 @@ export function ThemeSwitcher() {
       // Check legacy theme_set
       const setCookie = cookies.find((c) => c.trim().startsWith("theme_set="));
       if (setCookie) {
-        setThemeMode("dark");
+        const val = setCookie.split("=")[1].trim();
+        setThemeMode(val === "dark" ? "dark" : "light");
       }
     }
     setMounted(true);

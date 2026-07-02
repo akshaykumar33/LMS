@@ -273,7 +273,7 @@ export function DashboardClient({ user, tenant, studentProfile, courses }: Dashb
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-primary/10 via-indigo-500/5 to-transparent border border-border rounded-3xl p-6 lg:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-xl">
+      <div className="relative overflow-hidden bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-border rounded-3xl p-6 lg:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-xl">
         <div className="space-y-2">
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-primary">Command Center</span>
           <h1 className="text-2xl lg:text-3xl font-black text-foreground">

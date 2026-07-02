@@ -24,7 +24,7 @@ export default async function Home() {
   let themeMode = cookieStore.get("theme_mode")?.value;
   if (!themeMode) {
     const themeSet = cookieStore.get("theme_set")?.value;
-    themeMode = themeSet ? "dark" : "dark";
+    themeMode = themeSet ? themeSet : "light";
   }
 
   // Scenario 1: Multi-tenant hub for Virginia Tech CoE Platform
@@ -272,7 +272,7 @@ export default async function Home() {
               </span>
               <h1 className="text-4xl md:text-6xl font-black tracking-tight text-foreground leading-none">
                 Powering the Future of <br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-indigo-400">Semiconductor Talent</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/70">Semiconductor Talent</span>
               </h1>
               <p className="text-xs md:text-sm text-muted-foreground leading-relaxed max-w-xl font-semibold">
                 Welcome to the {tenant.branding?.companyName || tenant.name}. Our state-of-the-art curriculum in VLSI physical synthesis, sub-micron device physics, and layout design prepares engineers for production scaling.

@@ -210,7 +210,7 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
         {/* User profile section at the bottom */}
         <div className="p-4 border-t border-border/50 bg-secondary/20 rounded-b-2xl">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow-md shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-primary/70 flex items-center justify-center text-white font-bold text-sm shadow-md shrink-0">
               {user.firstName.charAt(0)}{user.lastName.charAt(0)}
             </div>
             
@@ -327,7 +327,7 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
 
             <div className="border-t border-border pt-4 mt-auto">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow-md">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-primary/70 flex items-center justify-center text-white font-bold text-sm shadow-md">
                   {user.firstName.charAt(0)}{user.lastName.charAt(0)}
                 </div>
                 <div>
