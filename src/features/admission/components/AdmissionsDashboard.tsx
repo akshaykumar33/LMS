@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { approveApplicationAction, rejectApplicationAction, getApplicationDetailsAction } from "../actions/admission-actions";
+import { formatReadableDate } from "@/utils/date-formatter";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { LogOut, Search, Filter, X } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -250,7 +251,7 @@ export function AdmissionsDashboard({
                       <td className="py-4 px-6 text-muted-foreground">{app.email}</td>
                       <td className="py-4 px-6 font-semibold text-foreground">{app.batch.name}</td>
                       <td className="py-4 px-6 text-muted-foreground">
-                        {new Date(app.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                        {formatReadableDate(app.createdAt)}
                       </td>
                       <td className="py-4 px-6">
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider border ${

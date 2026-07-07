@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
 import confetti from "canvas-confetti";
+import { formatDate } from "@/utils/date-formatter";
 
 interface QuizAttempt {
   attemptId: string;
@@ -226,7 +227,7 @@ export function ProgressClient({
                       <Trophy className="w-8 h-8 text-amber-400 shrink-0" />
                     </div>
                     <div className="flex justify-between items-center text-[10px] pt-3 border-t border-border/50 text-muted-foreground font-semibold">
-                      <span>Issued: {new Date(cert.issuedAt).toLocaleDateString()}</span>
+                      <span>Issued: {formatDate(cert.issuedAt)}</span>
                       <span className="text-primary group-hover:underline flex items-center gap-1">
                         View Certificate <ChevronRight className="w-3.5 h-3.5" />
                       </span>
@@ -324,7 +325,7 @@ export function ProgressClient({
                       </span>
                     </td>
                     <td className="p-3 text-right text-muted-foreground font-medium">
-                      {new Date(h.createdAt).toLocaleDateString()}
+                      {formatDate(h.createdAt)}
                     </td>
                   </tr>
                 ))}
@@ -386,7 +387,7 @@ export function ProgressClient({
                 </div>
                 <div className="sm:text-right">
                   <span className="block font-mono uppercase tracking-wider text-[8px]">Issued Date</span>
-                  <span className="font-bold text-foreground block">{new Date(activeCert.issuedAt).toLocaleDateString()}</span>
+                  <span className="font-bold text-foreground block">{formatDate(activeCert.issuedAt)}</span>
                 </div>
               </div>
             </div>

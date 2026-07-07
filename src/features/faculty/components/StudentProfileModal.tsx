@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Mail, Hash, Layers, Trophy, CheckCircle, XCircle, Briefcase, GraduationCap, Calendar, Loader2 } from "lucide-react";
 import { getStudentProfileStatsAction } from "../actions/faculty-actions";
+import { formatDate } from "@/utils/date-formatter";
 
 interface StudentProfileModalProps {
   studentId: string | null;
@@ -197,7 +198,7 @@ export function StudentProfileModal({ studentId, isOpen, onClose, primaryColor }
                                 )}
                               </td>
                               <td className="p-3 text-right text-[10px] text-muted-foreground">
-                                {new Date(att.createdAt).toLocaleDateString()}
+                                {formatDate(att.createdAt)}
                               </td>
                             </tr>
                           ))}

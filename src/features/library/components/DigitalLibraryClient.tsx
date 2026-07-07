@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { createLibraryItemAction, updateLibraryItemAction, deleteLibraryItemAction } from "../actions/library-actions";
+import { formatDate } from "@/utils/date-formatter";
 
 interface LibraryItem {
   id: string;
@@ -275,7 +276,7 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
               {/* Action Footer */}
               <div className="border-t border-border/60 pt-4 mt-4 flex items-center justify-between gap-4">
                 <span className="text-[9px] text-muted-foreground font-mono">
-                  Curated: {new Date(item.createdAt).toLocaleDateString()}
+                  Curated: {formatDate(item.createdAt)}
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
                   {isStaff && (

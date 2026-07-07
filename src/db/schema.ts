@@ -18,6 +18,24 @@ export const tenants = pgTable("tenants", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   parentTenantId: uuid("parent_tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+  settings: jsonb("settings").$type<{
+    features: {
+      enableLibrary: boolean;
+      enablePlacement: boolean;
+      enableProctoring: boolean;
+      enableCertificates: boolean;
+    };
+    gateways: {
+      stripe: boolean;
+      razorpay: boolean;
+      paypal: boolean;
+    };
+    restrictions: {
+      maxUsers: number;
+      maxCourses: number;
+      allowSelfSignup: boolean;
+    };
+  }>(),
 }, (table) => {
   return {
     subdomainIdx: index("tenants_subdomain_idx").on(table.subdomain),

@@ -28,7 +28,7 @@ This document serves as the implementation and QA roadmap for the development te
     
 ### 2. Real-Time Sync & Caching Revalidation
 *   [x] **Server Action Revalidation:** Ensure that every CRUD mutation calls `revalidatePath` or `revalidateTag` for the target route to update server-rendered layouts instantly.
-*   [ ] **Real-Time Client Notifications:**
+*   [x] **Real-Time Client Notifications:**
     *   Implement Server-Sent Events (SSE) or client-side polling in [`notification-actions.ts`](file:///a:/LMS/src/features/notification/actions/notification-actions.ts) to push new notifications to users instantly without refreshing.
 *   [x] **Admissions Live Pipeline:**
     *   Verify that when an admin approves an admission application, the student’s profile is instantly created in the `users` and `students` tables, and the UI status reflects "approved" or "paid" in real-time.
@@ -39,14 +39,14 @@ This document serves as the implementation and QA roadmap for the development te
 **Objective:** Upgrade core interfaces to meet premium design aesthetics (glassmorphism, vibrant HSL gradients, Outfit/Inter typography, and smooth micro-animations).
 
 ### 1. Payment & Checkout Portal (`CheckoutConsole.tsx`)
-*   [ ] **Visual Layout Redesign:**
+*   [x] **Visual Layout Redesign:**
     *   Incorporate a sleek dark/light card system with a blurred backdrop (`backdrop-blur-md`).
     *   Upgrade the "Order Summary" sidebar to look like a premium digital receipt.
-*   [ ] **Interactive Gateways:**
+*   [x] **Interactive Gateways:**
     *   **Stripe Card:** Animate card brand icons (Visa/Mastercard) on typing. Add input validation states (red/green borders).
     *   **Razorpay UPI:** Add an active laser scanning animation on the QR Code.
     *   **PayPal:** Improve the login authorization interface with step-by-step loading status indicators.
-*   [ ] **State Transitions:**
+*   [x] **State Transitions:**
     *   Use smooth spring transitions for full-screen loading steps.
     *   Add confetti animations (using `canvas-confetti`) upon successful sandbox payment confirmation.
 
@@ -111,7 +111,7 @@ This document serves as the implementation and QA roadmap for the development te
 **Objective:** Build a settings center within the Super Admin Console to configure tenants, toggle features, manage permissions, and override restrictions in real-time.
 
 ### 1. Tenant Features Config Schema
-*   [ ] **Flexible JSON Settings:**
+*   [x] **Flexible JSON Settings:**
     *   Add a `settings` JSONB column to the `tenants` table to hold configurable feature toggles and restrictions:
       ```typescript
       settings: jsonb("settings").$type<{
@@ -135,12 +135,12 @@ This document serves as the implementation and QA roadmap for the development te
       ```
 
 ### 2. Real-Time Admin Config Control UI (`SuperAdminConsole.tsx`)
-*   [ ] **Feature Configuration Interface:**
+*   [x] **Feature Configuration Interface:**
     *   Create a "Features & Gateways" settings tab inside the tenant edit modal.
     *   Implement switch toggles for each module (Library, Placement, Proctoring) and gateway (Stripe, Razorpay, PayPal) that save and update the database instantly.
-*   [ ] **Branding Customizer:**
+*   [x] **Branding Customizer:**
     *   Provide live preview swatches for primary and secondary theme colors, logos, and custom domains. Updates must reflect instantly across the tenant’s portal page.
-*   [ ] **Platform Role Permission Editor:**
+*   [x] **Platform Role Permission Editor:**
     *   Build a global Permission Matrix grid (Roles vs. Permissions) allowing super-admins to check/uncheck access permissions (e.g., `admission:approve`, `courses:write`) and update role-permission maps in real-time.
 
 ---
@@ -149,16 +149,16 @@ This document serves as the implementation and QA roadmap for the development te
 **Objective:** Perform comprehensive validation to ensure code correctness, cross-tenant data safety, and high performance.
 
 ### 1. QA Verification Checklist
-*   [ ] **Access Control Verification:**
+*   [x] **Access Control Verification:**
     *   Attempt unauthorized edits in "Guest" mode to verify that `verifyWriteAccess` blocks mutations and displays alerts.
     *   Ensure non-SuperAdmin users cannot access `/super-admin` page or trigger tenant creation/update actions.
-*   [ ] **Tenant Isolation Check:**
+*   [x] **Tenant Isolation Check:**
     *   Verify that logged-in students or staff of `intel` cannot view courses, batches, or job listings of `amd` or `tsmc`.
-*   [ ] **Sub-Tenant Hierarchy Check:**
+*   [x] **Sub-Tenant Hierarchy Check:**
     *   Confirm that parent admin users can see sub-tenant records while sub-tenant users remain restricted to their own sub-tenant data.
-*   [ ] **Theme Color Normalization:**
+*   [x] **Theme Color Normalization:**
     *   Test color schemes like TSMC (black primary theme color). Verify that contrast ratios are computed to prevent rendering black text on dark background surfaces.
 
 ### 2. Performance & Error Audit
-*   [ ] **Drizzle Queries optimization:** Check for N+1 query patterns during tenant page loads (e.g., batch lists, lesson progress) and utilize Drizzle relations join queries where possible.
-*   [ ] **Next.js Linting:** Run `npm run lint` and verify that no deprecated Next.js APIs or unresolved ESLint errors are present.
+*   [x] **Drizzle Queries optimization:** Check for N+1 query patterns during tenant page loads (e.g., batch lists, lesson progress) and utilize Drizzle relations join queries where possible.
+*   [x] **Next.js Linting:** Run `npm run lint` and verify that no deprecated Next.js APIs or unresolved ESLint errors are present.

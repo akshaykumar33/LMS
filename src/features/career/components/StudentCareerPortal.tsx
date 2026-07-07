@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { applyToJobAction } from "../actions/career-actions";
 import { ExternalLink, Briefcase, Search, Compass, KanbanSquare, Sparkles, ChevronRight, CheckCircle2 } from "lucide-react";
+import { formatDate } from "@/utils/date-formatter";
 import { Card, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -364,7 +365,7 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
                                 ✓
                               </div>
                               <h6 className="text-[11px] font-bold text-foreground">Application Transmitted</h6>
-                              <p className="text-[9px] text-muted-foreground">Transmitted to CoE recruiters on {new Date(existingApp.createdAt).toLocaleDateString()}</p>
+                              <p className="text-[9px] text-muted-foreground">Transmitted to CoE recruiters on {formatDate(existingApp.createdAt)}</p>
                             </div>
 
                             {/* Step 2 */}
@@ -574,7 +575,7 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
                             <p className="text-[10px] text-muted-foreground font-semibold">{app.job.company}</p>
                           </div>
                           <div className="flex justify-between items-center text-[9px] text-muted-foreground pt-2 border-t border-border/40 font-semibold">
-                            <span>{new Date(app.createdAt).toLocaleDateString()}</span>
+                            <span>{formatDate(app.createdAt)}</span>
                             <a 
                               href={app.resumeUrl} 
                               target="_blank" 

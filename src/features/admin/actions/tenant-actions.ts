@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db/db";
-import { tenants } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { tenants, roles, permissions, rolePermissions } from "@/db/schema";
+import { eq, asc, and, inArray } from "drizzle-orm";
 import { requireAuth, verifyWriteAccess } from "@/features/auth/services/session";
 import { revalidatePath } from "next/cache";
 
@@ -52,6 +52,24 @@ export async function createTenantAction(formData: {
         secondaryColor: formData.secondaryColor || "#0f172a",
         companyName: formData.name,
       },
+      settings: {
+        features: {
+          enableLibrary: true,
+          enablePlacement: true,
+          enableProctoring: true,
+          enableCertificates: true,
+        },
+        gateways: {
+          stripe: true,
+          razorpay: true,
+          paypal: true,
+        },
+        restrictions: {
+          maxUsers: 200,
+          maxCourses: 50,
+          allowSelfSignup: true,
+        },
+      },
       status: "active",
     }).returning();
 
@@ -72,26 +90,33 @@ export async function updateTenantAction(
     primaryColor?: string;
     secondaryColor?: string;
     status: string;
+    settings?: any;
   }
 ) {
   try {
     const user = await requireAuth(["SuperAdmin"]);
     verifyWriteAccess(user);
 
+    const updateFields: any = {
+      name: formData.name,
+      subdomain: formData.subdomain.toLowerCase(),
+      customDomain: formData.customDomain || null,
+      branding: {
+        logoUrl: formData.logoUrl || "",
+        primaryColor: formData.primaryColor || "#0ea5e9",
+        secondaryColor: formData.secondaryColor || "#0f172a",
+        companyName: formData.name,
+      },
+      status: formData.status,
+      updatedAt: new Date(),
+    };
+
+    if (formData.settings) {
+      updateFields.settings = formData.settings;
+    }
+
     const updated = await db.update(tenants)
-      .set({
-        name: formData.name,
-        subdomain: formData.subdomain.toLowerCase(),
-        customDomain: formData.customDomain || null,
-        branding: {
-          logoUrl: formData.logoUrl || "",
-          primaryColor: formData.primaryColor || "#0ea5e9",
-          secondaryColor: formData.secondaryColor || "#0f172a",
-          companyName: formData.name,
-        },
-        status: formData.status,
-        updatedAt: new Date(),
-      })
+      .set(updateFields)
       .where(eq(tenants.id, id))
       .returning();
 
@@ -99,5 +124,69 @@ export async function updateTenantAction(
     return { success: true, data: updated[0] };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to update tenant." };
+  }
+}
+
+export async function getTenantPermissionsAction(tenantId: string) {
+  try {
+    const user = await requireAuth(["SuperAdmin"]);
+    
+    // Get all roles for this tenant
+    const tenantRoles = await db.query.roles.findMany({
+      where: eq(roles.tenantId, tenantId),
+      orderBy: [asc(roles.name)],
+    });
+
+    // Get all global permissions
+    const allPermissions = await db.query.permissions.findMany({
+      orderBy: [asc(permissions.name)],
+    });
+
+    // Get all current role-permission mappings for these roles
+    const roleIds = tenantRoles.map(r => r.id);
+    let mappings: any[] = [];
+    if (roleIds.length > 0) {
+      mappings = await db.query.rolePermissions.findMany({
+        where: inArray(rolePermissions.roleId, roleIds),
+      });
+    }
+
+    return { 
+      success: true, 
+      roles: tenantRoles, 
+      permissions: allPermissions, 
+      mappings 
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to fetch permissions mapping." };
+  }
+}
+
+export async function toggleRolePermissionAction(roleId: string, permissionId: string, enable: boolean) {
+  try {
+    const user = await requireAuth(["SuperAdmin"]);
+    verifyWriteAccess(user);
+
+    if (enable) {
+      try {
+        await db.insert(rolePermissions).values({
+          roleId,
+          permissionId,
+        });
+      } catch (e) {
+        // Ignore duplicate conflicts
+      }
+    } else {
+      await db.delete(rolePermissions).where(
+        and(
+          eq(rolePermissions.roleId, roleId),
+          eq(rolePermissions.permissionId, permissionId)
+        )
+      );
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to toggle permission." };
   }
 }
