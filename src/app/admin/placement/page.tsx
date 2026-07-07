@@ -52,7 +52,7 @@ export default async function AdminPlacementPage() {
           </p>
         </div>
 
-        <PlacementConsole jobs={jobs} applicantsMap={applicantsMap} />
+        <PlacementConsole jobs={jobs} applicantsMap={applicantsMap} userRole={user.role} />
       </div>
     </DashboardLayout>
   );

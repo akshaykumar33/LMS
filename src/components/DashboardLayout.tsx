@@ -207,6 +207,38 @@ export function DashboardLayout({ children, user, tenant, studentProfile }: Dash
       ];
     }
 
+    if (user.role === "Guest") {
+      return [
+        {
+          title: "Sandbox Overview",
+          items: [
+            { name: "Student Console", href: "/dashboard", icon: Home },
+            { name: "Digital Library", href: "/library", icon: Sparkles },
+            { name: "Elective Catalog", href: "/courses", icon: BookOpen },
+          ]
+        },
+        {
+          title: "Faculty Control",
+          items: [
+            { name: "Faculty Dashboard", href: "/faculty", icon: GraduationCap },
+            { name: "Student Roster", href: "/faculty?tab=roster", icon: Users },
+            { name: "Recent Submissions", href: "/faculty?tab=submissions", icon: BarChart3 },
+            { name: "Class Zoom Scheduler", href: "/faculty?tab=schedule", icon: Calendar },
+            { name: "Curriculum Editor", href: "/faculty?tab=curriculum", icon: Layers },
+          ]
+        },
+        {
+          title: "Administrative Hub",
+          items: [
+            { name: "Admissions Hub", href: "/admin/admissions", icon: Users },
+            { name: "Curriculum Manager", href: "/admin/courses", icon: BookOpen },
+            { name: "Platform Analytics", href: "/admin/analytics", icon: BarChart3 },
+            { name: "Placement Console", href: "/admin/placement", icon: Briefcase },
+          ]
+        }
+      ];
+    }
+
     return [
       {
         title: "Platform Console",

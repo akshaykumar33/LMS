@@ -123,6 +123,7 @@ export async function gradeProjectSubmissionAction(
 ) {
   try {
     const user = await requireAuth();
+    verifyWriteAccess(user);
     if (!["Faculty", "Mentor", "Owner", "Admin"].includes(user.role)) {
       return { success: false, error: "Unauthorized: Only faculty members can grade projects." };
     }

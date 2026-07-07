@@ -124,6 +124,7 @@ export default async function FacultyPage({ searchParams }: PageProps) {
         primaryColor={primaryColor}
         courses={coursesWithModules}
         projectSubmissions={projectSubmissionsList}
+        userRole={user.role}
       />
     </DashboardLayout>
   );

@@ -20,15 +20,20 @@ export default async function CoursesPage() {
   if (user.role === "Placement Officer") redirect("/admin/placement");
   if (user.role === "SuperAdmin") redirect("/super-admin");
 
-  const studentProfile = await db.query.students.findFirst({
-    where: eq(students.userId, user.userId),
-    with: { batch: true },
-  });
+  let studentProfile: any = null;
+  if (user.role !== "Guest") {
+    studentProfile = await db.query.students.findFirst({
+      where: eq(students.userId, user.userId),
+      with: { batch: true },
+    });
 
-  if (!studentProfile) redirect("/dashboard");
+    if (!studentProfile) redirect("/dashboard");
+  }
 
   // Fetch courses with full module/lesson detail so we can show lesson counts
-  const coursesRaw = await CourseRepository.getCoursesByBatch(tenant.id, studentProfile.batchId);
+  const coursesRaw = studentProfile 
+    ? await CourseRepository.getCoursesByBatch(tenant.id, studentProfile.batchId)
+    : [];
 
   // For each course, load module+lesson structure for counts
   const coursesWithDetails = await Promise.all(
@@ -81,8 +86,9 @@ export default async function CoursesPage() {
       <CoursesListClient
         courses={coursesWithDetails}
         allAvailableCourses={allAvailableCourses}
-        batchName={studentProfile.batch?.name || "Your Cohort"}
+        batchName={studentProfile?.batch?.name || "Sandbox Cohort"}
         primaryColor={tenant.branding?.primaryColor || "#0ea5e9"}
+        userRole={user.role}
       />
     </DashboardLayout>
   );

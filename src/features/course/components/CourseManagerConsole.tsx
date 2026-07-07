@@ -38,13 +38,14 @@ interface Course {
 interface CourseManagerConsoleProps {
   initialCourses: Course[];
   primaryColor?: string;
+  userRole?: string;
 }
 
 function cleanModuleName(name: string): string {
   return name.replace(/^module\s+\d+[\s:-]*/i, "").trim();
 }
 
-export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7" }: CourseManagerConsoleProps) {
+export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7", userRole }: CourseManagerConsoleProps) {
   const [courses, setCourses] = useState<Course[]>(initialCourses);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(initialCourses[0] || null);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
@@ -210,6 +211,7 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7" 
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={userRole === "Guest"}
                   onClick={() => {
                     setEditingCourse(selectedCourse);
                     setEditingModule(null);
@@ -217,7 +219,7 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7" 
                   }}
                   className="text-xs font-bold border-sky-500/20 bg-sky-500/5 hover:bg-sky-500/10 text-sky-400"
                 >
-                  Edit Details
+                  {userRole === "Guest" ? "Read Only" : "Edit Details"}
                 </Button>
               </div>
 
@@ -236,6 +238,7 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7" 
                         </h4>
                         <Button
                           variant="link"
+                          disabled={userRole === "Guest"}
                           onClick={() => {
                             setEditingModule(mod);
                             setEditingCourse(null);
@@ -270,6 +273,7 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7" 
                             <Button
                               variant="ghost"
                               size="sm"
+                              disabled={userRole === "Guest"}
                               onClick={() => {
                                 setEditingLesson(les);
                                 setEditingCourse(null);

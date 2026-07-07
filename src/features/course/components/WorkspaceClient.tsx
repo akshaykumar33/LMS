@@ -58,6 +58,7 @@ interface WorkspaceClientProps {
     userId: string;
     firstName: string;
     lastName: string;
+    role?: string;
   };
 }
 
@@ -172,6 +173,10 @@ export function WorkspaceClient({
   }, [notes, activeLesson]);
 
   const handleToggleComplete = async (lessonId: string) => {
+    if (user.role === "Guest") {
+      alert("State modifications are disabled in guest sandbox mode.");
+      return;
+    }
     const isCompleted = completedLessons.includes(lessonId);
     setUpdatingProgress(true);
     try {
@@ -203,6 +208,14 @@ export function WorkspaceClient({
   const handleProjectSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!capstoneProject) return;
+    if (user.role === "Guest") {
+      setNotification({
+        type: "error",
+        message: "State modifications are disabled in guest sandbox mode.",
+      });
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
     setSubmittingProject(true);
     try {
       const res = await submitProjectAction(capstoneProject.id, projectGitUrl, projectDocUrl);
@@ -658,15 +671,15 @@ export function WorkspaceClient({
                       </div>
                       <button
                         onClick={() => handleToggleComplete(activeLesson.id)}
-                        disabled={updatingProgress}
+                        disabled={updatingProgress || user.role === "Guest"}
                         className={`h-10 px-5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer ${
                           completedLessons.includes(activeLesson.id)
                             ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20"
                             : "text-white hover:opacity-95"
-                        }`}
+                        } disabled:opacity-50`}
                         style={!completedLessons.includes(activeLesson.id) ? { backgroundColor: primaryColor } : undefined}
                       >
-                        {completedLessons.includes(activeLesson.id) ? (
+                        {user.role === "Guest" ? "Read Only" : completedLessons.includes(activeLesson.id) ? (
                           <>
                             <CheckCircle className="w-4 h-4 text-emerald-500" /> Lesson Completed
                           </>
@@ -918,9 +931,10 @@ export function WorkspaceClient({
                             {localSubmission.status !== "approved" && (
                               <button
                                 onClick={() => setIsResubmitting(true)}
-                                className="w-full h-10 rounded-xl text-xs font-extrabold border border-border hover:bg-secondary flex items-center justify-center transition-all cursor-pointer"
+                                disabled={user.role === "Guest"}
+                                className="w-full h-10 rounded-xl text-xs font-extrabold border border-border hover:bg-secondary flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
                               >
-                                Edit and Re-submit Project
+                                {user.role === "Guest" ? "Read Only" : "Edit and Re-submit Project"}
                               </button>
                             )}
                           </div>
@@ -972,11 +986,11 @@ export function WorkspaceClient({
                               )}
                               <button
                                 type="submit"
-                                disabled={submittingProject}
+                                disabled={submittingProject || user.role === "Guest"}
                                 className="flex-[2] h-10 rounded-xl text-xs font-extrabold text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
                                 style={{ backgroundColor: primaryColor }}
                               >
-                                {submittingProject ? "Submitting..." : "Submit Project"}
+                                {submittingProject ? "Submitting..." : user.role === "Guest" ? "Read Only" : "Submit Project"}
                               </button>
                             </div>
                           </form>

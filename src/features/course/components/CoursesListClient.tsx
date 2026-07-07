@@ -28,6 +28,7 @@ interface CoursesListClientProps {
   allAvailableCourses: CourseItem[];
   batchName: string;
   primaryColor: string;
+  userRole?: string;
 }
 
 export function CoursesListClient({
@@ -35,6 +36,7 @@ export function CoursesListClient({
   allAvailableCourses = [],
   batchName,
   primaryColor,
+  userRole,
 }: CoursesListClientProps) {
   const [activeTab, setActiveTab] = React.useState<"cohort" | "catalog">("cohort");
   const [enrollingId, setEnrollingId] = React.useState<string | null>(null);
@@ -47,6 +49,14 @@ export function CoursesListClient({
   );
 
   const handleEnroll = async (courseId: string) => {
+    if (userRole === "Guest") {
+      setNotification({
+        type: "error",
+        message: "State modifications are disabled in guest sandbox mode.",
+      });
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
     setEnrollingId(courseId);
     try {
       const res = await enrollStudentInElectiveAction(courseId);
@@ -276,12 +286,14 @@ export function CoursesListClient({
                   ) : (
                     <button
                       onClick={() => handleEnroll(course.id)}
-                      disabled={enrollingId !== null}
+                      disabled={enrollingId !== null || userRole === "Guest"}
                       className="w-full h-10 rounded-xl text-xs font-extrabold text-white flex items-center justify-center gap-1.5 transition-all shadow-md hover:shadow-lg hover:scale-[1.01] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{ backgroundColor: primaryColor }}
                     >
                       {enrollingId === course.id ? (
                         "Enrolling..."
+                      ) : userRole === "Guest" ? (
+                        "Read Only"
                       ) : (
                         <>
                           <PlusCircle className="w-4 h-4" /> Self-Enroll in Course

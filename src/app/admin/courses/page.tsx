@@ -64,7 +64,7 @@ export default async function AdminCoursesPage() {
           </p>
         </div>
 
-        <CourseManagerConsole initialCourses={formattedCourses} primaryColor={tenant.branding?.primaryColor} />
+        <CourseManagerConsole initialCourses={formattedCourses} primaryColor={tenant.branding?.primaryColor} userRole={user.role} />
       </div>
     </DashboardLayout>
   );
