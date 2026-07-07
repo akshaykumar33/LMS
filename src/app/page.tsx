@@ -6,10 +6,10 @@ import { getCurrentUser } from "@/features/auth/services/session";
 import { CourseRepository } from "@/features/course/repository/course-repository";
 import { CourseCatalogExplorer } from "@/features/course/components/CourseCatalogExplorer";
 import { db } from "@/db/db";
-import { students, tenants } from "@/db/schema";
-import { eq, and, ne } from "drizzle-orm";
+import { students, tenants, courses, batches } from "@/db/schema";
+import { eq, and, ne, count } from "drizzle-orm";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
-import { Sparkles, ArrowRight, Library, GraduationCap, ShieldAlert, Cpu, CheckCircle, Database, LayoutGrid } from "lucide-react";
+import { Sparkles, ArrowRight, Library, GraduationCap, ShieldAlert, Cpu, CheckCircle, Database, LayoutGrid, BookOpen, Users, Layers } from "lucide-react";
 import { SubdomainHeroSandbox } from "@/features/course/components/SubdomainHeroSandbox";
 
 export default async function Home() {
@@ -36,6 +36,21 @@ export default async function Home() {
         ne(tenants.subdomain, "vt")
       ),
     });
+
+    // Fetch per-tenant stats for info badges
+    const tenantIds = activeAcademies.map((a: any) => a.id);
+    const statsMap: Record<string, { courseCount: number; studentCount: number; batchCount: number }> = {};
+
+    for (const tid of tenantIds) {
+      const [courseResult] = await db.select({ value: count() }).from(courses).where(eq(courses.tenantId, tid));
+      const [studentResult] = await db.select({ value: count() }).from(students).where(eq(students.tenantId, tid));
+      const [batchResult] = await db.select({ value: count() }).from(batches).where(eq(batches.tenantId, tid));
+      statsMap[tid] = {
+        courseCount: courseResult?.value ?? 0,
+        studentCount: studentResult?.value ?? 0,
+        batchCount: batchResult?.value ?? 0,
+      };
+    }
 
     return (
       <div className="flex flex-col flex-1 bg-background text-foreground min-h-screen relative overflow-hidden font-sans">
@@ -127,40 +142,75 @@ export default async function Home() {
                 pColor = sColor !== "#000000" && sColor !== "" ? sColor : "#0ea5e9";
               }
 
+              const stats = statsMap[org.id] || { courseCount: 0, studentCount: 0, batchCount: 0 };
+
               return (
                  <a
                   key={org.subdomain}
                   href={devUrl}
-                  className="flex flex-col justify-between p-6 rounded-3xl bg-card border border-border/80 text-left transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl hover:border-[var(--tenant-color)] group relative overflow-hidden"
+                  className="flex flex-col justify-between p-6 rounded-3xl bg-card/80 backdrop-blur-sm border border-border/80 text-left transition-all duration-300 transform hover:-translate-y-1.5 hover:shadow-2xl hover:border-[var(--tenant-color)] group relative overflow-hidden"
                   style={{ "--tenant-color": pColor } as React.CSSProperties}
                 >
+                  {/* Ambient glow */}
                   <div 
-                    className="absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl opacity-[0.05] group-hover:opacity-[0.10] transition-all" 
+                    className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-[0.04] group-hover:opacity-[0.12] transition-all duration-500" 
+                    style={{ backgroundColor: pColor }}
+                  />
+                  <div 
+                    className="absolute -bottom-6 -left-6 w-20 h-20 rounded-full blur-2xl opacity-0 group-hover:opacity-[0.08] transition-all duration-500" 
                     style={{ backgroundColor: pColor }}
                   />
                   
-                  <div className="space-y-5">
+                  <div className="space-y-5 relative z-10">
                     <div className="flex items-center justify-between">
                       <BrandLogo subdomain={org.subdomain} className="h-7 w-auto" />
-                      <span className="text-[9px] font-black bg-secondary border border-border/60 px-2 py-0.5 rounded text-muted-foreground uppercase">
+                      <span 
+                        className="text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider border"
+                        style={{ 
+                          backgroundColor: pColor + "10", 
+                          borderColor: pColor + "25",
+                          color: pColor
+                        }}
+                      >
                         .{org.subdomain}
                       </span>
                     </div>
                     <div>
-                      <h2 className="text-sm font-black text-foreground mb-1 group-hover:text-[var(--tenant-color)] transition-colors">{org.name}</h2>
-                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 font-semibold">
-                        Access physical-layout labs, CAD simulation nodes, and verified job postings from international semiconductor partners.
+                      <h2 className="text-sm font-black text-foreground mb-1.5 group-hover:text-[var(--tenant-color)] transition-colors">{org.name}</h2>
+                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 font-semibold">
+                        {org.branding?.companyName 
+                          ? `${org.branding.companyName} — Advanced semiconductor training, EDA labs, and industry placement programs.`
+                          : "Access physical-layout labs, CAD simulation nodes, and verified job postings from international semiconductor partners."
+                        }
                       </p>
+                    </div>
+
+                    {/* Live Stats Badges */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-secondary/60 border border-border/50 rounded-md px-2 py-1 text-muted-foreground">
+                        <BookOpen className="w-3 h-3" style={{ color: pColor }} />
+                        {stats.courseCount} Courses
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-secondary/60 border border-border/50 rounded-md px-2 py-1 text-muted-foreground">
+                        <Users className="w-3 h-3" style={{ color: pColor }} />
+                        {stats.studentCount} Students
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-secondary/60 border border-border/50 rounded-md px-2 py-1 text-muted-foreground">
+                        <Layers className="w-3 h-3" style={{ color: pColor }} />
+                        {stats.batchCount} Cohorts
+                      </span>
                     </div>
                   </div>
 
-                  <div className="mt-8 pt-4 border-t border-border/30 flex justify-between items-center text-xs font-black text-muted-foreground">
-                    <span className="text-[10px] text-muted-foreground opacity-80">EDA Labs Included</span>
+                  <div className="mt-6 pt-4 border-t border-border/30 flex justify-between items-center text-xs font-black text-muted-foreground relative z-10">
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500/80">
+                      <CheckCircle className="w-3 h-3" /> Active
+                    </span>
                     <span 
-                      className="flex items-center gap-1 transition-all group-hover:gap-2"
+                      className="flex items-center gap-1 transition-all group-hover:gap-2.5"
                       style={{ color: pColor }}
                     >
-                      Access Portal <ArrowRight className="w-3.5 h-3.5" />
+                      Access Portal <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
                     </span>
                   </div>
                 </a>
