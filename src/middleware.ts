@@ -6,19 +6,42 @@ export function middleware(request: NextRequest) {
   const hostname = request.headers.get("host") || "";
 
   // Parse subdomain
-  // dev: subdomain.localhost:3000 -> parts: ['subdomain', 'localhost:3000']
-  // prod: subdomain.domain.com -> parts: ['subdomain', 'domain', 'com']
+  // dev: child.parent.localhost:3000 -> parts: ['child', 'parent', 'localhost:3000']
+  // prod: child.parent.domain.com -> parts: ['child', 'parent', 'domain', 'com']
   const parts = hostname.split(".");
   let subdomain = "";
 
   if (process.env.NODE_ENV === "development") {
-    if (parts.length > 1 && !parts[parts.length - 2].includes("localhost")) {
+    if (parts.length > 2 && parts[parts.length - 1].includes("localhost")) {
+      subdomain = parts[0]; // e.g. child subdomain
+    } else if (parts.length > 1 && !parts[parts.length - 2].includes("localhost")) {
       subdomain = parts[0];
     }
   } else {
     const isVercel = hostname.endsWith(".vercel.app");
-    if ((isVercel && parts.length > 3) || (!isVercel && parts.length > 2)) {
-      subdomain = parts[0];
+    if (isVercel) {
+      if (parts.length > 4) {
+        subdomain = parts[0];
+      } else if (parts.length > 3) {
+        subdomain = parts[0];
+      }
+    } else {
+      if (parts.length > 3) {
+        subdomain = parts[0];
+      } else if (parts.length > 2) {
+        subdomain = parts[0];
+      }
+    }
+  }
+
+  // Support nested path-based routing: /tenant/parent/sub/child/...
+  if (url.pathname.startsWith("/tenant/")) {
+    const pathParts = url.pathname.split("/");
+    const subIdx = pathParts.indexOf("sub");
+    if (subIdx !== -1 && pathParts[subIdx + 1]) {
+      subdomain = pathParts[subIdx + 1];
+    } else if (pathParts[2]) {
+      subdomain = pathParts[2];
     }
   }
 

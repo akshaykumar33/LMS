@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
-import { getTenantContext } from "@/features/auth/services/tenant";
+import { getTenantContext, getScopedTenantIds } from "@/features/auth/services/tenant";
 import { requireAuth } from "@/features/auth/services/session";
 import { AdmissionRepository } from "@/features/admission/repository/admission-repository";
 import { AdmissionsDashboard } from "@/features/admission/components/AdmissionsDashboard";
 import { logoutAction } from "@/features/auth/actions/auth-actions";
 import { db } from "@/db/db";
 import { batches, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { DashboardLayout } from "@/components/DashboardLayout";
 
 export default async function AdminAdmissionsPage() {
@@ -19,12 +19,15 @@ export default async function AdminAdmissionsPage() {
   // 2. Enforce authentication and administrative roles
   const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
 
-  // 3. Load applications list
-  const apps = await AdmissionRepository.listApplications(tenant.id);
+  // 3. Resolve scoped tenant IDs for hierarchy
+  const scopedTenantIds = await getScopedTenantIds(user.role, tenant.id);
 
-  // 4. Load batches list
+  // 4. Load applications list
+  const apps = await AdmissionRepository.listApplications(scopedTenantIds);
+
+  // 5. Load batches list
   const batchesList = await db.query.batches.findMany({
-    where: eq(batches.tenantId, tenant.id),
+    where: inArray(batches.tenantId, scopedTenantIds),
   });
 
   // Action wrapper for logout

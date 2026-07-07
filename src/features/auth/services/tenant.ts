@@ -65,3 +65,40 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     return null;
   }
 }
+
+export async function getScopedTenantIds(userRole: string, currentTenantId: string): Promise<string[]> {
+  if (userRole === "SuperAdmin") {
+    try {
+      const allTenants = await db.query.tenants.findMany();
+      return allTenants.map(t => t.id);
+    } catch (e) {
+      console.error("Failed to query all tenants for SuperAdmin:", e);
+    }
+  }
+
+  const allowedRoles = ["Owner", "Admin", "Program Manager"];
+  if (!allowedRoles.includes(userRole)) {
+    return [currentTenantId];
+  }
+
+  try {
+    const currentTenant = await db.query.tenants.findFirst({
+      where: eq(tenants.id, currentTenantId),
+    });
+
+    if (!currentTenant) return [currentTenantId];
+
+    if (!currentTenant.parentTenantId) {
+      const children = await db.query.tenants.findMany({
+        where: eq(tenants.parentTenantId, currentTenantId),
+      });
+      if (children.length > 0) {
+        return [currentTenantId, ...children.map(c => c.id)];
+      }
+    }
+  } catch (error) {
+    console.error("Error determining scoped tenant IDs:", error);
+  }
+
+  return [currentTenantId];
+}

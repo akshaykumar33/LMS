@@ -59,8 +59,10 @@ async function main() {
 
   // 3. Seed Tenants
   console.log("🏢 Seeding Tenants...");
-  const tenantList = [
-    {
+  
+  // Seed parent first
+  const [vtTenant] = await db.insert(schema.tenants)
+    .values({
       name: "Virginia Tech parent",
       subdomain: "vt",
       customDomain: "vt-lms.edu",
@@ -71,48 +73,55 @@ async function main() {
         secondaryColor: "#E57724",
         companyName: "Virginia Tech",
       },
-    },
-    {
-      name: "Intel Semiconductor Academy",
-      subdomain: "intel",
-      customDomain: "intel-academy.com",
-      status: "active",
-      branding: {
-        logoUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel-logo.svg",
-        primaryColor: "#0068B5",
-        secondaryColor: "#0071C5",
-        companyName: "Intel CoE",
-      },
-    },
-    {
-      name: "AMD Training Center",
-      subdomain: "amd",
-      customDomain: "amd-coe.com",
-      status: "active",
-      branding: {
-        logoUrl: "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg",
-        primaryColor: "#ED1C24",
-        secondaryColor: "#1a1a1a",
-        companyName: "AMD Academy",
-      },
-    },
-    {
-      name: "TSMC Microelectronics Institute",
-      subdomain: "tsmc",
-      customDomain: "tsmc-coe.org",
-      status: "active",
-      branding: {
-        logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/67/TSMC_logo.svg",
-        primaryColor: "#000000",
-        secondaryColor: "#E05423",
-        companyName: "TSMC Institute",
-      },
-    },
-  ];
-
-  const seededTenants = await db.insert(schema.tenants)
-    .values(tenantList)
+    })
     .returning();
+
+  // Seed child sub-tenants referencing the parent
+  const subTenants = await db.insert(schema.tenants)
+    .values([
+      {
+        name: "Intel Semiconductor Academy",
+        subdomain: "intel",
+        customDomain: "intel-academy.com",
+        status: "active",
+        branding: {
+          logoUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel-logo.svg",
+          primaryColor: "#0068B5",
+          secondaryColor: "#0071C5",
+          companyName: "Intel CoE",
+        },
+        parentTenantId: vtTenant.id,
+      },
+      {
+        name: "AMD Training Center",
+        subdomain: "amd",
+        customDomain: "amd-coe.com",
+        status: "active",
+        branding: {
+          logoUrl: "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg",
+          primaryColor: "#ED1C24",
+          secondaryColor: "#1a1a1a",
+          companyName: "AMD Academy",
+        },
+        parentTenantId: vtTenant.id,
+      },
+      {
+        name: "TSMC Microelectronics Institute",
+        subdomain: "tsmc",
+        customDomain: "tsmc-coe.org",
+        status: "active",
+        branding: {
+          logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/67/TSMC_logo.svg",
+          primaryColor: "#000000",
+          secondaryColor: "#E05423",
+          companyName: "TSMC Institute",
+        },
+        parentTenantId: vtTenant.id,
+      },
+    ])
+    .returning();
+
+  const seededTenants = [vtTenant, ...subTenants];
 
   // 4. Seed Roles and Role-Permissions per Tenant
   console.log("🛡️ Seeding Roles & Permissions Matrix per Tenant...");
