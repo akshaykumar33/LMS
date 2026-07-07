@@ -5,6 +5,7 @@ import { StudentProfileModal } from "./StudentProfileModal";
 import { ScheduleClassForm } from "./ScheduleClassForm";
 import { FacultyQuickConfigForm } from "./FacultyQuickConfigForm";
 import { gradeProjectSubmissionAction } from "../actions/faculty-actions";
+import { formatDate } from "@/utils/date-formatter";
 import { 
   Search, 
   Users, 
@@ -570,7 +571,7 @@ export function FacultyDashboardClient({
                                 )}
                               </div>
                               <div className="text-[9px] text-muted-foreground mt-0.5">
-                                Sub: {new Date(sub.submittedAt).toLocaleDateString()}
+                                Sub: {formatDate(sub.submittedAt)}
                               </div>
                             </td>
                             <td className="py-3.5 px-4 text-center">

@@ -73,6 +73,24 @@ async function main() {
         secondaryColor: "#E57724",
         companyName: "Virginia Tech",
       },
+      settings: {
+        features: {
+          enableLibrary: true,
+          enablePlacement: true,
+          enableProctoring: true,
+          enableCertificates: true,
+        },
+        gateways: {
+          stripe: true,
+          razorpay: true,
+          paypal: true,
+        },
+        restrictions: {
+          maxUsers: 500,
+          maxCourses: 100,
+          allowSelfSignup: true,
+        },
+      },
     })
     .returning();
 
@@ -91,6 +109,24 @@ async function main() {
           companyName: "Intel CoE",
         },
         parentTenantId: vtTenant.id,
+        settings: {
+          features: {
+            enableLibrary: true,
+            enablePlacement: true,
+            enableProctoring: true,
+            enableCertificates: true,
+          },
+          gateways: {
+            stripe: true,
+            razorpay: true,
+            paypal: true,
+          },
+          restrictions: {
+            maxUsers: 200,
+            maxCourses: 50,
+            allowSelfSignup: true,
+          },
+        },
       },
       {
         name: "AMD Training Center",
@@ -104,6 +140,24 @@ async function main() {
           companyName: "AMD Academy",
         },
         parentTenantId: vtTenant.id,
+        settings: {
+          features: {
+            enableLibrary: true,
+            enablePlacement: true,
+            enableProctoring: false,
+            enableCertificates: true,
+          },
+          gateways: {
+            stripe: true,
+            razorpay: false,
+            paypal: true,
+          },
+          restrictions: {
+            maxUsers: 150,
+            maxCourses: 40,
+            allowSelfSignup: true,
+          },
+        },
       },
       {
         name: "TSMC Microelectronics Institute",
@@ -117,6 +171,24 @@ async function main() {
           companyName: "TSMC Institute",
         },
         parentTenantId: vtTenant.id,
+        settings: {
+          features: {
+            enableLibrary: false,
+            enablePlacement: true,
+            enableProctoring: true,
+            enableCertificates: false,
+          },
+          gateways: {
+            stripe: false,
+            razorpay: true,
+            paypal: false,
+          },
+          restrictions: {
+            maxUsers: 100,
+            maxCourses: 30,
+            allowSelfSignup: false,
+          },
+        },
       },
     ])
     .returning();
