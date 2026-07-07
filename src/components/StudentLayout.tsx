@@ -25,6 +25,7 @@ import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { NotificationBell } from "@/features/notification/components/NotificationBell";
 import { logoutAction } from "@/features/auth/actions/auth-actions";
 import { CommandPalette } from "./CommandPalette";
+import { TenantQuickSwitcher } from "./TenantQuickSwitcher";
 
 interface StudentLayoutProps {
   children: React.ReactNode;
@@ -420,6 +421,9 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
           {children}
         </main>
       </div>
+      
+      {/* Floating Tenant Quick Switcher for administrators */}
+      <TenantQuickSwitcher userRole={user.role} currentSubdomain={tenant.subdomain} />
     </div>
   );
 }

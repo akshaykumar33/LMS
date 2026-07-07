@@ -64,7 +64,7 @@ This document serves as the implementation and QA roadmap for the development te
 *   [x] **Multi-Tenant Hub Page:**
     *   Upgrade the landing page header and portal selection cards.
     *   Display each tenant's custom logo, primary color highlights, and quick info badges (e.g., "5 Labs", "Active Cohort").
-*   [ ] **Tenant Quick Switcher:**
+*   [x] **Tenant Quick Switcher:**
     *   Implement a persistent, floating "Switch Tenant" widget (or sidebar dropdown) visible to administrators, allowing them to jump from `intel` to `amd` or `tsmc` subdomains instantly.
     *   Support URL query params (`/?tenant=amd`) and subdomain routing contexts dynamically.
 
