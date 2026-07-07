@@ -17,6 +17,7 @@ export const tenants = pgTable("tenants", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  parentTenantId: uuid("parent_tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
 }, (table) => {
   return {
     subdomainIdx: index("tenants_subdomain_idx").on(table.subdomain),
@@ -273,7 +274,9 @@ export const quizAttempts = pgTable("quiz_attempts", {
 // RELATIONSHIPS DEFINITIONS
 // ==========================================
 
-export const tenantsRelations = relations(tenants, ({ many }) => ({
+export const tenantsRelations = relations(tenants, ({ one, many }) => ({
+  parent: one(tenants, { fields: [tenants.parentTenantId], references: [tenants.id], relationName: "sub_tenants" }),
+  children: many(tenants, { relationName: "sub_tenants" }),
   users: many(users),
   roles: many(roles),
   batches: many(batches),

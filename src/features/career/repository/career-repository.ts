@@ -1,16 +1,22 @@
 import { db } from "@/db/db";
 import { jobPostings, jobApplications, students, users } from "@/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 
 export class CareerRepository {
   /**
    * Get all job postings for a tenant.
    */
-  static async getJobPostings(tenantId: string, onlyActive = true) {
+  static async getJobPostings(tenantId: string | string[], onlyActive = true) {
+    const condition = Array.isArray(tenantId)
+      ? (onlyActive
+          ? and(inArray(jobPostings.tenantId, tenantId), eq(jobPostings.isActive, true))
+          : inArray(jobPostings.tenantId, tenantId))
+      : (onlyActive
+          ? and(eq(jobPostings.tenantId, tenantId), eq(jobPostings.isActive, true))
+          : eq(jobPostings.tenantId, tenantId));
+
     return db.query.jobPostings.findMany({
-      where: onlyActive
-        ? and(eq(jobPostings.tenantId, tenantId), eq(jobPostings.isActive, true))
-        : eq(jobPostings.tenantId, tenantId),
+      where: condition,
       orderBy: [desc(jobPostings.createdAt)],
     });
   }
@@ -143,7 +149,11 @@ export class CareerRepository {
   /**
    * Get all applications for a specific job posting.
    */
-  static async getJobApplicationsForJob(tenantId: string, jobId: string) {
+  static async getJobApplicationsForJob(tenantId: string | string[], jobId: string) {
+    const tenantCondition = Array.isArray(tenantId)
+      ? inArray(jobApplications.tenantId, tenantId)
+      : eq(jobApplications.tenantId, tenantId);
+
     return db
       .select({
         applicationId: sql<string>`${jobApplications.id}`.as("applicationId"),
@@ -161,7 +171,7 @@ export class CareerRepository {
       .innerJoin(users, eq(students.userId, users.id))
       .where(
         and(
-          eq(jobApplications.tenantId, tenantId),
+          tenantCondition,
           eq(jobApplications.jobId, jobId)
         )
       )

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getTenantContext } from "@/features/auth/services/tenant";
+import { getTenantContext, getScopedTenantIds } from "@/features/auth/services/tenant";
 import { requireAuth } from "@/features/auth/services/session";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -15,13 +15,16 @@ export default async function AdminPlacementPage() {
 
   const user = await requireAuth(["Owner", "Admin", "Faculty", "Mentor", "Program Manager", "Placement Officer"]);
 
+  // Resolve scoped tenant IDs for hierarchy
+  const scopedTenantIds = await getScopedTenantIds(user.role, user.tenantId);
+
   // Fetch all jobs (active + inactive)
-  const jobs = await CareerRepository.getJobPostings(user.tenantId, false);
+  const jobs = await CareerRepository.getJobPostings(scopedTenantIds, false);
 
   // Build applicants map: jobId -> Applicant[]
   const applicantsMap: Record<string, any[]> = {};
   for (const job of jobs) {
-    const applicants = await CareerRepository.getJobApplicationsForJob(user.tenantId, job.id);
+    const applicants = await CareerRepository.getJobApplicationsForJob(scopedTenantIds, job.id);
     applicantsMap[job.id] = applicants;
   }
 

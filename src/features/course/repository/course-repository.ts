@@ -1,6 +1,6 @@
 import { db } from "@/db/db";
 import { courses, courseBatches, modules, lessons } from "@/db/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, inArray } from "drizzle-orm";
 
 export class CourseRepository {
   /**
@@ -99,11 +99,15 @@ export class CourseRepository {
   /**
    * Retrieves all courses for a given tenant, including their modules and lessons.
    */
-  static async getAllCourses(tenantId: string) {
+  static async getAllCourses(tenantId: string | string[]) {
+    const condition = Array.isArray(tenantId)
+      ? inArray(courses.tenantId, tenantId)
+      : eq(courses.tenantId, tenantId);
+
     const list = await db
       .select()
       .from(courses)
-      .where(eq(courses.tenantId, tenantId))
+      .where(condition)
       .orderBy(courses.code);
 
     const detailedList: any[] = [];

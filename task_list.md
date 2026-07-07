@@ -74,12 +74,12 @@ This document serves as the implementation and QA roadmap for the development te
 **Objective:** Allow parent organizations (e.g., Virginia Tech CoE) to host nested sub-tenants (e.g., Intel Academy, AMD Center) while maintaining data isolation and global visibility.
 
 ### 1. Database Schema Changes (`schema.ts`)
-*   [ ] **Update Tenants Table:**
+*   [x] **Update Tenants Table:**
     *   Add a self-referencing `parentTenantId` column:
       ```typescript
       parentTenantId: uuid("parent_tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
       ```
-*   [ ] **Relationships Definition:**
+*   [x] **Relationships Definition:**
     *   Add a parent-child relation inside `tenantsRelations`:
       ```typescript
       parent: one(tenants, { fields: [tenants.parentTenantId], references: [tenants.id], relationName: "sub_tenants" }),
@@ -87,12 +87,12 @@ This document serves as the implementation and QA roadmap for the development te
       ```
 
 ### 2. Multi-Tenant Routing & Middleware (`middleware.ts`)
-*   [ ] **Sub-Tenant Subdomains:**
+*   [x] **Sub-Tenant Subdomains:**
     *   Support nested subdomains or routing formats (e.g., `austin.intel.localhost:3000` or `/tenant/intel/sub/austin`).
     *   Ensure middleware accurately resolves the sub-tenant context header `x-tenant-subdomain` and matches parent permissions.
 
 ### 3. Hierarchical Data Isolation & Aggregation Queries
-*   [ ] **Scoped Data Fetching:**
+*   [x] **Scoped Data Fetching:**
     *   Standard queries must retrieve records for the current tenant (`tenantId = currentTenantId`).
     *   If the logged-in user is a Parent Owner/Admin, queries must allow aggregation:
       ```typescript
@@ -102,7 +102,7 @@ This document serves as the implementation and QA roadmap for the development te
         inArray(students.tenantId, subTenantIdsList)
       )
       ```
-*   [ ] **Seed Script Updates (`seed.ts`):**
+*   [x] **Seed Script Updates (`seed.ts`):**
     *   Modify the seed file to set Virginia Tech as the parent tenant, with Intel, AMD, and TSMC designated as its sub-tenants.
 
 ---

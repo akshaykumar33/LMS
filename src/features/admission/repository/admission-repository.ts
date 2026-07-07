@@ -1,6 +1,6 @@
 import { db } from "@/db/db";
 import * as schema from "@/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { AdmissionApplicationInput } from "../schemas/admission-schemas";
 
 export class AdmissionRepository {
@@ -65,11 +65,15 @@ export class AdmissionRepository {
    * List all applications for a tenant with optional status and batch filters.
    */
   static async listApplications(
-    tenantId: string,
+    tenantId: string | string[],
     filters: { status?: string; batchId?: string } = {}
   ) {
+    const tenantCondition = Array.isArray(tenantId)
+      ? inArray(schema.admissionApplications.tenantId, tenantId)
+      : eq(schema.admissionApplications.tenantId, tenantId);
+
     const conditions = [
-      eq(schema.admissionApplications.tenantId, tenantId),
+      tenantCondition,
       sql`${schema.admissionApplications.deletedAt} IS NULL`,
     ];
 

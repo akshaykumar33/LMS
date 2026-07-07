@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getTenantContext } from "@/features/auth/services/tenant";
+import { getTenantContext, getScopedTenantIds } from "@/features/auth/services/tenant";
 import { requireAuth } from "@/features/auth/services/session";
 import { CourseRepository } from "@/features/course/repository/course-repository";
 import { CourseManagerConsole } from "@/features/course/components/CourseManagerConsole";
@@ -15,7 +15,8 @@ export default async function AdminCoursesPage() {
 
   const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
 
-  const rawCourses = await CourseRepository.getAllCourses(tenant.id);
+  const scopedTenantIds = await getScopedTenantIds(user.role, tenant.id);
+  const rawCourses = await CourseRepository.getAllCourses(scopedTenantIds);
 
   // Map courses to match component interfaces
   const formattedCourses = rawCourses.map((c: any) => ({
