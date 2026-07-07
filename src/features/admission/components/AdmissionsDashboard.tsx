@@ -427,7 +427,7 @@ export function AdmissionsDashboard({
                     type="button"
                     variant="outline"
                     onClick={handleReject}
-                    disabled={actionLoading}
+                    disabled={actionLoading || userRole === "Guest"}
                     className="h-10 text-xs font-bold border-red-500/30 text-red-400 hover:bg-red-950/20"
                   >
                     Reject Candidate
@@ -435,11 +435,11 @@ export function AdmissionsDashboard({
                   <Button
                     type="button"
                     onClick={handleApprove}
-                    disabled={actionLoading}
+                    disabled={actionLoading || userRole === "Guest"}
                     className="h-10 text-xs font-bold shadow-md"
                     style={{ backgroundColor: brandColor, color: "#fff" }}
                   >
-                    {actionLoading ? "Processing..." : "Approve & Enroll"}
+                    {actionLoading ? "Processing..." : userRole === "Guest" ? "Read Only" : "Approve & Enroll"}
                   </Button>
                 </div>
               )}

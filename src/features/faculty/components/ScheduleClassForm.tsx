@@ -20,9 +20,10 @@ interface CourseWithModules {
 
 interface ScheduleClassFormProps {
   courses: CourseWithModules[];
+  userRole?: string;
 }
 
-export function ScheduleClassForm({ courses }: ScheduleClassFormProps) {
+export function ScheduleClassForm({ courses, userRole }: ScheduleClassFormProps) {
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [selectedModuleId, setSelectedModuleId] = useState("");
   const [title, setTitle] = useState("");
@@ -171,10 +172,10 @@ export function ScheduleClassForm({ courses }: ScheduleClassFormProps) {
 
         <Button
           type="submit"
-          disabled={loading}
+          disabled={loading || userRole === "Guest"}
           className="w-full h-10 text-xs font-bold shadow-md cursor-pointer mt-2"
         >
-          {loading ? "Scheduling..." : "Schedule Live Class"}
+          {loading ? "Scheduling..." : userRole === "Guest" ? "Read Only" : "Schedule Live Class"}
         </Button>
       </form>
     </div>

@@ -182,6 +182,7 @@ export async function updateLessonAction(
 export async function enrollStudentInElectiveAction(courseId: string) {
   try {
     const user = await requireAuth(["Student"]);
+    verifyWriteAccess(user);
     const student = await db.query.students.findFirst({
       where: eq(schema.students.userId, user.userId),
     });
@@ -224,6 +225,7 @@ export async function enrollStudentInElectiveAction(courseId: string) {
 export async function toggleLessonCompletionAction(lessonId: string, completed: boolean) {
   try {
     const user = await requireAuth(["Student"]);
+    verifyWriteAccess(user);
     const student = await db.query.students.findFirst({
       where: eq(schema.students.userId, user.userId),
     });
@@ -272,6 +274,7 @@ export async function toggleLessonCompletionAction(lessonId: string, completed: 
 export async function submitProjectAction(projectId: string, gitRepoUrl: string, documentationUrl: string) {
   try {
     const user = await requireAuth(["Student"]);
+    verifyWriteAccess(user);
     const student = await db.query.students.findFirst({
       where: eq(schema.students.userId, user.userId),
     });

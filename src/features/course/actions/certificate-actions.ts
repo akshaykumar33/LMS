@@ -1,6 +1,6 @@
 "use server";
 
-import { requireAuth } from "@/features/auth/services/session";
+import { requireAuth, verifyWriteAccess } from "@/features/auth/services/session";
 import { db } from "@/db/db";
 import { students } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -13,6 +13,7 @@ import { CertificateRepository } from "../repository/certificate-repository";
 export async function checkAndIssueCertificateAction(courseId: string) {
   try {
     const user = await requireAuth();
+    verifyWriteAccess(user);
 
     // 1. Resolve student ID
     const [student] = await db

@@ -27,6 +27,7 @@ interface FacultyDashboardClientProps {
   primaryColor: string;
   courses: any[];
   projectSubmissions?: any[];
+  userRole?: string;
 }
 
 export function FacultyDashboardClient({
@@ -36,7 +37,8 @@ export function FacultyDashboardClient({
   selectedBatchId,
   primaryColor,
   courses,
-  projectSubmissions = []
+  projectSubmissions = [],
+  userRole
 }: FacultyDashboardClientProps) {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -427,7 +429,7 @@ export function FacultyDashboardClient({
             
             {/* Classroom Scheduler Form */}
             <div className="lg:col-span-5">
-              <ScheduleClassForm courses={courses} />
+              <ScheduleClassForm courses={courses} userRole={userRole} />
             </div>
 
             {/* Classroom List Workspace */}
@@ -499,7 +501,7 @@ export function FacultyDashboardClient({
         {/* CURRICULUM CONFIG TAB */}
         {activeTab === "curriculum" && (
           <div className="max-w-3xl mx-auto">
-            <FacultyQuickConfigForm courses={courses} primaryColor={primaryColor} />
+            <FacultyQuickConfigForm courses={courses} primaryColor={primaryColor} userRole={userRole} />
           </div>
         )}
 
@@ -592,6 +594,7 @@ export function FacultyDashboardClient({
                             </td>
                             <td className="py-3.5 px-4 text-right">
                               <button
+                                disabled={userRole === "Guest"}
                                 onClick={() => {
                                   setSelectedSubmission(sub);
                                   setGradeStatus(sub.status === "failed" ? "failed" : "approved");
@@ -599,10 +602,10 @@ export function FacultyDashboardClient({
                                   setGradeFeedback(sub.feedback || "");
                                   setGradingMessage(null);
                                 }}
-                                className="text-[9px] font-black uppercase tracking-wider bg-primary/10 hover:bg-primary text-primary hover:text-white px-3 py-1.5 rounded-lg border border-primary/20 transition-all cursor-pointer"
+                                className="text-[9px] font-black uppercase tracking-wider bg-primary/10 hover:bg-primary text-primary hover:text-white px-3 py-1.5 rounded-lg border border-primary/20 transition-all cursor-pointer disabled:opacity-50"
                                 style={{ borderColor: primaryColor }}
                               >
-                                {sub.grade ? "Re-evaluate" : "Evaluate"}
+                                {userRole === "Guest" ? "Read Only" : sub.grade ? "Re-evaluate" : "Evaluate"}
                               </button>
                             </td>
                           </tr>

@@ -37,9 +37,10 @@ interface Applicant {
 interface PlacementConsoleProps {
   jobs: JobPosting[];
   applicantsMap: Record<string, Applicant[]>;
+  userRole?: string;
 }
 
-export function PlacementConsole({ jobs, applicantsMap }: PlacementConsoleProps) {
+export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementConsoleProps) {
   const [activeTab, setActiveTab] = useState<"list" | "create">("list");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(jobs[0]?.id || null);
   
@@ -279,6 +280,7 @@ export function PlacementConsole({ jobs, applicantsMap }: PlacementConsoleProps)
                       <Button
                         variant="outline"
                         size="sm"
+                        disabled={userRole === "Guest"}
                         onClick={() => {
                           setEditingJob(selectedJob);
                           setEditTitle(selectedJob.title);
@@ -290,11 +292,12 @@ export function PlacementConsole({ jobs, applicantsMap }: PlacementConsoleProps)
                         }}
                         className="h-8 text-[10px] font-black uppercase tracking-widest px-3 rounded-lg"
                       >
-                        Edit Job
+                        {userRole === "Guest" ? "Read Only" : "Edit Job"}
                       </Button>
                       <Button
                         variant="destructive"
                         size="sm"
+                        disabled={userRole === "Guest"}
                         onClick={() => handleDeleteJob(selectedJob.id)}
                         className="h-8 text-[10px] font-black uppercase tracking-widest px-3 rounded-lg border border-red-500/20 text-red-400 bg-red-500/10 hover:bg-red-500/20"
                       >
@@ -395,6 +398,7 @@ export function PlacementConsole({ jobs, applicantsMap }: PlacementConsoleProps)
                                     <div className="inline-block relative">
                                       <Select
                                         value={app.status}
+                                        disabled={userRole === "Guest"}
                                         onValueChange={(val) => handleStatusUpdate(app.applicationId, val)}
                                       >
                                         <SelectTrigger className="h-7 w-auto text-[10px] bg-transparent border-border rounded-lg text-slate-200 font-bold px-2">
@@ -519,10 +523,10 @@ export function PlacementConsole({ jobs, applicantsMap }: PlacementConsoleProps)
 
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || userRole === "Guest"}
                 className="w-full h-10 text-xs font-bold shadow-md"
               >
-                {loading ? "Creating..." : "Create Job Posting"}
+                {loading ? "Creating..." : userRole === "Guest" ? "Read Only" : "Create Job Posting"}
               </Button>
             </CardContent>
           </Card>

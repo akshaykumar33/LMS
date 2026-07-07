@@ -84,25 +84,31 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
   }
 
   // Fetch student profile details
-  const studentProfile = await db.query.students.findFirst({
-    where: eq(students.userId, user.userId),
-    with: {
-      batch: true,
-    },
-  });
+  let studentProfile: any = null;
+  if (user.role !== "Guest") {
+    studentProfile = await db.query.students.findFirst({
+      where: eq(students.userId, user.userId),
+      with: {
+        batch: true,
+      },
+    });
 
-  if (!studentProfile) {
-    redirect("/dashboard");
+    if (!studentProfile) {
+      redirect("/dashboard");
+    }
   }
 
   // Fetch lesson completions for this student
-  const progresses = await db.query.lessonProgress.findMany({
-    where: eq(lessonProgress.studentId, studentProfile.id),
-  });
+  let completedLessonIds: string[] = [];
+  if (studentProfile) {
+    const progresses = await db.query.lessonProgress.findMany({
+      where: eq(lessonProgress.studentId, studentProfile.id),
+    });
 
-  const completedLessonIds = progresses
-    .filter((p) => p.completed)
-    .map((p) => p.lessonId);
+    completedLessonIds = progresses
+      .filter((p) => p.completed)
+      .map((p) => p.lessonId);
+  }
 
   // Fetch capstone project details for this course
   const capstoneProject = await db.query.projects.findFirst({
@@ -110,7 +116,7 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
   });
 
   let capstoneSubmission = null;
-  if (capstoneProject) {
+  if (capstoneProject && studentProfile) {
     capstoneSubmission = await db.query.projectSubmissions.findFirst({
       where: and(
         eq(projectSubmissions.projectId, capstoneProject.id),

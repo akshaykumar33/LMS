@@ -32,11 +32,12 @@ interface Course {
 }
 
 interface FacultyQuickConfigFormProps {
-  courses: Course[];
+  courses: any[];
   primaryColor?: string;
+  userRole?: string;
 }
 
-export function FacultyQuickConfigForm({ courses, primaryColor = "#0284c7" }: FacultyQuickConfigFormProps) {
+export function FacultyQuickConfigForm({ courses, primaryColor = "#0ea5e9", userRole }: FacultyQuickConfigFormProps) {
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [selectedModuleId, setSelectedModuleId] = useState("");
   const [selectedLessonId, setSelectedLessonId] = useState("");
@@ -263,11 +264,11 @@ export function FacultyQuickConfigForm({ courses, primaryColor = "#0284c7" }: Fa
             <div className="flex justify-end pt-2">
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || userRole === "Guest"}
                 className="text-xs font-bold px-5 h-10 rounded-xl transition-all shadow-md cursor-pointer neon-btn-primary"
                 style={{ backgroundColor: primaryColor, color: "#fff" }}
               >
-                {loading ? "Saving Changes..." : "Save Resources"}
+                {loading ? "Saving Changes..." : userRole === "Guest" ? "Read Only" : "Save Resources"}
               </Button>
             </div>
           </div>
