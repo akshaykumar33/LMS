@@ -295,6 +295,16 @@ async function main() {
         customRoleId: roleMap.get("Mentor"),
         status: "active",
       },
+      {
+        tenantId: tenant.id,
+        firstName: "Visitor",
+        lastName: "Guest",
+        email: `guest@${tenant.subdomain}.lms.com`,
+        passwordHash,
+        role: "Guest",
+        customRoleId: roleMap.get("Guest"),
+        status: "active",
+      },
     ];
 
     await db.insert(schema.users).values(staffUsers);
@@ -895,6 +905,7 @@ You must submit:
           quizId: quiz.id,
           score,
           passed,
+          answers: [],
         });
       }
     }
