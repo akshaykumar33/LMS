@@ -1,39 +1,19 @@
-import { db } from "@/db/db";
-import { FacultyRepository } from "@/features/faculty/repository/faculty-repository";
-import { tenants } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import postgres from "postgres";
 
-async function run() {
-  const intelTenant = await db.query.tenants.findFirst({
-    where: eq(tenants.subdomain, "intel"),
-  });
-  if (!intelTenant) {
-    console.error("Intel tenant not found.");
-    return;
-  }
-  console.log("Intel Tenant ID:", intelTenant.id);
+const connectionString = "postgresql://coe_admin:SecretPassword123@127.0.0.1:5433/vt_db";
 
-  const batches = await FacultyRepository.getTenantBatches(intelTenant.id);
-  console.log(`Batches count: ${batches.length}`);
-  if (batches.length === 0) return;
+async function main() {
+  const sql = postgres(connectionString);
 
-  const batch = batches[0];
-  console.log(`First batch: id=${batch.id}, name=${batch.name}`);
+  console.log("--- USERS IN tenant_intel ---");
+  const intelUsers = await sql`SELECT id, first_name, last_name, email, role, status FROM tenant_intel.users`;
+  console.log(intelUsers);
 
-  const roster = await FacultyRepository.getBatchRoster(intelTenant.id, batch.id);
-  console.log(`Roster size: ${roster.length}`);
-  if (roster.length > 0) {
-    const student = roster[0];
-    console.log("Roster first student:", student);
+  console.log("--- USERS IN tenant_amd ---");
+  const amdUsers = await sql`SELECT id, first_name, last_name, email, role, status FROM tenant_amd.users`;
+  console.log(amdUsers);
 
-    // Try finding this student using getStudentProfileStats
-    try {
-      const stats = await FacultyRepository.getStudentProfileStats(intelTenant.id, student.studentId);
-      console.log("SUCCESS! Student stats retrieved:", stats.student.id);
-    } catch (err: any) {
-      console.log("FAILED to retrieve student stats:", err.message);
-    }
-  }
+  await sql.end();
 }
 
-run().catch(console.error);
+main().catch(console.error);

@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL DB Server
+  postgres:
+    image: postgres:15-alpine
+    container_name: coe_postgres
+    environment:
+      POSTGRES_DB: lms_db
+      POSTGRES_USER: coe_admin
+      POSTGRES_PASSWORD: SecretPassword123
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - coe_network
+
+  # 2. Next.js App
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: coe_app
+    environment:
+      - DATABASE_URL=postgresql://coe_admin:SecretPassword123@postgres:5432/lms_db
+      - USE_JSON_DB=false
+      - NODE_ENV=production
+      - PORT=3000
+    depends_on:
+      - postgres
+    expose:
+      - "3000"
+    networks:
+      - coe_network
+
+  # 3. Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: coe_nginx
+    ports:
+      - "8090:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+    networks:
+      - coe_network
+
+volumes:
+  pgdata:
+
+networks:
+  coe_network:
+    driver: bridge

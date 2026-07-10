@@ -8,24 +8,80 @@ interface TenantQuickSwitcherProps {
   currentSubdomain: string;
 }
 
-const AVAILABLE_TENANTS = [
-  { name: "Intel Academy", subdomain: "intel", color: "text-sky-400", bg: "bg-sky-500/10", border: "border-sky-500/20" },
-  { name: "AMD Center", subdomain: "amd", color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20" },
-  { name: "TSMC Academy", subdomain: "tsmc", color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20" },
-];
+import { getSwitchableTenantsAction } from "@/features/admin/actions/tenant-actions";
+
+interface TenantQuickSwitcherProps {
+  userRole: string;
+  currentSubdomain: string;
+}
 
 export function TenantQuickSwitcher({ userRole, currentSubdomain }: TenantQuickSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Only administrators can switch tenants
+  const isAllowed = ["Owner", "Admin", "Program Manager", "SuperAdmin"].includes(userRole);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Only administrators can switch tenants
-  const isAllowed = ["Owner", "Admin", "Program Manager", "SuperAdmin"].includes(userRole);
+  useEffect(() => {
+    async function loadTenants() {
+      try {
+        const res = await getSwitchableTenantsAction();
+        if (res.success && res.data) {
+          setTenants(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to load switchable tenants:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (isAllowed && mounted) {
+      loadTenants();
+    }
+  }, [isAllowed, mounted]);
 
   if (!mounted || !isAllowed) return null;
+
+  // Hierarchical sort helper
+  const getSortedHierarchy = (): { item: any; depth: number }[] => {
+    const sorted: { item: any; depth: number }[] = [];
+    const visited = new Set<string>();
+
+    const addDescendants = (parentId: string | null, currentDepth: number) => {
+      const children = tenants.filter(t => t.parentTenantId === parentId);
+      for (const child of children) {
+        if (!visited.has(child.id)) {
+          visited.add(child.id);
+          sorted.push({ item: child, depth: currentDepth });
+          addDescendants(child.id, currentDepth + 1);
+        }
+      }
+    };
+
+    const topLevel = tenants.filter(t => !t.parentTenantId);
+    for (const parent of topLevel) {
+      if (!visited.has(parent.id)) {
+        visited.add(parent.id);
+        sorted.push({ item: parent, depth: 0 });
+        addDescendants(parent.id, 1);
+      }
+    }
+
+    // Safety fallback
+    for (const item of tenants) {
+      if (!visited.has(item.id)) {
+        sorted.push({ item, depth: 0 });
+      }
+    }
+
+    return sorted;
+  };
 
   const handleSwitch = (targetSubdomain: string) => {
     if (targetSubdomain === currentSubdomain) return;
@@ -57,13 +113,15 @@ export function TenantQuickSwitcher({ userRole, currentSubdomain }: TenantQuickS
     }
   };
 
+  const sortedList = getSortedHierarchy();
+
   return (
     <div className="fixed bottom-6 right-6 z-50">
       {/* Trigger Button */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-center w-12 h-12 rounded-full bg-slate-900 border border-slate-700/80 text-primary hover:text-white shadow-2xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 active:scale-95 group"
+        className="flex items-center justify-center w-12 h-12 rounded-full bg-card border border-border text-primary hover:text-foreground shadow-2xl hover:shadow-primary/10 transition-all duration-300 hover:scale-105 active:scale-95 group cursor-pointer"
         title="Quick Switch Tenant Subdomain"
       >
         <ArrowLeftRight className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
@@ -75,43 +133,59 @@ export function TenantQuickSwitcher({ userRole, currentSubdomain }: TenantQuickS
           {/* Backdrop Clicker */}
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           
-          <div className="absolute bottom-16 right-0 w-64 bg-slate-950/95 backdrop-blur-md border border-slate-800 rounded-2xl p-4 shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="absolute bottom-16 right-0 w-72 bg-card/95 backdrop-blur-md border border-border/80 rounded-2xl p-4 shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-5 duration-300 max-h-96 overflow-y-auto">
             <div className="flex items-center gap-2 mb-3 px-1">
-              <Cpu className="w-4 h-4 text-emerald-400" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                Subdomain Swapper
+              <Cpu className="w-4 h-4 text-emerald-500" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                Domain Switcher ({sortedList.length})
               </span>
             </div>
             
-            <div className="space-y-2">
-              {AVAILABLE_TENANTS.map((t) => {
-                const isActive = t.subdomain === currentSubdomain;
-                return (
-                  <button
-                    key={t.subdomain}
-                    type="button"
-                    onClick={() => handleSwitch(t.subdomain)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left border transition-all text-xs font-bold ${
-                      isActive
-                        ? "bg-slate-800/60 border-slate-700 text-white cursor-default"
-                        : "bg-slate-900/35 border-transparent text-slate-400 hover:text-white hover:bg-slate-800/40 hover:border-slate-800/80 active:scale-[0.98]"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-400 animate-pulse" : "bg-slate-600"}`} />
-                      <span className="truncate">{t.name}</span>
-                    </div>
-                    {isActive ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    ) : (
-                      <span className="text-[9px] text-slate-600 font-mono font-normal">
-                        .{t.subdomain}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            {loading ? (
+              <div className="text-center py-4 text-xs font-semibold text-muted-foreground">
+                Loading domains...
+              </div>
+            ) : sortedList.length === 0 ? (
+              <div className="text-center py-4 text-xs font-semibold text-muted-foreground">
+                No accessible domains.
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {sortedList.map(({ item: t, depth }) => {
+                  const isActive = t.subdomain === currentSubdomain;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => handleSwitch(t.subdomain)}
+                      style={{ paddingLeft: `${Math.max(12, depth * 14)}px` }}
+                      className={`w-full flex items-center justify-between py-2 rounded-xl text-left border transition-all text-xs font-black cursor-pointer ${
+                        isActive
+                          ? "bg-muted/65 border-border/80 text-foreground cursor-default"
+                          : "bg-muted/10 border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40 hover:border-border/80 active:scale-[0.98]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {depth > 0 && (
+                          <span className="text-muted-foreground/50 font-mono shrink-0 mr-0.5">
+                            └─
+                          </span>
+                        )}
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/35"}`} />
+                        <span className="truncate">{t.name}</span>
+                      </div>
+                      {isActive ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      ) : (
+                        <span className="text-[9px] text-muted-foreground/60 font-mono font-medium ml-1">
+                          .{t.subdomain}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </>
       )}

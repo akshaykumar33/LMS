@@ -34,7 +34,12 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
   }
 
   if (user.role === "SuperAdmin") {
-    redirect("/super-admin");
+    const parentDomains = ["vt", "vti", "vtu", "test1", "localhost", "", "www"];
+    const currentSub = tenant?.subdomain || "";
+    if (parentDomains.includes(currentSub.toLowerCase())) {
+      redirect("/super-admin");
+    }
+    redirect("/admin/admissions");
   }
 
   // Resolve params

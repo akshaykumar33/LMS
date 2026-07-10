@@ -25,6 +25,7 @@ export async function createTenantAction(formData: {
   logoUrl?: string;
   primaryColor?: string;
   secondaryColor?: string;
+  parentTenantId?: string;
 }) {
   try {
     const user = await requireAuth(["SuperAdmin"]);
@@ -46,6 +47,7 @@ export async function createTenantAction(formData: {
       name: formData.name,
       subdomain: formData.subdomain.toLowerCase(),
       customDomain: formData.customDomain || null,
+      parentTenantId: formData.parentTenantId || null,
       branding: {
         logoUrl: formData.logoUrl || "",
         primaryColor: formData.primaryColor || "#0ea5e9",
@@ -91,6 +93,7 @@ export async function updateTenantAction(
     secondaryColor?: string;
     status: string;
     settings?: any;
+    parentTenantId?: string | null;
   }
 ) {
   try {
@@ -101,6 +104,7 @@ export async function updateTenantAction(
       name: formData.name,
       subdomain: formData.subdomain.toLowerCase(),
       customDomain: formData.customDomain || null,
+      parentTenantId: formData.parentTenantId || null,
       branding: {
         logoUrl: formData.logoUrl || "",
         primaryColor: formData.primaryColor || "#0ea5e9",
@@ -188,5 +192,27 @@ export async function toggleRolePermissionAction(roleId: string, permissionId: s
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to toggle permission." };
+  }
+}
+
+import { getScopedTenantIds } from "@/features/auth/services/tenant";
+
+export async function getSwitchableTenantsAction() {
+  try {
+    const user = await requireAuth(["Owner", "Admin", "Program Manager", "SuperAdmin"]);
+    
+    const list = await db.query.tenants.findMany({
+      orderBy: [asc(tenants.name)],
+    });
+
+    if (user.role === "SuperAdmin") {
+      return { success: true, data: list };
+    }
+
+    const scopedIds = await getScopedTenantIds(user.role, user.tenantId);
+    const filtered = list.filter(t => scopedIds.includes(t.id));
+    return { success: true, data: filtered };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to fetch switchable tenants." };
   }
 }

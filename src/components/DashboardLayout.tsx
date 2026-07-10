@@ -197,11 +197,47 @@ export function DashboardLayout({ children, user, tenant, studentProfile }: Dash
     }
 
     if (user.role === "SuperAdmin") {
+      // Determine if we're on a parent/platform domain or a child org subdomain
+      const parentDomains = ["vt", "vti", "vtu", "test1", "localhost", "", "www"];
+      const currentSub = (tenant as any)?.subdomain || "";
+      const isOnParentDomain = parentDomains.includes(currentSub.toLowerCase());
+
+      if (isOnParentDomain) {
+        return [
+          {
+            title: "System Administration",
+            items: [
+              { name: "System Tenants", href: "/super-admin", icon: Layers },
+            ]
+          }
+        ];
+      }
+
+      // On child org subdomain: SuperAdmin gets full admin controls
       return [
         {
           title: "System Administration",
           items: [
             { name: "System Tenants", href: "/super-admin", icon: Layers },
+          ]
+        },
+        {
+          title: "Student Admissions",
+          items: [
+            { name: "Admissions Hub", href: "/admin/admissions", icon: Users },
+          ]
+        },
+        {
+          title: "Curriculum & Analytics",
+          items: [
+            { name: "Curriculum Manager", href: "/admin/courses", icon: BookOpen },
+            { name: "Platform Analytics", href: "/admin/analytics", icon: BarChart3 },
+          ]
+        },
+        {
+          title: "Recruiting",
+          items: [
+            { name: "Placement Console", href: "/admin/placement", icon: Briefcase },
           ]
         }
       ];

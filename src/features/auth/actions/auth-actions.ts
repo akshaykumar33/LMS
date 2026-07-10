@@ -3,7 +3,7 @@
 import { cookies, headers } from "next/headers";
 import { getTenantContext } from "../services/tenant";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../services/jwt";
-import { db } from "@/db/db";
+import { db, dbSubdomainStorage } from "@/db/db";
 import { users, tenants } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -39,10 +39,23 @@ export async function loginAction(formData: any) {
   }
 
   try {
-    // 1. Fetch user globally by email
-    const user = await db.query.users.findFirst({
-      where: eq(users.email, email),
-    });
+    // 1. Fetch user globally by email across all tenant subdomains
+    let user: any = null;
+    let foundSubdomain: string | null = null;
+    const subdomains = ["vt", "intel", "intel-oregon", "amd", "test1", "test1-sub"];
+    
+    for (const sub of subdomains) {
+      const u = await dbSubdomainStorage.run(sub, async () => 
+        await db.query.users.findFirst({
+          where: eq(users.email, email),
+        })
+      );
+      if (u) {
+        user = u;
+        foundSubdomain = sub;
+        break;
+      }
+    }
 
     if (!user) {
       return { success: false, error: "Invalid email or password." };
@@ -77,9 +90,11 @@ export async function loginAction(formData: any) {
 
     // Sync subdomain cookie to match user's registered tenant (supports cross-tenant sandbox logins)
     if (user.tenantId) {
-      const userTenant = await db.query.tenants.findFirst({
-        where: eq(tenants.id, user.tenantId),
-      });
+      const userTenant = await dbSubdomainStorage.run(foundSubdomain || "public", async () =>
+        await db.query.tenants.findFirst({
+          where: eq(tenants.id, user.tenantId),
+        })
+      );
       if (userTenant) {
         cookieStore.set("x-tenant-subdomain", userTenant.subdomain, {
           path: "/",
@@ -187,9 +202,19 @@ export async function refreshSessionAction() {
  */
 export async function establishSessionAction(userId: string) {
   try {
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
+    let user: any = null;
+    const subdomains = ["vt", "intel", "intel-oregon", "amd", "test1", "test1-sub"];
+    for (const sub of subdomains) {
+      const u = await dbSubdomainStorage.run(sub, async () => 
+        await db.query.users.findFirst({
+          where: eq(users.id, userId),
+        })
+      );
+      if (u) {
+        user = u;
+        break;
+      }
+    }
     if (!user) {
       return { success: false, error: "User not found." };
     }

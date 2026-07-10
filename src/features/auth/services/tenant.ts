@@ -30,6 +30,10 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     return null;
   }
 
+  // Normalize alias subdomains to canonical form
+  const aliasMap: Record<string, string> = { vti: "vt", vtu: "vt" };
+  subdomain = aliasMap[subdomain.toLowerCase()] || subdomain;
+
   try {
     const tenant = await db.query.tenants.findFirst({
       where: eq(tenants.subdomain, subdomain),
@@ -67,35 +71,49 @@ export async function getTenantContext(): Promise<TenantContext | null> {
 }
 
 export async function getScopedTenantIds(userRole: string, currentTenantId: string): Promise<string[]> {
-  if (userRole === "SuperAdmin") {
-    try {
-      const allTenants = await db.query.tenants.findMany();
-      return allTenants.map(t => t.id);
-    } catch (e) {
-      console.error("Failed to query all tenants for SuperAdmin:", e);
-    }
-  }
-
-  const allowedRoles = ["Owner", "Admin", "Program Manager"];
-  if (!allowedRoles.includes(userRole)) {
-    return [currentTenantId];
-  }
-
   try {
-    const currentTenant = await db.query.tenants.findFirst({
-      where: eq(tenants.id, currentTenantId),
-    });
+    const allTenants = await db.query.tenants.findMany();
+    const currentTenant = allTenants.find(t => t.id === currentTenantId);
 
-    if (!currentTenant) return [currentTenantId];
+    if (userRole === "SuperAdmin") {
+      const parentDomains = ["vt", "vti", "vtu", "test1", "localhost", "", "www"];
+      const currentSub = currentTenant?.subdomain || "";
+      const isOnParentDomain = parentDomains.includes(currentSub.toLowerCase());
 
-    if (!currentTenant.parentTenantId) {
-      const children = await db.query.tenants.findMany({
-        where: eq(tenants.parentTenantId, currentTenantId),
-      });
-      if (children.length > 0) {
-        return [currentTenantId, ...children.map(c => c.id)];
+      if (isOnParentDomain) {
+        return allTenants.map(t => t.id);
       }
     }
+
+    const allowedRoles = ["Owner", "Admin", "Program Manager", "SuperAdmin"];
+    if (!allowedRoles.includes(userRole)) {
+      return [currentTenantId];
+    }
+
+    // parentId -> childIds[] map
+    const tenantMap = new Map<string, string[]>();
+    for (const t of allTenants) {
+      if (t.parentTenantId) {
+        const list = tenantMap.get(t.parentTenantId) || [];
+        list.push(t.id);
+        tenantMap.set(t.parentTenantId, list);
+      }
+    }
+
+    // BFS to find all descendants at any nesting depth
+    const resultIds = new Set<string>();
+    const queue = [currentTenantId];
+    
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (!resultIds.has(current)) {
+        resultIds.add(current);
+        const children = tenantMap.get(current) || [];
+        queue.push(...children);
+      }
+    }
+
+    return Array.from(resultIds);
   } catch (error) {
     console.error("Error determining scoped tenant IDs:", error);
   }

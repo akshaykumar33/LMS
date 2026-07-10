@@ -24399,6 +24399,14 @@
     {
       "roleId": "aec8d6f9-de26-4151-ba1b-fe100ab15f14",
       "permissionId": "b95dcbcb-bd91-4b54-9001-1d310b0c39be"
+    },
+    {
+      "roleId": "5d161b24-9d90-40e1-8dcf-987fd921cf44",
+      "permissionId": "8d4cb5ac-3b1a-4581-ac08-95ef97a5df39"
+    },
+    {
+      "roleId": "5d161b24-9d90-40e1-8dcf-987fd921cf44",
+      "permissionId": "fdad0c05-5b58-4c0c-8deb-2f4b034580c3"
     }
   ],
   "roles": [
@@ -25079,13 +25087,13 @@
         "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel-logo.svg",
         "primaryColor": "#0068B5",
         "secondaryColor": "#0071C5",
-        "companyName": "Intel CoE"
+        "companyName": "Intel Semiconductor Academy"
       },
       "status": "active",
       "createdAt": "2026-07-07T15:27:30.694Z",
-      "updatedAt": "2026-07-07T15:27:30.694Z",
+      "updatedAt": "2026-07-09T14:40:27.743Z",
       "deletedAt": null,
-      "parentTenantId": "96652527-1198-4bbb-8bc4-30781efaed17",
+      "parentTenantId": "019915ce-3b05-4db3-a1c0-365f772f4e11",
       "settings": {
         "features": {
           "enableLibrary": true,
@@ -25172,6 +25180,41 @@
           "maxUsers": 100,
           "maxCourses": 30,
           "allowSelfSignup": false
+        }
+      }
+    },
+    {
+      "id": "019915ce-3b05-4db3-a1c0-365f772f4e11",
+      "name": "Nvidia Academy",
+      "subdomain": "nvidia",
+      "customDomain": "nvidia.com",
+      "branding": {
+        "logoUrl": "",
+        "primaryColor": "#76b900",
+        "secondaryColor": "#1a1a1a",
+        "companyName": "Nvidia Academy"
+      },
+      "status": "active",
+      "createdAt": "2026-07-09T07:01:47.574Z",
+      "updatedAt": "2026-07-09T07:02:35.253Z",
+      "deletedAt": null,
+      "parentTenantId": null,
+      "settings": {
+        "features": {
+          "enableLibrary": true,
+          "enablePlacement": true,
+          "enableProctoring": true,
+          "enableCertificates": true
+        },
+        "gateways": {
+          "stripe": true,
+          "razorpay": true,
+          "paypal": true
+        },
+        "restrictions": {
+          "maxUsers": 500,
+          "maxCourses": 50,
+          "allowSelfSignup": true
         }
       }
     }

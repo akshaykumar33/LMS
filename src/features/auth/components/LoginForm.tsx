@@ -91,8 +91,18 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
 
   const brandColor = primaryColor || "#0ea5e9";
 
-  const isParent = subdomain === "localhost" || subdomain === "" || subdomain === "www" || subdomain === "vt";
-  const activeSubdomain = isParent ? "intel" : subdomain;
+  const parentSubdomains = ["localhost", "", "www", "vt", "vti", "vtu", "test1"];
+  const isParent = parentSubdomains.includes(subdomain);
+  const activeSubdomain = isParent ? (subdomain === "test1" ? "test1-sub" : "intel") : subdomain;
+
+  // Resolve SuperAdmin quick-login email based on which parent platform we're on
+  const superAdminEmail = (subdomain === "test1" || subdomain === "test1-sub")
+    ? "superadmin@test1.com"
+    : "superadmin@vt.edu";
+
+  const activeStudentEmail = activeSubdomain === "intel" || activeSubdomain === "intel-oregon"
+    ? `linus.torvalds@student.${activeSubdomain}.com`
+    : `james.smith.0@student.${activeSubdomain}.com`;
 
   // Dynamically compile all sandbox credentials from quick-login-credentials.json
   const allAccounts = [
@@ -239,12 +249,11 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
             </div>
 
             {/* Quick Demo Login Grid */}
-            <div className="grid grid-cols-2 gap-2">
-              <Button
+            <div className="grid grid-cols-2 gap-2">              <Button
                 type="button"
                 variant="outline"
                 disabled={loading}
-                onClick={() => handleQuickLogin("linus.torvalds@student.intel.com")}
+                onClick={() => handleQuickLogin(activeStudentEmail)}
                 className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
               >
                 <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
@@ -292,7 +301,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
                 type="button"
                 variant="outline"
                 disabled={loading}
-                onClick={() => handleQuickLogin("superadmin@vt.edu")}
+                onClick={() => handleQuickLogin(superAdminEmail)}
                 className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
               >
                 <div className="w-6 h-6 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0">
