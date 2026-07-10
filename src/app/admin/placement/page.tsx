@@ -16,7 +16,7 @@ export default async function AdminPlacementPage() {
   const user = await requireAuth(["Owner", "Admin", "Faculty", "Mentor", "Program Manager", "Placement Officer"]);
 
   // Resolve scoped tenant IDs for hierarchy
-  const scopedTenantIds = await getScopedTenantIds(user.role, user.tenantId);
+  const scopedTenantIds = await getScopedTenantIds(user.role, user.tenantId || tenant.id);
 
   // Fetch all jobs (active + inactive)
   const jobs = await CareerRepository.getJobPostings(scopedTenantIds, false);

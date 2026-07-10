@@ -5,8 +5,6 @@ import { users, tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
-const subdomains = ["vt", "intel", "intel-oregon", "amd", "test1", "test1-sub"];
-
 /**
  * Retrieve the current authenticated user session from JWT HttpOnly cookies.
  */
@@ -22,19 +20,8 @@ export async function getCurrentUser(): Promise<UserTokenPayload | null> {
     const payload = verifyAccessToken(token);
     if (!payload) return null;
 
-    // Resolve user subdomain using payload.tenantId (ensures correctness in cross-tenant environments)
-    let userSubdomain = null;
-    for (const sub of subdomains) {
-      const t = await dbSubdomainStorage.run(sub, async () => 
-        await db.query.tenants.findFirst({
-          where: eq(tenants.id, payload.tenantId),
-        })
-      );
-      if (t) {
-        userSubdomain = t.subdomain;
-        break;
-      }
-    }
+    // Resolve user subdomain using payload.subdomain
+    const userSubdomain = payload.subdomain;
 
     // Verify user exists in their registered tenant's schema
     let exists = null;

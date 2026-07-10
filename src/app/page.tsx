@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { headers, cookies } from "next/headers";
 import { getTenantContext } from "@/features/auth/services/tenant";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -7,10 +8,12 @@ import { CourseRepository } from "@/features/course/repository/course-repository
 import { CourseCatalogExplorer } from "@/features/course/components/CourseCatalogExplorer";
 import { db } from "@/db/db";
 import { students, tenants, courses, batches } from "@/db/schema";
-import { eq, and, ne, count } from "drizzle-orm";
+import { eq, and, ne, count, isNull } from "drizzle-orm";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { Sparkles, ArrowRight, Library, GraduationCap, ShieldAlert, Cpu, CheckCircle, Database, LayoutGrid, BookOpen, Users, Layers } from "lucide-react";
 import { SubdomainHeroSandbox } from "@/features/course/components/SubdomainHeroSandbox";
+import { GatewayUserControls } from "@/components/GatewayUserControls";
+import { getAncestorChain } from "@/features/auth/services/is-parent-tenant";
 
 export default async function Home() {
   const tenant = await getTenantContext();
@@ -27,18 +30,169 @@ export default async function Home() {
     themeMode = themeSet ? themeSet : "light";
   }
 
-  // Scenario 1: Multi-tenant hub for Virginia Tech CoE Platform
-  if (!tenant) {
-    // Fetch all active academies from database (excluding vt parent itself)
-    const activeAcademies = await db.query.tenants.findMany({
-      where: and(
-        eq(tenants.status, "active"),
-        ne(tenants.subdomain, "vt")
-      ),
-    });
+  // Scenario 1: Multi-tenant SaaS hub for Wysbryx (Root gateway)
+  // Auth Guard: Only SuperAdmin can view the global tenant directory
+  if (!tenant || tenant.subdomain === "wysbryx") {
+    if (!sessionUser || sessionUser.role !== "SuperAdmin") {
+      redirect("/login");
+    }
+    // Fetch Tenant-Level organizations (those whose parent is Wysbryx root)
+    const wysbryxId = tenant?.id;
+    const topLevelTenants = wysbryxId
+      ? await db.query.tenants.findMany({
+          where: and(
+            eq(tenants.status, "active"),
+            eq(tenants.parentTenantId, wysbryxId)
+          ),
+        })
+      : await db.query.tenants.findMany({
+          where: and(
+            eq(tenants.status, "active"),
+            isNull(tenants.parentTenantId)
+          ),
+        });
+
+    return (
+      <div className="flex flex-col flex-1 bg-background text-foreground min-h-screen relative overflow-hidden font-sans">
+        {/* Grid Background */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:3rem_3rem] opacity-60"></div>
+        
+        {/* Ambient Radial Glowing Effects */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-orange-500/5 rounded-full blur-[160px] pointer-events-none"></div>
+        <div className="absolute bottom-0 right-10 w-[500px] h-[500px] bg-zinc-400/5 rounded-full blur-[140px] pointer-events-none"></div>
+
+        {/* Global Toolbar Header */}
+        <header className="border-b border-border/40 bg-background/50 backdrop-blur-xl relative z-20 sticky top-0">
+          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <img 
+                src="https://www.wysbryx.com/wysbryx_v.png" 
+                className="w-7 h-7 object-contain animate-pulse" 
+                alt="Wysbryx Logo"
+              />
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                Wysbryx Platform
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <ThemeSwitcher />
+              <div className="h-4 w-px bg-border" />
+              <GatewayUserControls
+                email={sessionUser!.email}
+                role={sessionUser!.role}
+                primaryColor="#f97316"
+              />
+            </div>
+          </div>
+        </header>
+
+        {/* Main SaaS Hub Section */}
+        <div className="relative max-w-6xl w-full mx-auto text-center space-y-16 px-6 py-20 flex-1 flex flex-col justify-center z-10">
+          <div className="space-y-6">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 px-4 py-1.5 text-xs font-black text-orange-400 ring-1 ring-inset ring-orange-500/20 uppercase tracking-widest">
+              <Database className="w-3.5 h-3.5" /> SaaS Cloud Network
+            </span>
+            <h1 className="text-5xl md:text-7xl font-black tracking-tight text-foreground leading-tight max-w-4xl mx-auto">
+              Wysbryx <br/>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 via-amber-500 to-zinc-400">Enterprise Tenant Hub</span>
+            </h1>
+            <p className="text-xs md:text-sm text-muted-foreground max-w-xl mx-auto leading-relaxed">
+              Welcome to the Wysbryx multi-tenant training suite. Select a primary parent organization below to explore their sub-companies, dedicated learning divisions, and workspaces.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto w-full">
+            {topLevelTenants.map((org: any) => {
+              const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+              const isVercel = host.endsWith(".vercel.app");
+              const devUrl = isLocal
+                ? `http://${org.subdomain}.localhost${portSuffix}`
+                : isVercel
+                ? `/?tenant=${org.subdomain}`
+                : `https://${org.subdomain}.${host}`;
+              let pColor = org.branding?.primaryColor || "#3b82f6";
+              
+              return (
+                 <a
+                  key={org.subdomain}
+                  href={devUrl}
+                  className="flex flex-col justify-between p-8 rounded-3xl bg-card/85 backdrop-blur-sm border border-border/80 text-left transition-all duration-300 transform hover:-translate-y-1.5 hover:shadow-2xl hover:border-[var(--tenant-color)] group relative overflow-hidden"
+                  style={{ "--tenant-color": pColor } as React.CSSProperties}
+                >
+                  <div 
+                    className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-[0.05] group-hover:opacity-[0.15] transition-all duration-500" 
+                    style={{ backgroundColor: pColor }}
+                  />
+                  
+                  <div className="space-y-6 relative z-10">
+                    <div className="flex items-center justify-between">
+                      <span 
+                        className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm text-white shadow-lg transition-transform group-hover:scale-110 duration-300"
+                        style={{ background: `linear-gradient(135deg, ${pColor}, ${pColor}bb)` }}
+                      >
+                        {org.name.substring(0, 2).toUpperCase()}
+                      </span>
+                      <span 
+                        className="text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider border"
+                        style={{ 
+                          backgroundColor: pColor + "10", 
+                          borderColor: pColor + "25",
+                          color: pColor
+                        }}
+                      >
+                        {org.subdomain}.localhost
+                      </span>
+                    </div>
+
+                    <div>
+                      <h2 className="text-lg font-black text-foreground mb-2 group-hover:text-[var(--tenant-color)] transition-colors">{org.name}</h2>
+                      <p className="text-xs text-muted-foreground leading-relaxed font-semibold">
+                        Access the root gateway for {org.name} to configure courses, manage institutional sub-tenants, and view administrative analytics.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 pt-4 border-t border-border/30 flex justify-between items-center text-xs font-black text-muted-foreground relative z-10">
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500/80">
+                      <CheckCircle className="w-3 h-3" /> System Online
+                    </span>
+                    <span 
+                      className="flex items-center gap-1 transition-all group-hover:gap-2.5"
+                      style={{ color: pColor }}
+                    >
+                      Enter Organization <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Retrieve the ancestor chain to determine the tenant level
+  const chain = tenant ? await getAncestorChain(tenant.id) : [];
+
+  // Scenario 2: Organization Hub for a Tenant-Level org (e.g. VT, Nvidia)
+  // These have a chain length of 2 and may have child sub-tenants
+  const childAcademies = await db.query.tenants.findMany({
+    where: and(
+      eq(tenants.status, "active"),
+      eq(tenants.parentTenantId, tenant.id)
+    ),
+  });
+
+  if (chain.length === 2 && childAcademies.length > 0) {
+    // Auth Guard: Only SuperAdmin/Owner of this tenant can view the sub-tenant directory
+    if (!sessionUser || !["SuperAdmin", "Owner"].includes(sessionUser.role)) {
+      redirect("/login");
+    }
 
     // Fetch per-tenant stats for info badges
-    const tenantIds = activeAcademies.map((a: any) => a.id);
+    const tenantIds = childAcademies.map((a: any) => a.id);
     const statsMap: Record<string, { courseCount: number; studentCount: number; batchCount: number }> = {};
 
     for (const tid of tenantIds) {
@@ -52,61 +206,44 @@ export default async function Home() {
       };
     }
 
+    const orgName = tenant.name;
+    const primaryColor = tenant.branding?.primaryColor || "#3b82f6";
+
     return (
       <div className="flex flex-col flex-1 bg-background text-foreground min-h-screen relative overflow-hidden font-sans">
         {/* Grid Background */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:3rem_3rem] opacity-60"></div>
         
         {/* Ambient Radial Glowing Effects */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-red-600/5 rounded-full blur-[160px] pointer-events-none"></div>
-        <div className="absolute bottom-0 right-10 w-[500px] h-[500px] bg-orange-500/5 rounded-full blur-[140px] pointer-events-none"></div>
+        <div 
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] rounded-full blur-[160px] pointer-events-none opacity-[0.07]"
+          style={{ backgroundColor: primaryColor }}
+        ></div>
 
         {/* Global Toolbar Header */}
         <header className="border-b border-border/40 bg-background/50 backdrop-blur-xl relative z-20 sticky top-0">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="w-8 h-8 rounded-lg bg-gradient-to-tr from-red-600 to-orange-500 text-white flex items-center justify-center font-black text-xs shadow-lg">
-                VT
+              <span 
+                className="w-8 h-8 rounded-lg text-white flex items-center justify-center font-black text-xs shadow-lg animate-pulse"
+                style={{ backgroundColor: primaryColor }}
+              >
+                {tenant.subdomain.toUpperCase()}
               </span>
               <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
-                Virginia Tech CoE Hub
+                {orgName} Network
               </span>
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <ThemeSwitcher />
-              {sessionUser ? (
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-muted-foreground hidden sm:inline max-w-[120px] truncate" title={sessionUser.email}>
-                    Signed in as <strong className="text-foreground">{sessionUser.email.split("@")[0]}</strong>
-                  </span>
-                  <div className="w-8 h-8 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center font-bold text-[10px] shadow-sm select-none" title={sessionUser.email}>
-                    {sessionUser.email.substring(0, 2).toUpperCase()}
-                  </div>
-                  {sessionUser.role === "SuperAdmin" ? (
-                    <Link
-                      href="/super-admin"
-                      className="inline-flex items-center gap-1.5 justify-center rounded-xl text-xs font-black h-9 px-4 bg-amber-500 text-slate-950 hover:bg-amber-400 transition-all shadow-md cursor-pointer"
-                    >
-                      <ShieldAlert className="w-3.5 h-3.5" /> Super Admin Console
-                    </Link>
-                  ) : (
-                    <Link
-                      href="/dashboard"
-                      className="inline-flex items-center justify-center rounded-xl text-xs font-black h-9 px-4 bg-secondary text-foreground hover:bg-secondary/80 transition-all border border-border shadow-sm cursor-pointer"
-                    >
-                      Go to Workspace
-                    </Link>
-                  )}
-                </div>
-              ) : (
-                <Link
-                  href="/login"
-                  className="inline-flex items-center justify-center rounded-xl text-xs font-black h-9 px-4 bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-all cursor-pointer"
-                >
-                  Admin Console
-                </Link>
-              )}
+              <div className="h-4 w-px bg-border" />
+              <GatewayUserControls
+                email={sessionUser!.email}
+                role={sessionUser!.role}
+                showGatewayLink={true}
+                primaryColor={primaryColor}
+              />
             </div>
           </div>
         </header>
@@ -114,12 +251,12 @@ export default async function Home() {
         {/* Main Hub Section */}
         <div className="relative max-w-6xl w-full mx-auto text-center space-y-16 px-6 py-20 flex-1 flex flex-col justify-center z-10">
           <div className="space-y-6">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-4 py-1.5 text-xs font-black text-red-400 ring-1 ring-inset ring-red-500/20 uppercase tracking-widest">
-              <GraduationCap className="w-3.5 h-3.5" /> Academy Network Gate
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-1.5 text-xs font-black uppercase tracking-widest border" style={{ color: primaryColor, borderColor: primaryColor + "30" }}>
+              <GraduationCap className="w-3.5 h-3.5" /> Institutional Hub
             </span>
             <h1 className="text-5xl md:text-7xl font-black tracking-tight text-foreground leading-tight max-w-4xl mx-auto">
-              Virginia Tech <br/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-orange-500 to-amber-400">Semiconductor CoE</span>
+              {orgName} <br/>
+              <span className="text-transparent bg-clip-text" style={{ backgroundImage: `linear-gradient(to right, ${primaryColor}, #f59e0b)`, WebkitBackgroundClip: "text" }}>Semiconductor CoE</span>
             </h1>
             <p className="text-xs md:text-sm text-muted-foreground max-w-xl mx-auto leading-relaxed">
               Select your affiliated semiconductor academy or corporate training division below to access customized EDA laboratories, lecture syllabi, and placements.
@@ -127,7 +264,7 @@ export default async function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto w-full">
-            {activeAcademies.map((org: any) => {
+            {childAcademies.map((org: any) => {
               const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
               const isVercel = host.endsWith(".vercel.app");
               const devUrl = isLocal
@@ -135,13 +272,8 @@ export default async function Home() {
                 : isVercel
                 ? `/?tenant=${org.subdomain}`
                 : `https://${org.subdomain}.${host}`;
-              let pColor = org.branding?.primaryColor || "#0ea5e9";
-              let sColor = org.branding?.secondaryColor || "#0ea5e9";
+              let pColor = org.branding?.primaryColor || primaryColor;
               
-              if (pColor === "#000000" || pColor.toLowerCase() === "black") {
-                pColor = sColor !== "#000000" && sColor !== "" ? sColor : "#0ea5e9";
-              }
-
               const stats = statsMap[org.id] || { courseCount: 0, studentCount: 0, batchCount: 0 };
 
               return (
@@ -151,13 +283,8 @@ export default async function Home() {
                   className="flex flex-col justify-between p-6 rounded-3xl bg-card/80 backdrop-blur-sm border border-border/80 text-left transition-all duration-300 transform hover:-translate-y-1.5 hover:shadow-2xl hover:border-[var(--tenant-color)] group relative overflow-hidden"
                   style={{ "--tenant-color": pColor } as React.CSSProperties}
                 >
-                  {/* Ambient glow */}
                   <div 
                     className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-[0.04] group-hover:opacity-[0.12] transition-all duration-500" 
-                    style={{ backgroundColor: pColor }}
-                  />
-                  <div 
-                    className="absolute -bottom-6 -left-6 w-20 h-20 rounded-full blur-2xl opacity-0 group-hover:opacity-[0.08] transition-all duration-500" 
                     style={{ backgroundColor: pColor }}
                   />
                   
@@ -185,18 +312,38 @@ export default async function Home() {
                       </p>
                     </div>
 
-                    {/* Live Stats Badges */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-secondary/60 border border-border/50 rounded-md px-2 py-1 text-muted-foreground">
-                        <BookOpen className="w-3 h-3" style={{ color: pColor }} />
+                      <span 
+                        className="inline-flex items-center gap-1 text-[9px] font-extrabold border rounded-xl px-3 py-1 transition-all duration-300"
+                        style={{ 
+                          backgroundColor: pColor + "08", 
+                          borderColor: pColor + "20",
+                          color: pColor 
+                        }}
+                      >
+                        <BookOpen className="w-3 h-3" />
                         {stats.courseCount} Courses
                       </span>
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-secondary/60 border border-border/50 rounded-md px-2 py-1 text-muted-foreground">
-                        <Users className="w-3 h-3" style={{ color: pColor }} />
+                      <span 
+                        className="inline-flex items-center gap-1 text-[9px] font-extrabold border rounded-xl px-3 py-1 transition-all duration-300"
+                        style={{ 
+                          backgroundColor: pColor + "08", 
+                          borderColor: pColor + "20",
+                          color: pColor 
+                        }}
+                      >
+                        <Users className="w-3 h-3" />
                         {stats.studentCount} Students
                       </span>
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-secondary/60 border border-border/50 rounded-md px-2 py-1 text-muted-foreground">
-                        <Layers className="w-3 h-3" style={{ color: pColor }} />
+                      <span 
+                        className="inline-flex items-center gap-1 text-[9px] font-extrabold border rounded-xl px-3 py-1 transition-all duration-300"
+                        style={{ 
+                          backgroundColor: pColor + "08", 
+                          borderColor: pColor + "20",
+                          color: pColor 
+                        }}
+                      >
+                        <Layers className="w-3 h-3" />
                         {stats.batchCount} Cohorts
                       </span>
                     </div>
@@ -217,28 +364,26 @@ export default async function Home() {
               );
             })}
           </div>
-
-          <div className="text-xs text-muted-foreground border-t border-border/40 pt-8 max-w-md mx-auto leading-relaxed font-semibold">
-            <p>
-              💡 <strong>Administrator Notice:</strong> Academies are isolated under subdomain routing contexts. Select an academy above or log in directly to configure settings.
-            </p>
-          </div>
         </div>
       </div>
     );
   }
 
-  // Scenario 2: Active Tenant branded page
+  // Scenario 3: Sub-Tenant or leaf-tenant branded page (e.g. Intel, AMD, TSMC)
   const allTenantCourses = await CourseRepository.getAllCourses(tenant.id);
 
   let enrolledCourseIds: string[] = [];
-  if (sessionUser && sessionUser.role === "Student") {
-    const studentProfile = await db.query.students.findFirst({
-      where: eq(students.userId, sessionUser.userId),
-    });
-    if (studentProfile) {
-      const enrolled = await CourseRepository.getCoursesByBatch(tenant.id, studentProfile.batchId);
-      enrolledCourseIds = enrolled.map((c: any) => c.id);
+  if (sessionUser) {
+    if (sessionUser.role === "Student") {
+      const studentProfile = await db.query.students.findFirst({
+        where: eq(students.userId, sessionUser.userId),
+      });
+      if (studentProfile) {
+        const enrolled = await CourseRepository.getCoursesByBatch(tenant.id, studentProfile.batchId);
+        enrolledCourseIds = enrolled.map((c: any) => c.id);
+      }
+    } else if (["SuperAdmin", "Owner", "Admin", "Program Manager"].includes(sessionUser.role)) {
+      enrolledCourseIds = allTenantCourses.map((c: any) => c.id);
     }
   }
 

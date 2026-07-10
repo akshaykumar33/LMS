@@ -2,12 +2,14 @@ import { headers, cookies } from "next/headers";
 import { db } from "@/db/db";
 import { tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { isParentSubdomain } from "./is-parent-tenant";
 
 export interface TenantContext {
   id: string;
   name: string;
   subdomain: string;
   customDomain: string | null;
+  parentTenantId: string | null;
   branding: {
     logoUrl?: string;
     primaryColor?: string;
@@ -19,7 +21,13 @@ export interface TenantContext {
 
 export async function getTenantContext(): Promise<TenantContext | null> {
   const headersList = await headers();
+  const hasSubdomainHeader = headersList.has("x-tenant-subdomain");
   let subdomain = headersList.get("x-tenant-subdomain");
+
+  // If header exists and is empty, it means we are explicitly on the root/platform domain.
+  if (hasSubdomainHeader && subdomain === "") {
+    return null;
+  }
 
   if (!subdomain) {
     const cookieStore = await cookies();
@@ -31,7 +39,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
   }
 
   // Normalize alias subdomains to canonical form
-  const aliasMap: Record<string, string> = { vti: "vt", vtu: "vt" };
+  const aliasMap: Record<string, string> = { vti: "vt" };
   subdomain = aliasMap[subdomain.toLowerCase()] || subdomain;
 
   try {
@@ -61,6 +69,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       name: tenant.name,
       subdomain: tenant.subdomain,
       customDomain: tenant.customDomain,
+      parentTenantId: tenant.parentTenantId,
       branding,
       status: tenant.status,
     };
@@ -76,9 +85,8 @@ export async function getScopedTenantIds(userRole: string, currentTenantId: stri
     const currentTenant = allTenants.find(t => t.id === currentTenantId);
 
     if (userRole === "SuperAdmin") {
-      const parentDomains = ["vt", "vti", "vtu", "test1", "localhost", "", "www"];
       const currentSub = currentTenant?.subdomain || "";
-      const isOnParentDomain = parentDomains.includes(currentSub.toLowerCase());
+      const isOnParentDomain = await isParentSubdomain(currentSub);
 
       if (isOnParentDomain) {
         return allTenants.map(t => t.id);

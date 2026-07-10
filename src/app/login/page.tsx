@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getTenantContext } from "@/features/auth/services/tenant";
 import { LoginForm } from "@/features/auth/components/LoginForm";
 import { getCurrentUser } from "@/features/auth/services/session";
+import { isParentTenant, getAncestorChain } from "@/features/auth/services/is-parent-tenant";
 import { ArrowLeft } from "lucide-react";
 
 export default async function LoginPage() {
@@ -14,9 +15,12 @@ export default async function LoginPage() {
   }
 
   // Allow root-domain login for SuperAdmin
-  const tenantName = tenant?.branding?.companyName || tenant?.name || "Virginia Tech Platform";
-  const primaryColor = tenant?.branding?.primaryColor || "#861F41"; // VT maroon default for parent
-  const subdomain = tenant?.subdomain || "vt";
+  const tenantName = tenant?.branding?.companyName || tenant?.name || "Wysbryx Platform";
+  const primaryColor = tenant?.branding?.primaryColor || "#f97316"; // Wysbryx orange default
+  const subdomain = tenant?.subdomain || "wysbryx";
+
+  // Determine hierarchical depth (1 = platform root, 2 = tenant level, 3+ = sub-company/institute)
+  const chainLength = tenant ? (await getAncestorChain(tenant.id)).length : 1;
 
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-background p-6 relative overflow-hidden min-h-screen">
@@ -31,6 +35,8 @@ export default async function LoginPage() {
           tenantName={tenantName} 
           primaryColor={primaryColor} 
           subdomain={subdomain}
+          isParentDomain={isParentTenant(tenant)}
+          chainLength={chainLength}
         />
         
         <a 

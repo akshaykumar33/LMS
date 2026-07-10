@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTenantContext } from "@/features/auth/services/tenant";
 import { requireAuth } from "@/features/auth/services/session";
+import { getAncestorChain } from "@/features/auth/services/is-parent-tenant";
 import { db } from "@/db/db";
 import { students, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -38,12 +39,13 @@ export default async function StudentProfilePage() {
     redirect("/admin/placement");
   }
 
+  // Root/Tenant-level management roles should land on their portal home, not student pages
+  const chain = await getAncestorChain(tenant.id);
+  if (chain.length <= 2 && ["SuperAdmin", "Owner"].includes(user.role)) {
+    redirect("/");
+  }
+
   if (user.role === "SuperAdmin") {
-    const parentDomains = ["vt", "vti", "vtu", "test1", "localhost", "", "www"];
-    const currentSub = tenant?.subdomain || "";
-    if (parentDomains.includes(currentSub.toLowerCase())) {
-      redirect("/super-admin");
-    }
     redirect("/admin/admissions");
   }
 

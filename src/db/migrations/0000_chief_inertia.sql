@@ -94,6 +94,7 @@ CREATE TABLE "tenants" (
 	"name" varchar(255) NOT NULL,
 	"subdomain" varchar(255) NOT NULL,
 	"custom_domain" varchar(255),
+	"db_name" varchar(255),
 	"branding" jsonb,
 	"status" varchar(50) DEFAULT 'active' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,

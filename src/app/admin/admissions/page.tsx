@@ -20,7 +20,7 @@ export default async function AdminAdmissionsPage() {
   const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
 
   // 3. Resolve scoped tenant IDs for hierarchy
-  const scopedTenantIds = await getScopedTenantIds(user.role, tenant.id);
+  const scopedTenantIds = await getScopedTenantIds(user.role, user.tenantId || tenant.id);
 
   // 4. Load applications list
   const apps = await AdmissionRepository.listApplications(scopedTenantIds);

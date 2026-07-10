@@ -29,6 +29,11 @@ export function middleware(request: NextRequest) {
     }
   }
 
+  // Normalize bare localhost or empty subdomain to "wysbryx"
+  if (!subdomain || subdomain === "localhost" || subdomain === "www") {
+    subdomain = "wysbryx";
+  }
+
   // Support nested path-based routing: /tenant/parent/sub/child/...
   if (url.pathname.startsWith("/tenant/")) {
     const pathParts = url.pathname.split("/");
@@ -56,11 +61,9 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Set the headers
+  // Always set the header so getTenantContext() can distinguish root domain (empty) from missing header
   const requestHeaders = new Headers(request.headers);
-  if (subdomain) {
-    requestHeaders.set("x-tenant-subdomain", subdomain);
-  }
+  requestHeaders.set("x-tenant-subdomain", subdomain);
 
   // Define route protections
   const isAuthRoute =
@@ -86,8 +89,12 @@ export function middleware(request: NextRequest) {
 
   let response: NextResponse | null = null;
 
+  // Never redirect server action requests — they use POST with a special header
+  // and expect a serialized response, not a 302 redirect
+  const isServerAction = request.method === "POST" && request.headers.has("Next-Action");
+
   // Authentication guards
-  if (!isStaticRoute && !isAuthRoute && !isAdmissionApplyRoute) {
+  if (!isStaticRoute && !isAuthRoute && !isAdmissionApplyRoute && !isServerAction) {
     if (!accessToken) {
       const loginUrl = new URL("/login", request.url);
       // Retain the intended URL for redirection after login
@@ -96,8 +103,8 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // If logged in and hitting login page, redirect to dashboard
-  if (isAuthRoute && accessToken) {
+  // If logged in and hitting login page via navigation (not a server action POST), redirect to dashboard
+  if (isAuthRoute && accessToken && !isServerAction) {
     response = NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
@@ -112,7 +119,7 @@ export function middleware(request: NextRequest) {
   // Apply tenant cookie sync to the final response
   if (querySubdomain) {
     response.cookies.set("x-tenant-subdomain", querySubdomain, { path: "/", maxAge: 60 * 60 * 24 * 30 });
-  } else if (url.pathname === "/" && !querySubdomain && request.cookies.has("x-tenant-subdomain")) {
+  } else if ((url.pathname === "/" || url.pathname === "/login") && !querySubdomain && request.cookies.has("x-tenant-subdomain") && !subdomain) {
     response.cookies.delete("x-tenant-subdomain");
   }
 

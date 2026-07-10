@@ -1,17 +1,52 @@
 "use server";
 
 import { db } from "@/db/db";
-import { tenants, roles, permissions, rolePermissions } from "@/db/schema";
+import { tenants, roles, permissions, rolePermissions, users } from "@/db/schema";
 import { eq, asc, and, inArray } from "drizzle-orm";
 import { requireAuth, verifyWriteAccess } from "@/features/auth/services/session";
 import { revalidatePath } from "next/cache";
+import { getScopedTenantIds } from "@/features/auth/services/tenant";
+
+async function verifyGlobalAdmin(user: any) {
+  if (user.role === "Owner") {
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    });
+    const tenant = await db.query.tenants.findFirst({
+      where: eq(tenants.id, dbUser?.tenantId || ""),
+    });
+    if (!tenant) {
+      throw new Error("FORBIDDEN: Tenant not found for this user.");
+    }
+    // Owner must have child sub-tenants to be considered a global admin
+    const childTenants = await db.query.tenants.findMany({
+      where: and(eq(tenants.status, "active"), eq(tenants.parentTenantId, tenant.id)),
+    });
+    if (childTenants.length === 0) {
+      throw new Error("FORBIDDEN: Leaf-tenant owners are not authorized to perform global administration tasks.");
+    }
+  }
+}
 
 export async function getAllTenantsAction() {
   try {
-    const user = await requireAuth(["SuperAdmin"]);
-    const list = await db.query.tenants.findMany({
+    const user = await requireAuth(["SuperAdmin", "Owner"]);
+    await verifyGlobalAdmin(user);
+
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    });
+    const userTenantId = dbUser?.tenantId;
+
+    let list = await db.query.tenants.findMany({
       orderBy: [asc(tenants.name)],
     });
+
+    if (user.role === "Owner" && userTenantId) {
+      const allowedIds = await getScopedTenantIds("Owner", userTenantId);
+      list = list.filter(t => allowedIds.includes(t.id));
+    }
+
     return { success: true, data: list };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to fetch tenants." };
@@ -26,9 +61,12 @@ export async function createTenantAction(formData: {
   primaryColor?: string;
   secondaryColor?: string;
   parentTenantId?: string;
+  dbName?: string;
+  dbUrl?: string;
 }) {
   try {
-    const user = await requireAuth(["SuperAdmin"]);
+    const user = await requireAuth(["SuperAdmin", "Owner"]);
+    await verifyGlobalAdmin(user);
     verifyWriteAccess(user);
 
     if (!formData.name || !formData.subdomain) {
@@ -43,11 +81,27 @@ export async function createTenantAction(formData: {
       return { success: false, error: "Subdomain is already taken." };
     }
 
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    });
+    const userTenantId = dbUser?.tenantId;
+
+    let parentId = formData.parentTenantId || null;
+    if (user.role === "Owner" && userTenantId) {
+      const allowedIds = await getScopedTenantIds("Owner", userTenantId);
+      if (!parentId) {
+        parentId = userTenantId; // default to the owner's tenant
+      } else if (!allowedIds.includes(parentId)) {
+        return { success: false, error: "FORBIDDEN: Parent tenant must be within your hierarchy branch." };
+      }
+    }
+
     const newTenant = await db.insert(tenants).values({
       name: formData.name,
       subdomain: formData.subdomain.toLowerCase(),
       customDomain: formData.customDomain || null,
-      parentTenantId: formData.parentTenantId || null,
+      parentTenantId: parentId,
+      dbName: formData.dbName || null,
       branding: {
         logoUrl: formData.logoUrl || "",
         primaryColor: formData.primaryColor || "#0ea5e9",
@@ -71,6 +125,9 @@ export async function createTenantAction(formData: {
           maxCourses: 50,
           allowSelfSignup: true,
         },
+        database: {
+          dbUrl: formData.dbUrl || "",
+        }
       },
       status: "active",
     }).returning();
@@ -94,17 +151,42 @@ export async function updateTenantAction(
     status: string;
     settings?: any;
     parentTenantId?: string | null;
+    dbName?: string;
+    dbUrl?: string;
   }
 ) {
   try {
-    const user = await requireAuth(["SuperAdmin"]);
+    const user = await requireAuth(["SuperAdmin", "Owner"]);
+    await verifyGlobalAdmin(user);
     verifyWriteAccess(user);
+
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    });
+    const userTenantId = dbUser?.tenantId;
+
+    let parentId = formData.parentTenantId || null;
+    if (user.role === "Owner" && userTenantId) {
+      const allowedIds = await getScopedTenantIds("Owner", userTenantId);
+      // Ensure the tenant being updated is within their branch
+      const targetTenant = await db.query.tenants.findFirst({
+        where: eq(tenants.id, id),
+      });
+      if (!targetTenant || !allowedIds.includes(targetTenant.id)) {
+        return { success: false, error: "FORBIDDEN: You do not have permission to modify this tenant." };
+      }
+      // Ensure the new parent is also within their branch
+      if (parentId && !allowedIds.includes(parentId)) {
+        return { success: false, error: "FORBIDDEN: New parent tenant must be within your hierarchy branch." };
+      }
+    }
 
     const updateFields: any = {
       name: formData.name,
       subdomain: formData.subdomain.toLowerCase(),
       customDomain: formData.customDomain || null,
-      parentTenantId: formData.parentTenantId || null,
+      parentTenantId: parentId,
+      dbName: formData.dbName || null,
       branding: {
         logoUrl: formData.logoUrl || "",
         primaryColor: formData.primaryColor || "#0ea5e9",
@@ -116,7 +198,12 @@ export async function updateTenantAction(
     };
 
     if (formData.settings) {
-      updateFields.settings = formData.settings;
+      updateFields.settings = {
+        ...formData.settings,
+        database: {
+          dbUrl: formData.dbUrl || "",
+        }
+      };
     }
 
     const updated = await db.update(tenants)
@@ -133,7 +220,18 @@ export async function updateTenantAction(
 
 export async function getTenantPermissionsAction(tenantId: string) {
   try {
-    const user = await requireAuth(["SuperAdmin"]);
+    const user = await requireAuth(["SuperAdmin", "Owner"]);
+    await verifyGlobalAdmin(user);
+
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    });
+    if (user.role === "Owner" && dbUser?.tenantId) {
+      const allowedIds = await getScopedTenantIds("Owner", dbUser.tenantId);
+      if (!allowedIds.includes(tenantId)) {
+        return { success: false, error: "FORBIDDEN: You do not have permission to view this tenant's permissions." };
+      }
+    }
     
     // Get all roles for this tenant
     const tenantRoles = await db.query.roles.findMany({
@@ -168,7 +266,8 @@ export async function getTenantPermissionsAction(tenantId: string) {
 
 export async function toggleRolePermissionAction(roleId: string, permissionId: string, enable: boolean) {
   try {
-    const user = await requireAuth(["SuperAdmin"]);
+    const user = await requireAuth(["SuperAdmin", "Owner"]);
+    await verifyGlobalAdmin(user);
     verifyWriteAccess(user);
 
     if (enable) {
@@ -195,7 +294,7 @@ export async function toggleRolePermissionAction(roleId: string, permissionId: s
   }
 }
 
-import { getScopedTenantIds } from "@/features/auth/services/tenant";
+
 
 export async function getSwitchableTenantsAction() {
   try {

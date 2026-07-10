@@ -11,7 +11,7 @@ declare global {
   var dbClient: postgres.Sql | undefined;
 }
 
-const useJsonDb = process.env.USE_JSON_DB === "true" && !process.env.DATABASE_URL;
+const useJsonDb = process.env.USE_JSON_DB === "true";
 
 let dbInstance: any;
 
@@ -35,6 +35,17 @@ if (useJsonDb) {
 
   // Connection registry for all active database instances
   const dbClients = new Map<string, postgres.Sql>();
+  const subdomainDbCache = new Map<string, string>();
+
+  const getDefaultDatabaseName = (): string => {
+    try {
+      const url = new URL(connectionStringBase);
+      const dbName = url.pathname.replace("/", "");
+      return dbName || "postgres";
+    } catch {
+      return "postgres";
+    }
+  };
 
   const getDbClientForDatabase = (dbName: string): postgres.Sql => {
     if (!dbClients.has(dbName)) {
@@ -60,27 +71,32 @@ if (useJsonDb) {
   const normalizeSubdomain = (subdomain: string): string => {
     const s = subdomain.toLowerCase();
     // Alias mappings
-    if (s === "vti" || s === "vtu") return "vt";
+    if (s === "vti") return "vt";
     return s;
   };
 
-  const getDatabaseForSubdomain = (subdomain: string): string => {
+  const resolveDatabaseForSubdomain = async (subdomain: string): Promise<string> => {
     const s = normalizeSubdomain(subdomain);
-    // Map subdomains to parent databases
-    if (s === "test1" || s === "test1-sub" || s === "test1sub") {
-      return "test1_db";
+    if (subdomainDbCache.has(s)) {
+      return subdomainDbCache.get(s)!;
     }
-    if (s === "vt" || s === "intel" || s === "intel-oregon" || s === "amd") {
-      return "vt_db";
-    }
-    // Extract default database name from connection URL if not mapped
     try {
-      const url = new URL(connectionStringBase);
-      const dbName = url.pathname.replace("/", "");
-      return dbName || "postgres";
-    } catch {
-      return "postgres";
+      // Direct query on defaultClient to prevent recursion
+      const result = await defaultClient.unsafe(
+        `SELECT db_name FROM public.tenants WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1`,
+        [s]
+      );
+      if (result && result.length > 0 && result[0].db_name) {
+        const dbName = result[0].db_name;
+        subdomainDbCache.set(s, dbName);
+        return dbName;
+      }
+    } catch (err) {
+      // Suppress noisy logs during initial setup/seeding, but handle fallback
     }
+    
+    // Extract default database name from connection URL if not found in db or db query fails
+    return getDefaultDatabaseName();
   };
 
   const defaultClient = globalThis.dbClient || postgres(connectionStringBase, {
@@ -203,7 +219,7 @@ if (useJsonDb) {
 
         if (subdomain && subdomain !== "public") {
           const normalized = normalizeSubdomain(subdomain);
-          const dbName = getDatabaseForSubdomain(subdomain);
+          const dbName = await resolveDatabaseForSubdomain(subdomain);
           const activeClient = getDbClientForDatabase(dbName);
           const schemaName = `tenant_${normalized.replace(/[^a-zA-Z0-9_]/g, "")}`;
           
@@ -228,7 +244,7 @@ if (useJsonDb) {
         // Default client connection routing
         let activeClient = defaultClient;
         if (subdomain) {
-          const dbName = getDatabaseForSubdomain(subdomain);
+          const dbName = await resolveDatabaseForSubdomain(subdomain);
           activeClient = getDbClientForDatabase(dbName);
           console.log(`[DB PROXY] PUBLIC QUERY -> Subdomain: "${subdomain}" | DB: "${dbName}"`);
         } else {
@@ -248,7 +264,7 @@ if (useJsonDb) {
         return (query: string, parameters?: any[]) => {
           return createAsyncQueryProxy(async (state) => {
             const subdomain = await resolveSubdomainFromHeaders();
-            const dbName = getDatabaseForSubdomain(subdomain || "public");
+            const dbName = await resolveDatabaseForSubdomain(subdomain || "public");
             const activeClient = getDbClientForDatabase(dbName);
 
             if (subdomain && subdomain !== "public") {
@@ -284,7 +300,7 @@ if (useJsonDb) {
         return (...args: any[]) => {
           return createAsyncQueryProxy(async () => {
             const subdomain = await resolveSubdomainFromHeaders();
-            const dbName = getDatabaseForSubdomain(subdomain || "public");
+            const dbName = await resolveDatabaseForSubdomain(subdomain || "public");
             const activeClient = getDbClientForDatabase(dbName);
 
             if (subdomain && subdomain !== "public") {

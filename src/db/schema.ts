@@ -7,6 +7,7 @@ export const tenants = pgTable("tenants", {
   name: varchar("name", { length: 255 }).notNull(),
   subdomain: varchar("subdomain", { length: 255 }).notNull().unique(),
   customDomain: varchar("custom_domain", { length: 255 }).unique(),
+  dbName: varchar("db_name", { length: 255 }),
   branding: jsonb("branding").$type<{
     logoUrl?: string;
     primaryColor?: string;
@@ -34,6 +35,9 @@ export const tenants = pgTable("tenants", {
       maxUsers: number;
       maxCourses: number;
       allowSelfSignup: boolean;
+    };
+    database?: {
+      dbUrl?: string;
     };
   }>(),
 }, (table) => {

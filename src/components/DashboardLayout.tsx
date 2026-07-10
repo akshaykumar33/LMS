@@ -42,6 +42,7 @@ interface DashboardLayoutProps {
     id: string;
     name: string;
     subdomain: string;
+    parentTenantId?: string | null;
     branding?: {
       logoUrl?: string;
       primaryColor?: string;
@@ -56,9 +57,11 @@ interface DashboardLayoutProps {
       name: string;
     } | null;
   } | null;
+  /** True if this tenant has child sub-tenants (passed from server component) */
+  isParentOrg?: boolean;
 }
 
-export function DashboardLayout({ children, user, tenant, studentProfile }: DashboardLayoutProps) {
+export function DashboardLayout({ children, user, tenant, studentProfile, isParentOrg }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -111,7 +114,14 @@ export function DashboardLayout({ children, user, tenant, studentProfile }: Dash
     router.push("/login");
   };
 
-  const primaryColor = tenant.branding?.primaryColor || "#0ea5e9";
+  const primaryColor = tenant.branding?.primaryColor || "#f97316";
+
+  // Dynamically determine parent/admin status
+  // isParentOrg is passed from server components that query child tenants
+  // Falls back to checking parentTenantId for backward compatibility
+  const isOnParentDomain = isParentOrg ?? !tenant.parentTenantId;
+  const isSystemAdmin = user.role === "SuperAdmin" || (user.role === "Owner" && isOnParentDomain);
+  const logoHref = "/";
 
   // Dynamic Categorized Navigation groups based on user role
   const getNavigationGroups = () => {
@@ -196,23 +206,21 @@ export function DashboardLayout({ children, user, tenant, studentProfile }: Dash
       ];
     }
 
+    if (isSystemAdmin) {
+      return [
+        {
+          title: "Parent Workspace",
+          items: [
+            { name: "Admissions Hub", href: "/admin/admissions", icon: Users },
+            { name: "Curriculum Manager", href: "/admin/courses", icon: BookOpen },
+            { name: "Platform Analytics", href: "/admin/analytics", icon: BarChart3 },
+            { name: "Placement Console", href: "/admin/placement", icon: Briefcase },
+          ]
+        }
+      ];
+    }
+
     if (user.role === "SuperAdmin") {
-      // Determine if we're on a parent/platform domain or a child org subdomain
-      const parentDomains = ["vt", "vti", "vtu", "test1", "localhost", "", "www"];
-      const currentSub = (tenant as any)?.subdomain || "";
-      const isOnParentDomain = parentDomains.includes(currentSub.toLowerCase());
-
-      if (isOnParentDomain) {
-        return [
-          {
-            title: "System Administration",
-            items: [
-              { name: "System Tenants", href: "/super-admin", icon: Layers },
-            ]
-          }
-        ];
-      }
-
       // On child org subdomain: SuperAdmin gets full admin controls
       return [
         {
@@ -341,16 +349,14 @@ export function DashboardLayout({ children, user, tenant, studentProfile }: Dash
           <div className="flex items-center gap-3 overflow-hidden">
             {!isSidebarCollapsed && (
               <div className="flex items-center gap-2 truncate">
-                <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={user.role === "Student" ? "/dashboard" : pathname} />
+                <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={logoHref} />
                 <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground opacity-75">
                   Platform
                 </span>
               </div>
             )}
             {isSidebarCollapsed && (
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold">
-                {tenant.name.charAt(0)}
-              </div>
+              <BrandLogo subdomain={tenant.subdomain} iconOnly href={logoHref} />
             )}
           </div>
           <button 
@@ -384,7 +390,11 @@ export function DashboardLayout({ children, user, tenant, studentProfile }: Dash
                           ? "text-primary bg-primary/10 border-l-2 border-primary animate-in fade-in" 
                           : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                       }`}
-                      style={isActive ? { borderLeftColor: primaryColor, color: primaryColor } : undefined}
+                      style={isActive ? { 
+                        borderLeftColor: primaryColor, 
+                        color: primaryColor,
+                        backgroundColor: primaryColor.startsWith("#") ? `${primaryColor}1a` : undefined
+                      } : undefined}
                     >
                       <Icon className="w-4 h-4 shrink-0" />
                       {!isSidebarCollapsed && <span className="truncate">{item.name}</span>}
@@ -464,7 +474,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile }: Dash
           >
             <Menu className="w-4 h-4" />
           </button>
-          <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={user.role === "Student" ? "/dashboard" : pathname} />
+          <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={logoHref} />
         </div>
         <div className="flex items-center gap-2">
           {user.role === "Student" && (
@@ -486,7 +496,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile }: Dash
           />
           <div className="relative w-72 max-w-sm bg-card border-r border-border h-full flex flex-col p-6 shadow-2xl animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between mb-8">
-              <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={user.role === "Student" ? "/dashboard" : pathname} />
+              <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={logoHref} />
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground"

@@ -6,7 +6,7 @@ import { CourseManagerConsole } from "@/features/course/components/CourseManager
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { db } from "@/db/db";
-import { users } from "@/db/schema";
+import { users, tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export default async function AdminCoursesPage() {
@@ -15,8 +15,11 @@ export default async function AdminCoursesPage() {
 
   const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
 
-  const scopedTenantIds = await getScopedTenantIds(user.role, tenant.id);
+  const scopedTenantIds = await getScopedTenantIds(user.role, user.tenantId || tenant.id);
   const rawCourses = await CourseRepository.getAllCourses(scopedTenantIds);
+
+  const allTenantsList = await db.select().from(tenants);
+  const tenantMap = new Map<string, string>(allTenantsList.map((t: any) => [t.id, t.name]));
 
   // Map courses to match component interfaces
   const formattedCourses = rawCourses.map((c: any) => ({
@@ -24,6 +27,7 @@ export default async function AdminCoursesPage() {
     code: c.code,
     name: c.name,
     description: c.description,
+    tenantName: tenantMap.get(c.tenantId) || "Unknown",
     modules: c.modules.map((m: any) => ({
       id: m.id,
       name: m.name,

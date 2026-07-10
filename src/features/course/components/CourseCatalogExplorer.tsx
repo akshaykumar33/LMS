@@ -43,7 +43,7 @@ export function CourseCatalogExplorer({
     <div className="space-y-8 w-full">
       <div className="space-y-3 text-center md:text-left">
         <h2 className="text-2xl font-black text-foreground uppercase tracking-wider flex items-center justify-center md:justify-start gap-2">
-          <GraduationCap className="w-7 h-7 text-primary" /> Explore Our Semiconductor Curriculum
+          <GraduationCap className="w-7 h-7" style={{ color: primaryColor }} /> Explore Our Semiconductor Curriculum
         </h2>
         <p className="text-sm text-muted-foreground max-w-xl">
           Inspect our graduate-level course structures, lecture contents, and syllabus. Lock in your admission to start.
@@ -58,11 +58,22 @@ export function CourseCatalogExplorer({
           return (
             <div
               key={course.id}
-              className="bg-card border border-border rounded-2xl p-6 shadow-lg hover:border-primary/45 hover:shadow-primary/5 transition-all flex flex-col justify-between group"
+              className="bg-card border border-border/80 rounded-2xl p-6 shadow-lg transition-all flex flex-col justify-between group"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = primaryColor;
+                e.currentTarget.style.boxShadow = `0 10px 30px -10px ${primaryColor}20`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "";
+                e.currentTarget.style.boxShadow = "";
+              }}
             >
               <div className="space-y-4">
                 <div className="flex justify-between items-start">
-                  <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded font-mono uppercase">
+                  <span 
+                    className="text-[10px] font-bold px-2 py-0.5 rounded font-mono uppercase border"
+                    style={{ backgroundColor: primaryColor + "10", borderColor: primaryColor + "25", color: primaryColor }}
+                  >
                     {course.code}
                   </span>
                   {isEnrolled && (
@@ -72,7 +83,11 @@ export function CourseCatalogExplorer({
                   )}
                 </div>
                 <div className="space-y-1.5">
-                  <h3 className="text-lg font-bold text-foreground leading-tight group-hover:text-primary transition-colors">
+                  <h3 
+                    className="text-lg font-bold text-foreground leading-tight transition-colors"
+                    onMouseEnter={(e) => e.currentTarget.style.color = primaryColor}
+                    onMouseLeave={(e) => e.currentTarget.style.color = ""}
+                  >
                     {course.name}
                   </h3>
                   <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
@@ -88,7 +103,7 @@ export function CourseCatalogExplorer({
                   <div className="space-y-1.5">
                     {course.modules.slice(0, 3).map((mod) => (
                       <div key={mod.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <BookOpen className="w-3.5 h-3.5 text-primary/60 shrink-0" />
+                        <BookOpen className="w-3.5 h-3.5 shrink-0" style={{ color: primaryColor + "cc" }} />
                         <span className="truncate">{mod.name}</span>
                       </div>
                     ))}
@@ -146,7 +161,10 @@ export function CourseCatalogExplorer({
             {/* Modal Header */}
             <div className="p-6 border-b border-border flex justify-between items-start">
               <div className="space-y-1">
-                <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded font-mono uppercase">
+                <span 
+                  className="text-[10px] font-bold px-2 py-0.5 rounded font-mono uppercase border"
+                  style={{ backgroundColor: primaryColor + "10", borderColor: primaryColor + "25", color: primaryColor }}
+                >
                   {selectedCourse.code}
                 </span>
                 <h3 className="text-xl font-extrabold text-foreground">

@@ -32,6 +32,7 @@ interface Course {
   code: string;
   name: string;
   description: string | null;
+  tenantName?: string;
   modules: Module[];
 }
 
@@ -138,7 +139,15 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
           <CardContent className="p-6 space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold text-foreground">Course Catalog</h2>
-              <Badge variant="outline" className="text-[10px] bg-sky-500/10 text-sky-400 font-mono border-sky-500/25">
+              <Badge
+                variant="outline"
+                className="text-[10px] font-mono"
+                style={{
+                  backgroundColor: `${primaryColor}15`,
+                  color: primaryColor,
+                  borderColor: `${primaryColor}40`,
+                }}
+              >
                 CMS Mode
               </Badge>
             </div>
@@ -167,11 +176,22 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                       setEditingLesson(null);
                     }}
                     className={`w-full text-left justify-start h-auto p-4 rounded-xl border flex flex-col items-start gap-2 ${
-                      isSel ? "border-primary/50 bg-secondary/80" : "border-border hover:border-muted-foreground/30 bg-transparent"
+                      isSel ? "bg-secondary/80" : "border-border hover:border-muted-foreground/30 bg-transparent"
                     }`}
+                    style={{
+                      borderColor: isSel ? primaryColor : undefined,
+                    }}
                   >
                     <div className="flex justify-between items-center w-full">
-                      <Badge variant="outline" className="text-[10px] font-bold text-sky-400 bg-sky-500/10 border-sky-500/25">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-bold"
+                        style={{
+                          backgroundColor: `${primaryColor}15`,
+                          color: primaryColor,
+                          borderColor: `${primaryColor}40`,
+                        }}
+                      >
                         {c.code}
                       </Badge>
                       <span className="text-[10px] text-muted-foreground">
@@ -179,6 +199,11 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                       </span>
                     </div>
                     <h3 className="text-sm font-bold text-foreground truncate w-full text-left">{c.name}</h3>
+                    {c.tenantName && (
+                      <span className="text-[9px] text-muted-foreground/80 font-bold bg-secondary/40 px-1.5 py-0.5 rounded-md border border-border/40 mt-1">
+                        🏢 {c.tenantName}
+                      </span>
+                    )}
                   </Button>
                 );
               })}
@@ -199,7 +224,15 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
               <div className="flex justify-between items-start border-b border-border pb-6">
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="text-xs font-bold text-sky-400 bg-sky-500/10 border-sky-500/25">
+                    <Badge
+                      variant="outline"
+                      className="text-xs font-bold"
+                      style={{
+                        backgroundColor: `${primaryColor}15`,
+                        color: primaryColor,
+                        borderColor: `${primaryColor}40`,
+                      }}
+                    >
                       {selectedCourse.code}
                     </Badge>
                     <h2 className="text-xl font-extrabold text-foreground">{selectedCourse.name}</h2>
@@ -217,7 +250,18 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                     setEditingModule(null);
                     setEditingLesson(null);
                   }}
-                  className="text-xs font-bold border-sky-500/20 bg-sky-500/5 hover:bg-sky-500/10 text-sky-400"
+                  className="text-xs font-bold border"
+                  style={{
+                    borderColor: `${primaryColor}30`,
+                    backgroundColor: `${primaryColor}0c`,
+                    color: primaryColor,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = `${primaryColor}1a`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = `${primaryColor}0c`;
+                  }}
                 >
                   {userRole === "Guest" ? "Read Only" : "Edit Details"}
                 </Button>
@@ -244,7 +288,8 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                             setEditingCourse(null);
                             setEditingLesson(null);
                           }}
-                          className="text-[11px] text-sky-500 hover:text-sky-450 h-auto p-0"
+                          className="text-[11px] h-auto p-0"
+                          style={{ color: primaryColor }}
                         >
                           Rename Module
                         </Button>
@@ -266,7 +311,7 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                               </div>
                               {les.videoUrl && (
                                 <p className="text-[10px] text-muted-foreground">
-                                  📹 Video: <code className="text-sky-400">{les.videoUrl}</code>
+                                  📹 Video: <code style={{ color: primaryColor }}>{les.videoUrl}</code>
                                 </p>
                               )}
                             </div>
@@ -279,7 +324,13 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                                 setEditingCourse(null);
                                 setEditingModule(null);
                               }}
-                              className="text-xs font-semibold text-muted-foreground hover:text-foreground"
+                              className="text-xs font-semibold text-muted-foreground transition-colors"
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.color = primaryColor;
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.color = "";
+                              }}
                             >
                               Configure Transcript &rarr;
                             </Button>
