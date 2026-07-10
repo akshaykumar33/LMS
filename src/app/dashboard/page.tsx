@@ -31,7 +31,14 @@ export default async function DashboardPage() {
   }
 
   if (user.role === "SuperAdmin") {
-    redirect("/super-admin");
+    // On parent domains, go to the system console
+    const parentDomains = ["vt", "vti", "vtu", "test1", "localhost", "", "www"];
+    const currentSub = tenant?.subdomain || "";
+    if (parentDomains.includes(currentSub.toLowerCase())) {
+      redirect("/super-admin");
+    }
+    // On child org subdomains, SuperAdmin gets full admin access
+    redirect("/admin/admissions");
   }
 
   // Load student profile and courses if role is Student

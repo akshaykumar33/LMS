@@ -45,6 +45,7 @@ interface Tenant {
   status: string;
   createdAt: Date;
   updatedAt: Date;
+  parentTenantId: string | null;
   settings?: {
     features?: {
       enableLibrary: boolean;
@@ -95,6 +96,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
   const [logoUrl, setLogoUrl] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#0ea5e9");
   const [secondaryColor, setSecondaryColor] = useState("#0f172a");
+  const [parentTenantId, setParentTenantId] = useState("");
 
   // Edit Form branding fields
   const [editName, setEditName] = useState("");
@@ -104,6 +106,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
   const [editPrimaryColor, setEditPrimaryColor] = useState("#0ea5e9");
   const [editSecondaryColor, setEditSecondaryColor] = useState("#0f172a");
   const [editStatus, setEditStatus] = useState("active");
+  const [editParentTenantId, setEditParentTenantId] = useState("");
+  const [viewMode, setViewMode] = useState<"table" | "tree">("table");
 
   // Edit Form settings fields
   const [enableLibrary, setEnableLibrary] = useState(true);
@@ -206,6 +210,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         logoUrl: logoUrl || undefined,
         primaryColor,
         secondaryColor,
+        parentTenantId: parentTenantId || undefined,
       });
 
       if (res.success && res.data) {
@@ -217,6 +222,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         setLogoUrl("");
         setPrimaryColor("#0ea5e9");
         setSecondaryColor("#0f172a");
+        setParentTenantId("");
         setTimeout(() => {
           setIsCreateOpen(false);
           setSuccessMsg(null);
@@ -240,6 +246,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
     setEditPrimaryColor(tenant.branding?.primaryColor || "#0ea5e9");
     setEditSecondaryColor(tenant.branding?.secondaryColor || "#0f172a");
     setEditStatus(tenant.status);
+    setEditParentTenantId(tenant.parentTenantId || "");
 
     // Load settings values
     const s = tenant.settings || {};
@@ -277,6 +284,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         primaryColor: editPrimaryColor,
         secondaryColor: editSecondaryColor,
         status: editStatus,
+        parentTenantId: editParentTenantId || null,
         settings: {
           features: {
             enableLibrary,
@@ -315,17 +323,108 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
     }
   };
 
+  // Helper to build hierarchy tree JSX
+  const renderTenantTree = (parentId: string | null = null, depth = 0): React.ReactNode => {
+    const children = tenantsList.filter(t => t.parentTenantId === parentId);
+    if (children.length === 0) return null;
+
+    return (
+      <div className={`space-y-4 ${depth > 0 ? "ml-8 border-l border-border/80 pl-6 mt-3 relative" : ""}`}>
+        {children.map(t => {
+          const isLocal = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
+          const isVercel = typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app");
+          const portalUrl = isLocal
+            ? `http://${t.subdomain}.localhost:3000`
+            : isVercel
+            ? `/?tenant=${t.subdomain}`
+            : `https://${t.subdomain}.${typeof window !== "undefined" ? window.location.host : ""}`;
+
+          return (
+            <div key={t.id} className="relative group">
+              {/* Connector line for child elements */}
+              {depth > 0 && (
+                <div className="absolute -left-6 top-5 w-6 h-px bg-border/80" />
+              )}
+              
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-card border border-border/85 hover:border-primary/45 hover:bg-muted/15 transition-all shadow-md max-w-4xl">
+                <div className="flex items-center gap-4 min-w-0">
+                  {t.branding?.logoUrl ? (
+                    <img src={t.branding.logoUrl} alt={t.name} className="w-7 h-7 object-contain bg-slate-900 p-0.5 border border-border rounded-lg shrink-0" />
+                  ) : (
+                    <div className="w-7 h-7 rounded-lg bg-secondary text-muted-foreground flex items-center justify-center font-black text-[10px] border border-border shrink-0">
+                      {t.name.substring(0,2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-black text-foreground">{t.name}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground font-semibold font-bold">({t.subdomain})</span>
+                      <span className={`text-[8.5px] font-black border px-2 py-0.5 rounded-full ${
+                        depth === 0 
+                          ? "bg-purple-500/10 text-purple-400 border-purple-500/25" 
+                          : depth === 1
+                          ? "bg-blue-500/10 text-blue-400 border-blue-500/25"
+                          : "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"
+                      }`}>
+                        {depth === 0 ? "Top-level Organization" : depth === 1 ? "Sub-tenant" : "Sub-institute"}
+                      </span>
+                    </div>
+                    {t.customDomain && (
+                      <p className="text-[10px] text-primary font-mono font-bold mt-0.5">{t.customDomain}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold border ${
+                    t.status === "active" 
+                      ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
+                      : "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                  }`}>
+                    <span className={`w-1 h-1 rounded-full ${t.status === "active" ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+                    {t.status.toUpperCase()}
+                  </span>
+                  
+                  <button
+                    onClick={() => handleOpenEdit(t)}
+                    className="p-2 rounded-xl bg-muted/40 hover:bg-muted text-foreground border border-border transition-all flex items-center justify-center cursor-pointer"
+                    title="Configure Features & Limits"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-primary" />
+                  </button>
+
+                  {t.subdomain !== "vt" && (
+                    <a
+                      href={portalUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary transition-all flex items-center justify-center cursor-pointer"
+                      title="Launch Academy Portal"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              </div>
+              {renderTenantTree(t.id, depth + 1)}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-300">
       {/* Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900/80 to-slate-950/80 border border-border relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/5 rounded-full blur-[100px] pointer-events-none" />
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-card via-card/90 to-background/30 border border-border shadow-xl backdrop-blur-md relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
         <div className="space-y-2 relative z-10 text-center md:text-left">
-          <div className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-400 px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase font-bold border border-amber-500/20">
-            <Sparkles className="w-3 h-3" /> Multi-Tenant Orchestrator
+          <div className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1 rounded-full text-[10px] font-mono uppercase font-black border border-primary/20">
+            <Sparkles className="w-3.5 h-3.5" /> Multi-Tenant Orchestrator
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">Super Admin Operations Desk</h2>
-          <p className="text-xs text-slate-400 max-w-xl">
+          <h2 className="text-2xl font-black tracking-tight text-foreground">Super Admin Operations Desk</h2>
+          <p className="text-xs text-muted-foreground max-w-xl font-semibold leading-relaxed">
             Register academies, customize theme branding, configure fine-grained module access/gateways, and customize permissions.
           </p>
         </div>
@@ -336,7 +435,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
               setErrorMsg(null);
               setSuccessMsg(null);
             }}
-            className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-bold text-white shadow-lg shadow-sky-950/30 hover:shadow-sky-500/10 transition-all shrink-0"
+            className="flex items-center gap-1.5 h-10 px-5 rounded-xl bg-primary hover:opacity-95 text-xs font-black text-primary-foreground shadow-lg shadow-primary/15 hover:scale-[1.01] active:scale-[0.99] transition-all shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Register Academy Portal
           </button>
@@ -347,20 +446,20 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
       <div className="flex border-b border-border/40 gap-4">
         <button
           onClick={() => setActiveMainTab("academies")}
-          className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 px-1 ${
+          className={`pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 px-2 cursor-pointer ${
             activeMainTab === "academies" 
-              ? "border-sky-500 text-sky-400 font-extrabold" 
-              : "border-transparent text-slate-400 hover:text-slate-200"
+              ? "border-primary text-primary" 
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           Registered Academies ({tenantsList.length})
         </button>
         <button
           onClick={() => setActiveMainTab("permissions")}
-          className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 px-1 ${
+          className={`pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 px-2 cursor-pointer ${
             activeMainTab === "permissions" 
-              ? "border-sky-500 text-sky-400 font-extrabold" 
-              : "border-transparent text-slate-400 hover:text-slate-200"
+              ? "border-primary text-primary" 
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           Global Permission Matrix
@@ -372,17 +471,17 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
           {/* Stats Matrix */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { label: "Total Academies", val: tenantsList.length, icon: Building, color: "text-sky-400" },
-              { label: "Active Portals", val: activeCount, icon: Activity, color: "text-emerald-400" },
-              { label: "Suspended Portals", val: suspendedCount, icon: ShieldAlert, color: "text-rose-400" },
-              { label: "Platform Node", val: "v2.6.5-VT", icon: Globe, color: "text-purple-400" },
+              { label: "Total Academies", val: tenantsList.length, icon: Building, color: "text-primary bg-primary/10 border-primary/20" },
+              { label: "Active Portals", val: activeCount, icon: Activity, color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20" },
+              { label: "Suspended Portals", val: suspendedCount, icon: ShieldAlert, color: "text-rose-500 bg-rose-500/10 border-rose-500/20" },
+              { label: "Platform Node", val: "v2.6.5-VT", icon: Globe, color: "text-purple-500 bg-purple-500/10 border-purple-500/20" },
             ].map((stat, i) => (
-              <div key={i} className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-4 flex items-center justify-between transition-all hover:scale-[1.02]">
-                <div>
-                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{stat.label}</p>
-                  <p className="text-xl font-extrabold mt-1 text-slate-200">{stat.val}</p>
+              <div key={i} className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-5 flex items-center justify-between transition-all hover:scale-[1.02] border border-border shadow-sm">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{stat.label}</p>
+                  <p className="text-2xl font-black text-foreground">{stat.val}</p>
                 </div>
-                <div className={`p-2.5 rounded-lg bg-background/80 border border-border/60 ${stat.color} shadow-sm shadow-black/10`}>
+                <div className={`p-2.5 rounded-xl border ${stat.color} shadow-sm`}>
                   <stat.icon className="w-4 h-4" />
                 </div>
               </div>
@@ -390,154 +489,193 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
           </div>
 
           {/* Tenants Table Section */}
-          <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl overflow-hidden">
+          <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl overflow-hidden border border-border/80 shadow-md">
             <div className="p-5 border-b border-border/40 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-300">Registered Academy Domains</h3>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <h3 className="text-xs font-black uppercase tracking-wider text-foreground">Registered Academy Domains</h3>
+                <div className="inline-flex rounded-xl p-0.5 bg-muted/20 border border-border/50 shrink-0">
+                  <button
+                    onClick={() => setViewMode("table")}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      viewMode === "table" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    List
+                  </button>
+                  <button
+                    onClick={() => setViewMode("tree")}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      viewMode === "tree" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Hierarchy Tree
+                  </button>
+                </div>
+              </div>
               <div className="relative w-full sm:w-72">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search by name or subdomain..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full h-8 pl-9 pr-4 rounded-lg bg-transparent border border-border/40 text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none"
+                  className="w-full h-9 pl-9 pr-4 rounded-xl bg-muted/15 border border-border/60 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/50 transition-all"
                 />
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-border/80 bg-background/20 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    <th className="p-4">Academy Detail</th>
-                    <th className="p-4">Subdomain</th>
-                    <th className="p-4">Custom URL</th>
-                    <th className="p-4 text-center">Branding Color</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-850/40 text-xs">
-                  {filteredTenants.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-500">
-                        No academies found matching search criteria.
-                      </td>
+            {viewMode === "table" ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-border/80 bg-muted/15 text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                      <th className="p-4">Academy Detail</th>
+                      <th className="p-4">Subdomain</th>
+                      <th className="p-4">Custom URL</th>
+                      <th className="p-4 text-center">Branding Color</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4 text-right">Actions</th>
                     </tr>
-                  ) : (
-                    filteredTenants.map((t) => {
-                      const isParent = t.subdomain === "vt";
-                      const isLocal = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
-                      const isVercel = typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app");
-                      const portalUrl = isLocal
-                        ? `http://${t.subdomain}.localhost:3000`
-                        : isVercel
-                        ? `/?tenant=${t.subdomain}`
-                        : `https://${t.subdomain}.${window.location.host}`;
+                  </thead>
+                  <tbody className="divide-y divide-border/40 text-xs font-semibold text-foreground">
+                    {filteredTenants.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                          No academies found matching search criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredTenants.map((t) => {
+                        const isParent = t.subdomain === "vt";
+                        const isLocal = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
+                        const isVercel = typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app");
+                        const portalUrl = isLocal
+                          ? `http://${t.subdomain}.localhost:3000`
+                          : isVercel
+                          ? `/?tenant=${t.subdomain}`
+                          : `https://${t.subdomain}.${typeof window !== "undefined" ? window.location.host : ""}`;
 
-                      return (
-                        <tr key={t.id} className="hover:bg-card transition-colors">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              {t.branding?.logoUrl ? (
-                                <img 
-                                  src={t.branding.logoUrl} 
-                                  alt={t.name}
-                                  className="w-7 h-7 rounded object-contain bg-slate-900 p-0.5 border border-border" 
-                                />
-                              ) : (
-                                <div className="w-7 h-7 rounded bg-secondary text-slate-300 flex items-center justify-center font-bold text-[10px]">
-                                  {t.name.substring(0, 2).toUpperCase()}
-                                </div>
-                              )}
-                              <div>
-                                <div className="flex items-center gap-1.5">
-                                  <p className="font-bold text-slate-200">{t.branding?.companyName || t.name}</p>
-                                  {t.settings?.restrictions?.maxUsers && (
-                                    <span className="text-[9px] bg-slate-800 text-slate-400 px-1 py-0.5 rounded">
-                                      {t.settings.restrictions.maxUsers} Users
+                        return (
+                          <tr key={t.id} className="hover:bg-muted/5 transition-colors">
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                {t.branding?.logoUrl ? (
+                                  <img 
+                                    src={t.branding.logoUrl} 
+                                    alt={t.name}
+                                    className="w-8 h-8 rounded-lg object-contain bg-slate-900 p-0.5 border border-border" 
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-lg bg-secondary text-muted-foreground flex items-center justify-center font-bold text-[10px] border border-border">
+                                    {t.name.substring(0, 2).toUpperCase()}
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="font-extrabold text-foreground">{t.branding?.companyName || t.name}</p>
+                                    {t.settings?.restrictions?.maxUsers && (
+                                      <span className="text-[9px] font-black bg-muted/60 text-muted-foreground px-1.5 py-0.5 rounded border border-border/20">
+                                        {t.settings.restrictions.maxUsers} Users
+                                      </span>
+                                    )}
+                                  </div>
+                                  {t.parentTenantId ? (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-[9px] font-black uppercase bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded">
+                                        Sub-tenant
+                                      </span>
+                                      <span className="text-[9.5px] font-bold text-muted-foreground">
+                                        of {tenantsList.find(p => p.id === t.parentTenantId)?.name || "Parent"}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="inline-block mt-0.5 text-[9px] font-black uppercase bg-muted/80 text-muted-foreground/90 border border-border/40 px-1.5 py-0.5 rounded">
+                                      Top-level Tenant
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-[10px] text-slate-500 font-mono">ID: {t.id}</p>
                               </div>
-                            </div>
-                          </td>
-                          <td className="p-4 font-mono text-slate-400">
-                            {t.subdomain}
-                          </td>
-                          <td className="p-4 text-slate-400">
-                            {t.customDomain || <span className="text-[10px] text-slate-600 font-mono">None Configured</span>}
-                          </td>
-                          <td className="p-4 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <span 
-                                className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-sm"
-                                style={{ backgroundColor: t.branding?.primaryColor || "#0ea5e9" }}
-                                title="Primary Theme Color"
-                              />
-                              <span className="text-[10px] font-mono text-slate-500">{t.branding?.primaryColor || "#0ea5e9"}</span>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
-                              t.status === "active" 
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                                : "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                            }`}>
-                              <span className={`w-1 h-1 rounded-full ${t.status === "active" ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
-                              {t.status.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="p-4 text-right">
-                            <div className="inline-flex items-center gap-2">
-                              <button
-                                onClick={() => handleOpenEdit(t)}
-                                className="p-1.5 rounded bg-slate-850 hover:bg-slate-700 text-slate-300 hover:text-white border border-border/40 transition-all flex items-center gap-1 text-[10px]"
-                                title="Configure Features & Limits"
-                              >
-                                <Settings className="w-3 h-3 text-sky-400" /> Settings
-                              </button>
-                              {!isParent && (
-                                <a
-                                  href={portalUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="p-1.5 rounded bg-sky-950/40 border border-sky-900/60 hover:bg-sky-900/60 text-sky-400 hover:text-white transition-all flex items-center justify-center"
-                                  title="Launch Academy Portal"
+                            </td>
+                            <td className="p-4 font-mono text-muted-foreground text-xs">
+                              {t.subdomain}
+                            </td>
+                            <td className="p-4 text-muted-foreground text-xs">
+                              {t.customDomain || <span className="text-[10px] text-muted-foreground/60 font-mono">None Configured</span>}
+                            </td>
+                            <td className="p-4 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span 
+                                  className="w-3.5 h-3.5 rounded-full border border-border shadow-inner"
+                                  style={{ backgroundColor: t.branding?.primaryColor || "#0ea5e9" }}
+                                  title="Primary Theme Color"
+                                />
+                                <span className="text-[10px] font-mono text-muted-foreground">{t.branding?.primaryColor || "#0ea5e9"}</span>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                                t.status === "active" 
+                                  ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
+                                  : "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                              }`}>
+                                <span className={`w-1 h-1 rounded-full ${t.status === "active" ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+                                {t.status.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right">
+                              <div className="inline-flex items-center gap-2">
+                                <button
+                                  onClick={() => handleOpenEdit(t)}
+                                  className="p-2 rounded-xl bg-muted/40 hover:bg-muted text-foreground border border-border transition-all flex items-center gap-1 text-[10px] font-bold cursor-pointer"
+                                  title="Configure Features & Limits"
                                 >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </a>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                                  <Settings className="w-3 h-3 text-primary" /> Settings
+                                </button>
+                                {!isParent && (
+                                  <a
+                                    href={portalUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-2 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary transition-all flex items-center justify-center cursor-pointer"
+                                    title="Launch Academy Portal"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-6 space-y-4 max-h-[600px] overflow-y-auto">
+                {renderTenantTree(null)}
+              </div>
+            )}
           </div>
         </>
       ) : (
         /* Global Permission Matrix View */
-        <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-6 space-y-6">
+        <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-6 space-y-6 border border-border shadow-sm">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-border/40 pb-5">
-            <div>
-              <h3 className="text-sm font-bold text-slate-200">Global RBAC Permission Matrix</h3>
-              <p className="text-xs text-slate-500 mt-1">Configure permission policies for system-seeded roles of specific tenants.</p>
+            <div className="space-y-1">
+              <h3 className="text-sm font-black text-foreground">Global RBAC Permission Matrix</h3>
+              <p className="text-xs text-muted-foreground font-semibold">Configure permission policies for system-seeded roles of specific tenants.</p>
             </div>
             
             <div className="flex items-center gap-3 w-full sm:w-auto">
-              <label className="text-xs text-slate-400 shrink-0 font-medium">Select Tenant:</label>
+              <label className="text-xs text-muted-foreground shrink-0 font-extrabold uppercase tracking-wider">Select Tenant:</label>
               <select
                 value={matrixTenantId}
                 onChange={e => {
                   setMatrixTenantId(e.target.value);
                   loadPermissionMatrix(e.target.value);
                 }}
-                className="w-full sm:w-64 h-9 px-3 rounded-lg bg-slate-900 border border-border/40 text-xs text-white"
+                className="w-full sm:w-64 h-9 px-3 rounded-xl bg-card border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer"
               >
                 {tenantsList.map(t => (
                   <option key={t.id} value={t.id}>{t.name} ({t.subdomain})</option>
@@ -547,34 +685,34 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
           </div>
 
           {loadingMatrix ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
-              <Loader2 className="w-8 h-8 animate-spin text-sky-400" />
-              <p className="text-xs font-medium">Querying database permissions mapping...</p>
+            <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <p className="text-xs font-semibold">Querying database permissions mapping...</p>
             </div>
           ) : matrixRoles.length === 0 ? (
-            <div className="text-center py-10 text-slate-500 text-xs">
+            <div className="text-center py-10 text-muted-foreground text-xs font-semibold">
               No roles found for the selected tenant. Try re-seeding the database.
             </div>
           ) : (
-            <div className="overflow-x-auto border border-border/40 rounded-xl bg-slate-900/50">
-              <table className="w-full border-collapse text-left text-xs">
+            <div className="overflow-x-auto border border-border/40 rounded-xl bg-muted/5">
+              <table className="w-full border-collapse text-left text-xs font-semibold">
                 <thead>
-                  <tr className="border-b border-border/60 bg-slate-900 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="p-3.5 sticky left-0 bg-slate-950 border-r border-border/40 z-10 w-64">Permission Policy</th>
+                  <tr className="border-b border-border bg-muted/15 text-[10px] font-black text-muted-foreground uppercase tracking-wider">
+                    <th className="p-3.5 sticky left-0 bg-card border-r border-border/40 z-10 w-64 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Permission Policy</th>
                     {matrixRoles.map(role => (
                       <th key={role.id} className="p-3.5 text-center min-w-28 border-r border-border/40 last:border-0">
-                        <div className="font-bold text-slate-200">{role.name}</div>
-                        <div className="text-[8px] text-slate-500 font-normal lowercase max-w-28 truncate">{role.description}</div>
+                        <div className="font-extrabold text-foreground">{role.name}</div>
+                        <div className="text-[8px] text-muted-foreground font-semibold lowercase max-w-28 truncate">{role.description}</div>
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/30">
+                <tbody className="divide-y divide-border/30 text-foreground">
                   {matrixPermissions.map(perm => (
-                    <tr key={perm.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="p-3 sticky left-0 bg-slate-950/80 backdrop-blur border-r border-border/40 font-mono text-[10.5px] font-bold text-slate-300">
+                    <tr key={perm.id} className="hover:bg-muted/5 transition-colors">
+                      <td className="p-3 sticky left-0 bg-card/95 backdrop-blur border-r border-border/40 font-mono text-[10.5px] font-black text-foreground shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                         <div>{perm.name}</div>
-                        <div className="text-[8.5px] text-slate-500 font-sans font-normal mt-0.5">{perm.description}</div>
+                        <div className="text-[8.5px] text-muted-foreground font-sans font-semibold mt-0.5">{perm.description}</div>
                       </td>
                       {matrixRoles.map(role => {
                         const isEnabled = matrixMappings.some(m => m.roleId === role.id && m.permissionId === perm.id);
@@ -582,22 +720,22 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                         const isToggling = togglingMatrix === key;
 
                         return (
-                          <td key={role.id} className="p-3 text-center border-r border-border/30 last:border-0">
+                           <td key={role.id} className="p-3 text-center border-r border-border/30 last:border-0">
                             <button
                               disabled={isToggling}
                               onClick={() => handleTogglePermission(role.id, perm.id, isEnabled)}
-                              className={`mx-auto w-5 h-5 rounded flex items-center justify-center border transition-all ${
+                              className={`mx-auto w-6 h-6 rounded-lg flex items-center justify-center border transition-all cursor-pointer ${
                                 isEnabled 
-                                  ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20" 
-                                  : "bg-transparent border-slate-700 text-slate-600 hover:border-slate-500"
+                                  ? "bg-emerald-500/10 border-emerald-500/35 text-emerald-500 hover:bg-emerald-500/20" 
+                                  : "bg-transparent border-border text-muted-foreground/60 hover:border-muted-foreground hover:text-foreground"
                               }`}
                             >
                               {isToggling ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                               ) : isEnabled ? (
-                                <CheckCircle2 className="w-3.5 h-3.5 fill-emerald-400/20" />
+                                <CheckCircle2 className="w-4 h-4 fill-emerald-500/10" />
                               ) : (
-                                <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/45" />
                               )}
                             </button>
                           </td>
@@ -612,18 +750,18 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         </div>
       )}
 
-      {/* Modal: Create Tenant */}
+      {/* Modal: Register Tenant */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-slate-900 border border-border/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col sexy-border-glow">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-card border border-border/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col sexy-border-glow">
             <div className="p-5 border-b border-border/50 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Building className="w-4 h-4 text-sky-400" />
-                <h4 className="text-xs font-black uppercase tracking-widest text-white">Register New Academy</h4>
+                <Building className="w-4 h-4 text-primary" />
+                <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Register New Academy</h4>
               </div>
               <button 
                 onClick={() => setIsCreateOpen(false)}
-                className="p-1 rounded-lg text-slate-500 hover:text-slate-300 transition-colors"
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/15 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -631,108 +769,122 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
 
             <form onSubmit={handleCreateTenant} className="p-6 space-y-4 overflow-y-auto max-h-[75vh]">
               {errorMsg && (
-                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">
+                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-semibold">
                   {errorMsg}
                 </div>
               )}
 
               <div className="space-y-1.5">
-                <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Academy name</label>
+                <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Academy name</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Nvidia Engineering Academy"
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/40 text-xs text-white"
+                  className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/60 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45"
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Subdomain</label>
+                  <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Subdomain</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. nvidia"
                     value={subdomain}
                     onChange={e => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                    className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/40 text-xs text-white font-mono"
+                    className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Custom Domain</label>
+                  <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Custom Domain</label>
                   <input
                     type="text"
                     placeholder="e.g. nvidia-coe.org"
                     value={customDomain}
                     onChange={e => setCustomDomain(e.target.value)}
-                    className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/40 text-xs text-white font-mono"
+                    className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Logo SVG / PNG URL</label>
+                <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Logo SVG / PNG URL</label>
                 <input
                   type="url"
                   placeholder="e.g. https://domain.com/logo.svg"
                   value={logoUrl}
                   onChange={e => setLogoUrl(e.target.value)}
-                  className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/40 text-xs text-white"
+                  className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/60 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45"
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Primary Color (Hex)</label>
+                  <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Primary Color (Hex)</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
                       value={primaryColor}
                       onChange={e => setPrimaryColor(e.target.value)}
-                      className="w-10 h-10 rounded border-0 bg-transparent cursor-pointer shrink-0"
+                      className="w-10 h-10 rounded-xl border border-border bg-transparent cursor-pointer shrink-0"
                     />
                     <input
                       type="text"
                       value={primaryColor}
                       onChange={e => setPrimaryColor(e.target.value)}
-                      className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/40 text-xs text-white font-mono"
+                      className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Secondary Color (Hex)</label>
+                  <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Secondary Color (Hex)</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
                       value={secondaryColor}
                       onChange={e => setSecondaryColor(e.target.value)}
-                      className="w-10 h-10 rounded border-0 bg-transparent cursor-pointer shrink-0"
+                      className="w-10 h-10 rounded-xl border border-border bg-transparent cursor-pointer shrink-0"
                     />
                     <input
                       type="text"
                       value={secondaryColor}
                       onChange={e => setSecondaryColor(e.target.value)}
-                      className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/40 text-xs text-white font-mono"
+                      className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45"
                     />
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Parent Tenant / Organization</label>
+                <select
+                  value={parentTenantId}
+                  onChange={e => setParentTenantId(e.target.value)}
+                  className="w-full h-10 px-3.5 rounded-xl bg-card border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/45 cursor-pointer"
+                >
+                  <option value="">No Parent (Top-level Organization)</option>
+                  {tenantsList.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} (.{t.subdomain})</option>
+                  ))}
+                </select>
               </div>
 
               <div className="pt-4 border-t border-border/50 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsCreateOpen(false)}
-                  className="h-10 px-4 rounded-xl border border-border/45 text-xs font-bold text-slate-450 hover:text-white"
+                  className="h-10 px-4 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/15 transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="h-10 px-5 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-bold text-white disabled:opacity-50"
+                  className="h-10 px-5 rounded-xl bg-primary text-primary-foreground text-xs font-black disabled:opacity-50 cursor-pointer shadow-md"
                 >
                   {isLoading ? "Registering..." : "Register Academy"}
                 </button>
@@ -744,31 +896,31 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
 
       {/* Modal: Edit Tenant */}
       {isEditOpen && editingTenant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl bg-slate-900 border border-border/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col sexy-border-glow">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-card border border-border/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col sexy-border-glow">
             <div className="p-5 border-b border-border/50 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-sky-400" />
-                <h4 className="text-xs font-black uppercase tracking-widest text-white">Academy Orchestrator Settings</h4>
+                <Settings className="w-4 h-4 text-primary" />
+                <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Academy Settings</h4>
               </div>
               <button 
                 onClick={() => {
                   setIsEditOpen(false);
                   setEditingTenant(null);
                 }}
-                className="p-1 rounded-lg text-slate-500 hover:text-slate-350 transition-colors"
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/15 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Modal Internal Tabs */}
-            <div className="flex border-b border-border/40 bg-slate-950/40 px-5">
+            <div className="flex border-b border-border/40 bg-muted/20 px-5">
               <button
                 type="button"
                 onClick={() => setActiveModalTab("branding")}
-                className={`py-3 text-[11px] font-bold uppercase tracking-wider border-b-2 px-3 transition-colors ${
-                  activeModalTab === "branding" ? "border-sky-500 text-sky-400" : "border-transparent text-slate-400 hover:text-slate-200"
+                className={`py-3 text-[11px] font-black uppercase tracking-wider border-b-2 px-3 transition-colors cursor-pointer ${
+                  activeModalTab === "branding" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Branding & Custom Domain
@@ -776,8 +928,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
               <button
                 type="button"
                 onClick={() => setActiveModalTab("features")}
-                className={`py-3 text-[11px] font-bold uppercase tracking-wider border-b-2 px-3 transition-colors ${
-                  activeModalTab === "features" ? "border-sky-500 text-sky-400" : "border-transparent text-slate-400 hover:text-slate-200"
+                className={`py-3 text-[11px] font-black uppercase tracking-wider border-b-2 px-3 transition-colors cursor-pointer ${
+                  activeModalTab === "features" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Features, Gateways & Limits
@@ -787,12 +939,12 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
             <form onSubmit={handleUpdateTenant} className="flex-1 flex flex-col overflow-hidden">
               <div className="p-6 space-y-5 overflow-y-auto max-h-[60vh] flex-1">
                 {errorMsg && (
-                  <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">
+                  <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-semibold">
                     {errorMsg}
                   </div>
                 )}
                 {successMsg && (
-                  <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                  <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs flex items-center gap-2 font-semibold">
                     <CheckCircle2 className="w-4 h-4" /> {successMsg}
                   </div>
                 )}
@@ -802,120 +954,140 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                     {/* Form Input fields */}
                     <div className="md:col-span-7 space-y-4">
                       <div className="space-y-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Academy name</label>
+                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Academy name</label>
                         <input
                           type="text"
                           required
                           value={editName}
                           onChange={e => setEditName(e.target.value)}
-                          className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/40 text-xs text-white"
+                          className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45"
                         />
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Subdomain</label>
+                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Subdomain</label>
                           <input
                             type="text"
                             required
                             value={editSubdomain}
                             onChange={e => setEditSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                            className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/40 text-xs text-white font-mono"
+                            className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45"
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Custom Domain</label>
+                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Custom Domain</label>
                           <input
                             type="text"
                             value={editCustomDomain}
                             onChange={e => setEditCustomDomain(e.target.value)}
-                            className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/40 text-xs text-white font-mono"
+                            className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45"
                           />
                         </div>
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Logo SVG / PNG URL</label>
+                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Logo SVG / PNG URL</label>
                         <input
                           type="url"
                           value={editLogoUrl}
                           onChange={e => setEditLogoUrl(e.target.value)}
-                          className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/40 text-xs text-white"
+                          className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45"
                         />
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Primary Color</label>
+                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Primary Color</label>
                           <div className="flex items-center gap-1.5">
                             <input
                               type="color"
                               value={editPrimaryColor}
                               onChange={e => setEditPrimaryColor(e.target.value)}
-                              className="w-8 h-8 rounded border-0 bg-transparent cursor-pointer shrink-0"
+                              className="w-8 h-8 rounded-lg border border-border bg-transparent cursor-pointer shrink-0"
                             />
                             <input
                               type="text"
                               value={editPrimaryColor}
                               onChange={e => setEditPrimaryColor(e.target.value)}
-                              className="w-full h-9 px-2 rounded-lg bg-transparent border border-border/40 text-xs text-white font-mono"
+                              className="w-full h-9 px-2 rounded-lg bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45"
                             />
                           </div>
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Secondary Color</label>
+                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Secondary Color</label>
                           <div className="flex items-center gap-1.5">
                             <input
                               type="color"
                               value={editSecondaryColor}
                               onChange={e => setEditSecondaryColor(e.target.value)}
-                              className="w-8 h-8 rounded border-0 bg-transparent cursor-pointer shrink-0"
+                              className="w-8 h-8 rounded-lg border border-border bg-transparent cursor-pointer shrink-0"
                             />
                             <input
                               type="text"
                               value={editSecondaryColor}
                               onChange={e => setEditSecondaryColor(e.target.value)}
-                              className="w-full h-9 px-2 rounded-lg bg-transparent border border-border/40 text-xs text-white font-mono"
+                              className="w-full h-9 px-2 rounded-lg bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45"
                             />
                           </div>
                         </div>
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Status</label>
+                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Status</label>
                         <select
                           value={editStatus}
                           onChange={e => setEditStatus(e.target.value)}
-                          className="w-full h-9 px-3 rounded-xl bg-slate-900 border border-border/40 text-xs text-white"
+                          className="w-full h-9 px-3 rounded-xl bg-card border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/45 cursor-pointer"
                         >
                           <option value="active">Active</option>
                           <option value="suspended">Suspended</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Parent Tenant / Organization</label>
+                        <select
+                          value={editParentTenantId}
+                          onChange={e => setEditParentTenantId(e.target.value)}
+                          className="w-full h-9 px-3 rounded-xl bg-card border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/45 cursor-pointer"
+                        >
+                          <option value="">No Parent (Top-level Organization)</option>
+                          {tenantsList
+                            .filter(t => t.id !== editingTenant.id) // A tenant cannot be its own parent
+                            .map(t => (
+                              <option key={t.id} value={t.id}>{t.name} (.{t.subdomain})</option>
+                            ))
+                          }
                         </select>
                       </div>
                     </div>
 
                     {/* Live Customizer Swatch Preview */}
                     <div className="md:col-span-5 flex flex-col justify-start space-y-3">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Live Branding Swatch Preview</label>
+                      <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Live Branding Swatch Preview</label>
                       <div 
-                        className="rounded-2xl border border-white/10 p-5 shadow-2xl flex flex-col justify-between h-56 transition-all"
+                        className="rounded-2xl border border-border/80 p-5 shadow-2xl flex flex-col justify-between h-56 transition-all relative overflow-hidden"
                         style={{ 
-                          background: `linear-gradient(135deg, ${editSecondaryColor} 0%, #030712 100%)` 
+                          background: `linear-gradient(135deg, ${editSecondaryColor}33 0%, var(--card) 100%)` 
                         }}
                       >
-                        <div className="flex items-center justify-between">
+                        {/* Swatch Background Grid lines */}
+                        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:1.5rem_1.5rem] opacity-30 pointer-events-none" />
+                        
+                        <div className="flex items-center justify-between relative z-10">
                           {editLogoUrl ? (
                             <img src={editLogoUrl} alt="logo" className="h-6 max-w-[90px] object-contain" />
                           ) : (
-                            <span className="font-black text-sm uppercase tracking-wider text-white">
+                            <span className="font-black text-sm uppercase tracking-wider text-foreground">
                               {editName.substring(0,3).toUpperCase()}
                             </span>
                           )}
                           <span 
-                            className="text-[9px] px-2 py-0.5 rounded-full font-bold border"
+                            className="text-[9px] px-2.5 py-0.5 rounded-full font-black border"
                             style={{ 
-                              borderColor: `${editPrimaryColor}40`, 
+                              borderColor: `${editPrimaryColor}35`, 
                               color: editPrimaryColor, 
                               backgroundColor: `${editPrimaryColor}10` 
                             }}
@@ -924,24 +1096,24 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                           </span>
                         </div>
 
-                        <div className="space-y-2">
-                          <h5 className="text-sm font-extrabold text-white leading-tight">{editName}</h5>
-                          <p className="text-[10px] text-slate-400 font-mono tracking-tight flex items-center gap-1">
-                            <Globe className="w-3 h-3 text-slate-500" />
+                        <div className="space-y-2 relative z-10">
+                          <h5 className="text-sm font-extrabold text-foreground leading-tight">{editName}</h5>
+                          <p className="text-[10px] text-muted-foreground font-mono tracking-tight flex items-center gap-1">
+                            <Globe className="w-3 h-3 text-muted-foreground/60" />
                             {editSubdomain || "sub"}.lms-matrix.edu
                           </p>
                           {editCustomDomain && (
-                            <p className="text-[9px] text-sky-400/90 font-mono leading-none">
+                            <p className="text-[9px] text-primary font-mono leading-none">
                               → custom domain: {editCustomDomain}
                             </p>
                           )}
                         </div>
 
-                        <div className="flex items-center justify-between border-t border-white/5 pt-2 text-[9px] text-slate-500">
-                          <span>Primary: <b className="font-mono text-white">{editPrimaryColor}</b></span>
+                        <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[9px] text-muted-foreground relative z-10">
+                          <span>Primary: <b className="font-mono text-foreground font-bold">{editPrimaryColor}</b></span>
                           <button
                             type="button"
-                            className="px-3 py-1 rounded font-bold text-white transition-all hover:brightness-110"
+                            className="px-3 py-1.5 rounded-lg font-black text-white hover:opacity-95 transition-all text-[9.5px] cursor-pointer"
                             style={{ backgroundColor: editPrimaryColor }}
                           >
                             Button
@@ -956,8 +1128,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                     {/* Feature Toggles */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-                        <Palette className="w-4 h-4 text-sky-400" />
-                        <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-300">Academic Modules Config</h5>
+                        <Palette className="w-4 h-4 text-primary" />
+                        <h5 className="text-[10px] font-black uppercase tracking-wider text-foreground">Academic Modules Config</h5>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         {[
@@ -969,19 +1141,19 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                           <div 
                             key={feature.id} 
                             onClick={() => feature.set(!feature.state)}
-                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                            className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
                               feature.state 
-                                ? "bg-sky-600/10 border-sky-500/40 text-white" 
-                                : "bg-slate-900/30 border-border/40 text-slate-400 hover:border-slate-700"
+                                ? "bg-primary/10 border-primary/40 text-foreground" 
+                                : "bg-muted/10 border-border/50 text-muted-foreground hover:border-border"
                             }`}
                           >
                             <div>
-                              <p className="text-[11px] font-bold">{feature.label}</p>
-                              <p className="text-[9px] text-slate-500 mt-0.5">{feature.desc}</p>
+                              <p className="text-[11px] font-extrabold">{feature.label}</p>
+                              <p className="text-[9px] text-muted-foreground mt-0.5 font-medium">{feature.desc}</p>
                             </div>
                             <button
                               type="button"
-                              className={`w-8 h-4 rounded-full p-0.5 transition-colors relative ${feature.state ? "bg-sky-500" : "bg-slate-800"}`}
+                              className={`w-8 h-4 rounded-full p-0.5 transition-colors relative cursor-pointer ${feature.state ? "bg-primary" : "bg-muted"}`}
                             >
                               <div className={`w-3 h-3 rounded-full bg-white transition-transform ${feature.state ? "translate-x-4" : "translate-x-0"}`} />
                             </button>
@@ -993,8 +1165,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                     {/* Payment Gateways */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-                        <CreditCard className="w-4 h-4 text-sky-400" />
-                        <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-350">Active Payment Gateways</h5>
+                        <CreditCard className="w-4 h-4 text-primary" />
+                        <h5 className="text-[10px] font-black uppercase tracking-wider text-foreground">Active Payment Gateways</h5>
                       </div>
                       <div className="grid grid-cols-3 gap-4">
                         {[
@@ -1007,15 +1179,15 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                             onClick={() => gw.set(!gw.state)}
                             className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between h-20 ${
                               gw.state 
-                                ? "bg-sky-600/10 border-sky-500/40 text-white" 
-                                : "bg-slate-900/30 border-border/40 text-slate-400 hover:border-slate-700"
+                                ? "bg-primary/10 border-primary/40 text-foreground" 
+                                : "bg-muted/10 border-border/50 text-muted-foreground hover:border-border"
                             }`}
                           >
-                            <span className="text-[11px] font-bold">{gw.label}</span>
+                            <span className="text-[11px] font-extrabold">{gw.label}</span>
                             <div className="flex items-center justify-between mt-2">
-                              <span className="text-[8px] uppercase tracking-wider text-slate-500">{gw.state ? "Active" : "Disabled"}</span>
-                              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${gw.state ? "bg-sky-500 border-sky-500 text-white" : "border-slate-700"}`}>
-                                {gw.state && <CheckCircle2 className="w-2.5 h-2.5" />}
+                              <span className="text-[8px] uppercase tracking-widest text-muted-foreground font-black">{gw.state ? "Active" : "Disabled"}</span>
+                              <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${gw.state ? "bg-primary border-primary text-primary-foreground" : "border-border bg-transparent"}`}>
+                                {gw.state && <CheckCircle2 className="w-3.5 h-3.5" />}
                               </div>
                             </div>
                           </div>
@@ -1026,32 +1198,32 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                     {/* Restrictions */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-                        <Sliders className="w-4 h-4 text-sky-400" />
-                        <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-350">Platform Restriction Limits</h5>
+                        <Sliders className="w-4 h-4 text-primary" />
+                        <h5 className="text-[10px] font-black uppercase tracking-wider text-foreground">Platform Restriction Limits</h5>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-1.5">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase">Max Users Limit</label>
+                          <label className="text-[9px] font-black text-muted-foreground uppercase">Max Users Limit</label>
                           <input
                             type="number"
                             value={maxUsers}
                             onChange={e => setMaxUsers(Number(e.target.value))}
-                            className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/40 text-xs text-white"
+                            className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/45 font-mono"
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase">Max Courses Limit</label>
+                          <label className="text-[9px] font-black text-muted-foreground uppercase">Max Courses Limit</label>
                           <input
                             type="number"
                             value={maxCourses}
                             onChange={e => setMaxCourses(Number(e.target.value))}
-                            className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/40 text-xs text-white"
+                            className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/45 font-mono"
                           />
                         </div>
                         <div className="space-y-1.5 flex flex-col justify-end">
                           <label 
                             onClick={() => setAllowSelfSignup(!allowSelfSignup)}
-                            className="flex items-center gap-2 cursor-pointer h-9 select-none text-xs text-slate-300"
+                            className="flex items-center gap-2 cursor-pointer h-9 select-none text-xs text-foreground font-extrabold"
                           >
                             <input 
                               type="checkbox" 
@@ -1059,8 +1231,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                               onChange={() => {}} 
                               className="sr-only" 
                             />
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${allowSelfSignup ? "bg-sky-500 border-sky-500 text-white" : "border-slate-700"}`}>
-                              {allowSelfSignup && <CheckCircle2 className="w-3 h-3" />}
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${allowSelfSignup ? "bg-primary border-primary text-primary-foreground" : "border-border bg-transparent"}`}>
+                              {allowSelfSignup && <CheckCircle2 className="w-3.5 h-3.5" />}
                             </div>
                             Allow Public Signup
                           </label>
@@ -1071,21 +1243,21 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                 )}
               </div>
 
-              <div className="p-4 border-t border-border/50 bg-slate-950/40 flex items-center justify-end gap-3">
+              <div className="p-4 border-t border-border/50 bg-muted/20 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => {
                     setIsEditOpen(false);
                     setEditingTenant(null);
                   }}
-                  className="h-10 px-4 rounded-xl border border-border/45 text-xs font-bold text-slate-450 hover:text-white"
+                  className="h-10 px-4 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/15 transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="h-10 px-5 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-bold text-white disabled:opacity-50"
+                  className="h-10 px-5 rounded-xl bg-primary text-primary-foreground text-xs font-black disabled:opacity-50 cursor-pointer shadow-md"
                 >
                   {isLoading ? "Saving..." : "Save Changes"}
                 </button>
@@ -1097,3 +1269,4 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
     </div>
   );
 }
+

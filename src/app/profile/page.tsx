@@ -39,7 +39,12 @@ export default async function StudentProfilePage() {
   }
 
   if (user.role === "SuperAdmin") {
-    redirect("/super-admin");
+    const parentDomains = ["vt", "vti", "vtu", "test1", "localhost", "", "www"];
+    const currentSub = tenant?.subdomain || "";
+    if (parentDomains.includes(currentSub.toLowerCase())) {
+      redirect("/super-admin");
+    }
+    redirect("/admin/admissions");
   }
 
   const dbUser = await db.query.users.findFirst({

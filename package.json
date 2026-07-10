@@ -9,7 +9,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:up": "docker-compose up -d postgres",
+    "db:seed-pg": "tsx src/db/seed-postgres.ts",
+    "db:test-pg": "tsx src/db/test-schema-isolation.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
