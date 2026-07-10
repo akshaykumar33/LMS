@@ -60,12 +60,66 @@ async function main() {
   // 3. Seed Tenants
   console.log("🏢 Seeding Tenants...");
   
-  // Seed parent first
+  // Seed Wysbryx root platform tenant first (Level 1 — Root)
+  const [wysbryxTenant] = await db.insert(schema.tenants)
+    .values({
+      name: "Wysbryx Platform",
+      subdomain: "wysbryx",
+      customDomain: "wysbryx.com",
+      status: "active",
+      branding: {
+        logoUrl: "https://www.wysbryx.com/wysbryx_v.png",
+        primaryColor: "#f97316",
+        secondaryColor: "#0f172a",
+        companyName: "Wysbryx Platform",
+      },
+      settings: {
+        features: {
+          enableLibrary: true,
+          enablePlacement: true,
+          enableProctoring: true,
+          enableCertificates: true,
+        },
+        gateways: {
+          stripe: true,
+          razorpay: true,
+          paypal: true,
+        },
+        restrictions: {
+          maxUsers: 1000,
+          maxCourses: 1000,
+          allowSelfSignup: false,
+        },
+      },
+    })
+    .returning();
+
+  // Seed SuperAdmin user under Wysbryx root tenant
+  console.log(`👤 Seeding Super Admin User for Wysbryx Platform...`);
+  // Create minimal roles for Wysbryx so the SuperAdmin has a roleId
+  const wysbryxRoles = await db.insert(schema.roles).values([
+    { name: "Owner", description: "Platform owner", isSystem: true, tenantId: wysbryxTenant.id },
+    { name: "Admin", description: "Platform administrator", isSystem: true, tenantId: wysbryxTenant.id },
+  ]).returning();
+  const wysbryxRoleMap = new Map(wysbryxRoles.map(r => [r.name, r.id]));
+  await db.insert(schema.users).values([{
+    tenantId: wysbryxTenant.id,
+    firstName: "Wysbryx",
+    lastName: "Super Admin",
+    email: "superadmin@wysbryx.com",
+    passwordHash,
+    role: "SuperAdmin",
+    customRoleId: wysbryxRoleMap.get("Admin"),
+    status: "active",
+  }]);
+
+  // Seed Virginia Tech as a Tenant-Level organization (Level 2 — under Wysbryx)
   const [vtTenant] = await db.insert(schema.tenants)
     .values({
-      name: "Virginia Tech parent",
+      name: "Virginia Tech",
       subdomain: "vt",
       customDomain: "vt-lms.edu",
+      parentTenantId: wysbryxTenant.id,
       status: "active",
       branding: {
         logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/60/Virginia_Tech_Gobblers_logo.svg",
@@ -194,6 +248,7 @@ async function main() {
     .returning();
 
   const seededTenants = [vtTenant, ...subTenants];
+  // Note: wysbryxTenant already has its SuperAdmin seeded above — it does not go through the per-tenant loop.
 
   // 4. Seed Roles and Role-Permissions per Tenant
   console.log("🛡️ Seeding Roles & Permissions Matrix per Tenant...");
@@ -267,19 +322,20 @@ async function main() {
     }
 
     if (tenant.subdomain === "vt") {
-      console.log(`👤 Seeding Super Admin User for ${tenant.name}...`);
-      const superAdminUser = {
+      // VT is a Tenant-Level org — seed an Owner user instead of SuperAdmin
+      console.log(`👤 Seeding VT Owner User for ${tenant.name}...`);
+      const vtOwnerUser = {
         tenantId: tenant.id,
-        firstName: "Virginia Tech",
-        lastName: "Super Admin",
-        email: "superadmin@vt.edu",
+        firstName: "VT",
+        lastName: "Owner",
+        email: "owner@vt.lms.com",
         passwordHash,
-        role: "SuperAdmin",
-        customRoleId: roleMap.get("Admin"),
+        role: "Owner",
+        customRoleId: roleMap.get("Owner"),
         status: "active",
       };
-      await db.insert(schema.users).values([superAdminUser]);
-      continue;
+      await db.insert(schema.users).values([vtOwnerUser]);
+      // VT also gets standard staff/students below — don't continue
     }
 
     // 5. Seed Batches per Tenant

@@ -5,23 +5,49 @@ interface BrandLogoProps {
   subdomain: string;
   className?: string;
   href?: string;
+  iconOnly?: boolean;
 }
 
-export function BrandLogo({ subdomain, className = "h-8 w-auto", href }: BrandLogoProps) {
+export function BrandLogo({ subdomain, className = "h-8 w-auto", href, iconOnly = false }: BrandLogoProps) {
   const normSubdomain = subdomain.toLowerCase();
 
   const renderLogo = () => {
+    if (normSubdomain === "wysbryx" || normSubdomain === "localhost" || normSubdomain === "") {
+      return (
+        <div className="flex items-center gap-1.5 font-sans">
+          <img 
+            src="https://www.wysbryx.com/wysbryx_v.png" 
+            className="w-6 h-6 object-contain animate-pulse" 
+            alt="Wysbryx Logo"
+          />
+          {!iconOnly && (
+            <span className="text-xs font-extrabold text-foreground uppercase tracking-wider">
+              Wysbryx
+            </span>
+          )}
+        </div>
+      );
+    }
+
     if (normSubdomain === "intel") {
+      if (iconOnly) {
+        return (
+          <svg className="w-7 h-7" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="28" height="28" rx="6" fill="#0068B5" />
+            <rect x="7" y="7" width="18" height="18" rx="3" stroke="#FFFFFF" strokeWidth="2" fill="none" />
+            <path d="M12 16H20" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+            <path d="M16 12V20" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="16" cy="16" r="2" fill="#FFFFFF" />
+          </svg>
+        );
+      }
       return (
         <svg className={className} viewBox="0 0 120 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          {/* Sleek microprocessor icon */}
           <rect x="2" y="2" width="28" height="28" rx="6" fill="#0068B5" />
-          {/* Wafer detail inside microprocessor box */}
           <rect x="7" y="7" width="18" height="18" rx="3" stroke="#FFFFFF" strokeWidth="2" fill="none" />
           <path d="M12 16H20" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
           <path d="M16 12V20" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
           <circle cx="16" cy="16" r="2" fill="#FFFFFF" />
-          {/* Typography */}
           <text x="38" y="22" fill="#0068B5" className="dark:fill-sky-400" fontFamily="system-ui, -apple-system, sans-serif" fontSize="15" fontWeight="bold">
             Intel CoE
           </text>
@@ -30,11 +56,16 @@ export function BrandLogo({ subdomain, className = "h-8 w-auto", href }: BrandLo
     }
 
     if (normSubdomain === "amd") {
+      if (iconOnly) {
+        return (
+          <svg className="w-7 h-7" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 16 L16 2 L30 16 L23 23 L16 16 L9 23 Z" fill="#ED1C24" />
+          </svg>
+        );
+      }
       return (
         <svg className={className} viewBox="0 0 120 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          {/* Sleek AMD arrow */}
           <path d="M2 16 L16 2 L30 16 L23 23 L16 16 L9 23 Z" fill="#ED1C24" />
-          {/* Typography */}
           <text x="38" y="22" fill="#ED1C24" className="dark:fill-red-500" fontFamily="system-ui, -apple-system, sans-serif" fontSize="15" fontWeight="bold">
             AMD CoE
           </text>
@@ -62,9 +93,11 @@ export function BrandLogo({ subdomain, className = "h-8 w-auto", href }: BrandLo
           <span className="w-6 h-6 rounded bg-gradient-to-tr from-maroon to-orange text-white flex items-center justify-center text-xs font-black">
             VT
           </span>
-          <span className="text-xs font-extrabold text-foreground uppercase tracking-wider">
-            Virginia Tech
-          </span>
+          {!iconOnly && (
+            <span className="text-xs font-extrabold text-foreground uppercase tracking-wider">
+              Virginia Tech
+            </span>
+          )}
         </div>
       );
     }
@@ -75,9 +108,11 @@ export function BrandLogo({ subdomain, className = "h-8 w-auto", href }: BrandLo
         <span className="w-6 h-6 rounded bg-slate-800 text-white flex items-center justify-center text-xs font-black">
           {normSubdomain.substring(0, 1).toUpperCase()}
         </span>
-        <span className="text-xs font-extrabold text-foreground uppercase tracking-wider">
-          {subdomain} CoE
-        </span>
+        {!iconOnly && (
+          <span className="text-xs font-extrabold text-foreground uppercase tracking-wider">
+            {subdomain} CoE
+          </span>
+        )}
       </div>
     );
   };

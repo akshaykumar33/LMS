@@ -6,15 +6,50 @@ import * as fs from "fs";
 import * as path from "path";
 import bcrypt from "bcryptjs";
 
+function loadEnv() {
+  const envPath = path.resolve(process.cwd(), ".env");
+  if (fs.existsSync(envPath)) {
+    const env = fs.readFileSync(envPath, "utf-8");
+    for (const line of env.split("\n")) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let val = match[2] || "";
+        if (val.startsWith('"') && val.endsWith('"')) {
+          val = val.substring(1, val.length - 1);
+        } else if (val.startsWith("'") && val.endsWith("'")) {
+          val = val.substring(1, val.length - 1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  }
+}
+loadEnv();
+
+const getAdminConnectionString = () => {
+  const dbUrl = process.env.DATABASE_URL || "postgresql://coe_admin:SecretPassword123@127.0.0.1:5433/postgres";
+  try {
+    const url = new URL(dbUrl);
+    url.pathname = "/postgres";
+    return url.toString();
+  } catch {
+    return dbUrl;
+  }
+};
 // Administrative connection pointing to default 'postgres' database
-const adminConnectionString = process.env.DATABASE_URL || "postgresql://coe_admin:SecretPassword123@127.0.0.1:5433/postgres";
+const adminConnectionString = getAdminConnectionString();
 
 async function main() {
   console.log("🌱 [POSTGRES SEED] Connecting to administrative Postgres...");
   const adminClient = postgres(adminConnectionString, { max: 1 });
 
-  // 1. Recreate Physical Databases (vt_db and test1_db)
-  const databasesToCreate = ["vt_db", "test1_db"];
+  const defaultDbName = new URL(process.env.DATABASE_URL || "postgresql://postgres:postgres123@127.0.0.1:5432/lms_coe_db").pathname.replace("/", "") || "lms_coe_db";
+
+  // 1. Recreate Physical Databases (vt_db, test1_db, and default database)
+  const databasesToCreate = Array.from(new Set(["vt_db", "test1_db", defaultDbName]));
   
   for (const dbName of databasesToCreate) {
     console.log(`🧹 Recreating database: ${dbName}...`);
@@ -191,6 +226,96 @@ async function main() {
           copy.tenantId = tenantId;
         }
 
+        // ─── Comprehensive NOT NULL fallback map for all seeded tables ───
+        // Prevents constraint violations when db.json contains test rows with missing/null values
+        const fallbacks: Record<string, Record<string, any>> = {
+          students: {
+            rollNumber: `ROLL-${copy.id?.substring(0, 8).toUpperCase() || "UNKNOWN"}`,
+            admissionNumber: `ADM-${copy.id?.substring(0, 8).toUpperCase() || "UNKNOWN"}`,
+          },
+          admission_documents: {
+            documentName: "Document",
+            fileUrl: "https://dummy-bucket.s3.amazonaws.com/admissions/docs/transcript.pdf",
+          },
+          admission_payments: {
+            amount: "0.00",
+            paymentMethod: "Stripe",
+            status: "completed",
+          },
+          job_postings: {
+            company: "Wysbryx Partner",
+            description: "Exciting semiconductor engineering role.",
+            requirements: "See posting for details.",
+            location: "Remote",
+            type: "job",
+            isActive: true,
+          },
+          job_applications: {
+            resumeUrl: "https://dummy-bucket.s3.amazonaws.com/resumes/default.pdf",
+            status: "applied",
+          },
+          notifications: {
+            title: "Notification",
+            message: "System notification.",
+            type: "info",
+            isRead: false,
+          },
+          digital_library: {
+            title: "Untitled Resource",
+            fileUrl: "https://dummy-bucket.s3.amazonaws.com/library/default.pdf",
+            category: "book",
+          },
+          lesson_progress: {
+            completed: false,
+          },
+          project_submissions: {
+            gitRepoUrl: "https://github.com/placeholder/repo",
+            status: "pending",
+          },
+          certificates: {
+            certificateCode: `CERT-${copy.id?.substring(0, 12).toUpperCase() || "UNKNOWN"}`,
+          },
+        };
+        if (fallbacks[key]) {
+          for (const [field, defaultVal] of Object.entries(fallbacks[key])) {
+            if (copy[field] === null || copy[field] === undefined) {
+              copy[field] = defaultVal;
+            }
+          }
+        }
+
+        // Fallback for null courseId in quizzes by resolving from moduleId or tenant courses
+        if (key === "quizzes" && (!copy.courseId || copy.courseId === null)) {
+          if (copy.moduleId) {
+            const mod = dbDataRaw.modules.find((m: any) => m.id === copy.moduleId);
+            if (mod) {
+              copy.courseId = mod.courseId;
+            }
+          }
+          if (!copy.courseId) {
+            const firstCourse = dbDataRaw.courses.find((c: any) => c.tenantId === sourceTenantId);
+            if (firstCourse) {
+              copy.courseId = firstCourse.id;
+            }
+          }
+        }
+
+        // Transform quiz_questions options format & correctOptionId
+        if (key === "quiz_questions") {
+          if (Array.isArray(copy.options) && copy.options.length > 0 && typeof copy.options[0] === "string") {
+            copy.options = copy.options.map((opt: string, idx: number) => ({
+              id: String(idx),
+              text: opt
+            }));
+            if (copy.correctAnswerIndex !== undefined && copy.correctAnswerIndex !== null) {
+              copy.correctOptionId = String(copy.correctAnswerIndex);
+            }
+          }
+          if (!copy.correctOptionId) {
+            copy.correctOptionId = "0";
+          }
+        }
+
         // Update email domain for users to match the target subdomain
         if (key === "users" && copy.email) {
           let email = copy.email;
@@ -204,6 +329,14 @@ async function main() {
             email = email.replace(`@${known}.lms.com`, `@${tenantSubdomain}.lms.com`);
           }
           copy.email = email;
+        }
+
+        // Fallback for ALL null/undefined notNull timestamp fields across all tables
+        const tsNow = new Date();
+        for (const tsField of ["createdAt", "updatedAt", "issuedAt", "submittedAt"]) {
+          if (copy[tsField] === null || copy[tsField] === undefined) {
+            copy[tsField] = tsNow;
+          }
         }
 
         // Convert date/timestamp strings to Date objects
@@ -241,11 +374,24 @@ async function main() {
   const vtDb = drizzle(vtClient, { schema });
 
   // Seed VT Central Registry Records with Static IDs matching db.json
+  const [wysbryxTenant] = await vtDb.insert(schema.tenants).values({
+    id: "96652527-1198-4bbb-8bc4-30781efaed18",
+    name: "Wysbryx Platform",
+    subdomain: "wysbryx",
+    customDomain: "wysbryx.com",
+    dbName: "vt_db",
+    status: "active",
+    branding: { logoUrl: "https://www.wysbryx.com/wysbryx_v.png", primaryColor: "#f97316" },
+    settings: { features: { enableLibrary: true, enablePlacement: true, enableProctoring: true }, gateways: { stripe: true }, restrictions: { maxUsers: 1000, maxCourses: 1000 } }
+  }).returning();
+
   const [vtTenant] = await vtDb.insert(schema.tenants).values({
     id: "96652527-1198-4bbb-8bc4-30781efaed17",
-    name: "Virginia Tech parent",
+    name: "Virginia Tech",
     subdomain: "vt",
     customDomain: "vt-lms.edu",
+    dbName: "vt_db",
+    parentTenantId: wysbryxTenant.id,
     status: "active",
     branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/60/Virginia_Tech_Gobblers_logo.svg", primaryColor: "#861F41" },
     settings: { features: { enableLibrary: true, enablePlacement: true, enableProctoring: true }, gateways: { stripe: true }, restrictions: { maxUsers: 500, maxCourses: 100 } }
@@ -256,6 +402,7 @@ async function main() {
     name: "Intel Semiconductor Academy",
     subdomain: "intel",
     customDomain: "intel-academy.com",
+    dbName: "vt_db",
     status: "active",
     parentTenantId: vtTenant.id,
     branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel-logo.svg", primaryColor: "#0068B5" },
@@ -267,6 +414,7 @@ async function main() {
     name: "Intel Oregon Labs",
     subdomain: "intel-oregon",
     customDomain: "intel-oregon.com",
+    dbName: "vt_db",
     status: "active",
     parentTenantId: intelTenant.id,
     branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel-logo.svg", primaryColor: "#0068B5" },
@@ -278,6 +426,7 @@ async function main() {
     name: "AMD Training Center",
     subdomain: "amd",
     customDomain: "amd-coe.com",
+    dbName: "vt_db",
     status: "active",
     parentTenantId: vtTenant.id,
     branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg", primaryColor: "#ED1C24" },
@@ -288,30 +437,39 @@ async function main() {
 
   // Seed schemas inside vt_db
   await seedTenantSchemaFromSource(vtDbUrl, "tenant_vt", vtTenant.id, "vt", "Virginia Tech", "vt");
+  await seedTenantSchemaFromSource(vtDbUrl, "tenant_wysbryx", wysbryxTenant.id, "wysbryx", "Wysbryx Platform", "vt");
   await seedTenantSchemaFromSource(vtDbUrl, "tenant_intel", intelTenant.id, "intel", "Intel Academy", "intel");
   await seedTenantSchemaFromSource(vtDbUrl, "tenant_intel_oregon", intelOregonTenant.id, "intel-oregon", "Intel Oregon", "intel");
   await seedTenantSchemaFromSource(vtDbUrl, "tenant_amd", amdTenant.id, "amd", "AMD Training", "amd");
 
-  // Seed SuperAdmin + Owner users into tenant_vt parent schema (ON CONFLICT skip if already seeded from db.json)
-  console.log("👤 Seeding SuperAdmin + Owner users into tenant_vt schema...");
+  // Seed SuperAdmin user into tenant_wysbryx schema
+  console.log("👤 Seeding SuperAdmin user into tenant_wysbryx schema...");
   {
     const saClient = postgres(vtDbUrl, { max: 1 });
     const passwordHash = await bcrypt.hash("Password123", 10);
-    await saClient.unsafe(`SET search_path TO "tenant_vt", public`);
-    // SuperAdmin
+    await saClient.unsafe(`SET search_path TO "tenant_wysbryx", public`);
     await saClient.unsafe(`
       INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, status)
       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (tenant_id, email) DO UPDATE SET password_hash = $3, role = $6
-    `, [vtTenant.id, "superadmin@vt.edu", passwordHash, "Virginia Tech", "Super Admin", "SuperAdmin", "active"]);
-    // Owner
+    `, [wysbryxTenant.id, "superadmin@wysbryx.com", passwordHash, "Wysbryx", "Super Admin", "SuperAdmin", "active"]);
+    await saClient.end();
+    console.log("   └─ SuperAdmin seeded in tenant_wysbryx.");
+  }
+
+  // Seed Owner user into tenant_vt schema
+  console.log("👤 Seeding Owner user into tenant_vt schema...");
+  {
+    const saClient = postgres(vtDbUrl, { max: 1 });
+    const passwordHash = await bcrypt.hash("Password123", 10);
+    await saClient.unsafe(`SET search_path TO "tenant_vt", public`);
     await saClient.unsafe(`
       INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, status)
       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (tenant_id, email) DO UPDATE SET password_hash = $3, role = $6
     `, [vtTenant.id, "owner@vt.lms.com", passwordHash, "VT", "Owner", "Owner", "active"]);
     await saClient.end();
-    console.log("   └─ SuperAdmin + Owner seeded in tenant_vt.");
+    console.log("   └─ Owner seeded in tenant_vt.");
   }
 
   // ==========================================
@@ -330,6 +488,8 @@ async function main() {
     name: "Test Organization parent",
     subdomain: "test1",
     customDomain: "test1-org.com",
+    dbName: "test1_db",
+    parentTenantId: wysbryxTenant.id,
     status: "active",
     branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/67/TSMC_logo.svg", primaryColor: "#333333" },
     settings: { features: { enableLibrary: true }, gateways: { stripe: true }, restrictions: { maxUsers: 100 } }
@@ -340,6 +500,7 @@ async function main() {
     name: "Test Sub-company",
     subdomain: "test1-sub",
     customDomain: "test1-sub.com",
+    dbName: "test1_db",
     status: "active",
     parentTenantId: test1Tenant.id,
     branding: { logoUrl: "", primaryColor: "#555555" },
@@ -373,6 +534,98 @@ async function main() {
     await saClient2.end();
     console.log("   └─ SuperAdmin + Owner seeded in tenant_test1.");
   }
+
+  // ==========================================
+  // PROVISIONING CENTRAL REGISTRY: lms_coe_db
+  // ==========================================
+  const defaultDbUrl = getDbUrl(defaultDbName);
+  console.log(`\n📦 [DATABASE: ${defaultDbName}] Provisioning central registry...`);
+  await runMigrations(defaultDbUrl, "public", false);
+
+  const defaultClientConn = postgres(defaultDbUrl, { max: 1 });
+  const defaultDb = drizzle(defaultClientConn, { schema });
+
+  // Seed all tenants into the central registry database
+  await defaultDb.insert(schema.tenants).values([
+    {
+      id: "96652527-1198-4bbb-8bc4-30781efaed17",
+      name: "Virginia Tech",
+      subdomain: "vt",
+      customDomain: "vt-lms.edu",
+      dbName: "vt_db",
+      parentTenantId: "96652527-1198-4bbb-8bc4-30781efaed18",
+      status: "active",
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/60/Virginia_Tech_Gobblers_logo.svg", primaryColor: "#861F41" },
+      settings: { features: { enableLibrary: true, enablePlacement: true, enableProctoring: true }, gateways: { stripe: true }, restrictions: { maxUsers: 500, maxCourses: 100 } }
+    },
+    {
+      id: "96652527-1198-4bbb-8bc4-30781efaed18",
+      name: "Wysbryx Platform",
+      subdomain: "wysbryx",
+      customDomain: "wysbryx.com",
+      dbName: "vt_db",
+      status: "active",
+      branding: { logoUrl: "https://www.wysbryx.com/wysbryx_v.png", primaryColor: "#f97316" },
+      settings: { features: { enableLibrary: true, enablePlacement: true, enableProctoring: true }, gateways: { stripe: true }, restrictions: { maxUsers: 1000, maxCourses: 1000 } }
+    },
+    {
+      id: "03e6d706-6e79-4dc5-96c1-e10f1beff95c",
+      name: "Intel Semiconductor Academy",
+      subdomain: "intel",
+      customDomain: "intel-academy.com",
+      dbName: "vt_db",
+      status: "active",
+      parentTenantId: "96652527-1198-4bbb-8bc4-30781efaed17",
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel-logo.svg", primaryColor: "#0068B5" },
+      settings: { features: { enableLibrary: true, enablePlacement: true }, gateways: { stripe: true }, restrictions: { maxUsers: 200 } }
+    },
+    {
+      id: "8c1598f4-6e79-4dc5-96c1-e10f1beff95c",
+      name: "Intel Oregon Labs",
+      subdomain: "intel-oregon",
+      customDomain: "intel-oregon.com",
+      dbName: "vt_db",
+      status: "active",
+      parentTenantId: "03e6d706-6e79-4dc5-96c1-e10f1beff95c",
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel-logo.svg", primaryColor: "#0068B5" },
+      settings: { features: { enableLibrary: true }, gateways: { stripe: true }, restrictions: { maxUsers: 100 } }
+    },
+    {
+      id: "4491103f-37e0-44bd-9458-acde5af99a18",
+      name: "AMD Training Center",
+      subdomain: "amd",
+      customDomain: "amd-coe.com",
+      dbName: "vt_db",
+      status: "active",
+      parentTenantId: "96652527-1198-4bbb-8bc4-30781efaed17",
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg", primaryColor: "#ED1C24" },
+      settings: { features: { enableLibrary: true, enablePlacement: false }, gateways: { stripe: true }, restrictions: { maxUsers: 150 } }
+    },
+    {
+      id: "15b66b68-2e97-4bad-b756-e4cc16923530",
+      name: "Test Organization parent",
+      subdomain: "test1",
+      customDomain: "test1-org.com",
+      dbName: "test1_db",
+      parentTenantId: "96652527-1198-4bbb-8bc4-30781efaed18",
+      status: "active",
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/67/TSMC_logo.svg", primaryColor: "#333333" },
+      settings: { features: { enableLibrary: true }, gateways: { stripe: true }, restrictions: { maxUsers: 100 } }
+    },
+    {
+      id: "019915ce-3b05-4db3-a1c0-365f772f4e11",
+      name: "Test Sub-company",
+      subdomain: "test1-sub",
+      customDomain: "test1-sub.com",
+      dbName: "test1_db",
+      status: "active",
+      parentTenantId: "15b66b68-2e97-4bad-b756-e4cc16923530",
+      branding: { logoUrl: "", primaryColor: "#555555" },
+      settings: { features: { enableLibrary: false }, gateways: { stripe: false }, restrictions: { maxUsers: 50 } }
+    }
+  ]);
+  await defaultClientConn.end();
+  console.log(`   └─ Central registry database seeded with all tenants.`);
 
   console.log("\n🌟 [POSTGRES SEED] Hybrid Multi-Database & Schema Architecture Provisioned!");
   process.exit(0);

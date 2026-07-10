@@ -13,11 +13,14 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { BrandLogo } from "@/components/BrandLogo";
 
 interface LoginFormProps {
   tenantName: string;
   primaryColor?: string;
   subdomain: string;
+  isParentDomain: boolean;
+  chainLength?: number;
 }
 
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -29,7 +32,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   Terminal,
 };
 
-export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProps) {
+export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain, chainLength = 3 }: LoginFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
@@ -91,24 +94,25 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
 
   const brandColor = primaryColor || "#0ea5e9";
 
-  const parentSubdomains = ["localhost", "", "www", "vt", "vti", "vtu", "test1"];
-  const isParent = parentSubdomains.includes(subdomain);
+  const isParent = isParentDomain;
   const activeSubdomain = isParent ? (subdomain === "test1" ? "test1-sub" : "intel") : subdomain;
 
   // Resolve SuperAdmin quick-login email based on which parent platform we're on
   const superAdminEmail = (subdomain === "test1" || subdomain === "test1-sub")
     ? "superadmin@test1.com"
-    : "superadmin@vt.edu";
+    : "superadmin@wysbryx.com";
 
-  const activeStudentEmail = activeSubdomain === "intel" || activeSubdomain === "intel-oregon"
-    ? `linus.torvalds@student.${activeSubdomain}.com`
-    : `james.smith.0@student.${activeSubdomain}.com`;
+  const activeStudentEmail = activeSubdomain === "intel"
+    ? "linus.torvalds@student.intel.com"
+    : `student1@student.${activeSubdomain}.com`;
 
   // Dynamically compile all sandbox credentials from quick-login-credentials.json
-  const allAccounts = [
-    ...quickLoginData.parent,
-    ...quickLoginData.tenant
-  ];
+  const allAccounts = isParent
+    ? [
+        ...quickLoginData.parent,
+        ...quickLoginData.tenant.filter(acc => acc.roleName !== "Super Admin")
+      ]
+    : quickLoginData.tenant.filter(acc => acc.roleName !== "Super Admin");
 
   // Deduplicate by roleName to avoid double listing Super Admin
   const uniqueRoles = new Map<string, typeof allAccounts[number]>();
@@ -118,8 +122,14 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
 
   const demoAccounts = Array.from(uniqueRoles.values()).map(account => {
     let email = account.email;
-    if (account.roleName === "Student (Certified)") {
-      email = "linus.torvalds@student.intel.com";
+    if (account.roleName === "Super Admin") {
+      email = superAdminEmail;
+    } else if (account.roleName === "Student (Certified)") {
+      email = activeSubdomain === "intel"
+        ? "linus.torvalds@student.intel.com"
+        : `student1@student.${activeSubdomain}.com`;
+    } else if (account.roleName === "Student (General)") {
+      email = `student2@student.${activeSubdomain}.com`;
     } else {
       email = email.replace("{{subdomain}}", activeSubdomain);
     }
@@ -143,8 +153,8 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
         {/* ── Login Card ── */}
         <Card className="backdrop-blur-lg shadow-2xl border-border/60">
           <CardHeader className="text-center pb-2">
-            <div className="mx-auto w-10 h-10 rounded-xl flex items-center justify-center mb-1" style={{ backgroundColor: brandColor + '15' }}>
-              <LogIn className="w-5 h-5" style={{ color: brandColor }} />
+            <div className="mx-auto mb-3 flex justify-center">
+              <BrandLogo subdomain={subdomain} className="h-10 w-auto" />
             </div>
             <CardTitle className="text-xl font-bold tracking-tight">Sign In</CardTitle>
             <CardDescription className="text-xs">
@@ -249,53 +259,96 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
             </div>
 
             {/* Quick Demo Login Grid */}
-            <div className="grid grid-cols-2 gap-2">              <Button
-                type="button"
-                variant="outline"
-                disabled={loading}
-                onClick={() => handleQuickLogin(activeStudentEmail)}
-                className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
-              >
-                <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
-                  <GraduationCap className="w-3.5 h-3.5 text-teal-600" />
-                </div>
-                <div className="text-left leading-tight">
-                  <span className="block font-black text-foreground text-[10px]">Student</span>
-                  <span className="text-[8px] text-muted-foreground font-semibold">Certified Profile</span>
-                </div>
-              </Button>
+            <div className={`grid gap-2 ${
+              chainLength === 1 ? "grid-cols-1" : chainLength === 2 ? "grid-cols-2" : "grid-cols-3"
+            }`}>
+              {chainLength >= 3 && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin(activeStudentEmail)}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
+                      <GraduationCap className="w-3.5 h-3.5 text-teal-600" />
+                    </div>
+                    <div className="text-left leading-tight">
+                      <span className="block font-black text-foreground text-[10px]">Student</span>
+                      <span className="text-[8px] text-muted-foreground font-semibold">Certified Profile</span>
+                    </div>
+                  </Button>
 
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loading}
-                onClick={() => handleQuickLogin(`faculty1@${activeSubdomain}.lms.com`)}
-                className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
-              >
-                <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
-                  <Briefcase className="w-3.5 h-3.5 text-indigo-600" />
-                </div>
-                <div className="text-left leading-tight">
-                  <span className="block font-black text-foreground text-[10px]">Faculty</span>
-                  <span className="text-[8px] text-muted-foreground font-semibold">Instructor</span>
-                </div>
-              </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin(`faculty1@${activeSubdomain}.lms.com`)}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                      <Briefcase className="w-3.5 h-3.5 text-indigo-600" />
+                    </div>
+                    <div className="text-left leading-tight">
+                      <span className="block font-black text-foreground text-[10px]">Faculty</span>
+                      <span className="text-[8px] text-muted-foreground font-semibold">Instructor</span>
+                    </div>
+                  </Button>
 
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loading}
-                onClick={() => handleQuickLogin(`manager@${activeSubdomain}.lms.com`)}
-                className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
-              >
-                <div className="w-6 h-6 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                  <Users className="w-3.5 h-3.5 text-amber-600" />
-                </div>
-                <div className="text-left leading-tight">
-                  <span className="block font-black text-foreground text-[10px]">Manager</span>
-                  <span className="text-[8px] text-muted-foreground font-semibold">Academics</span>
-                </div>
-              </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin(`manager@${activeSubdomain}.lms.com`)}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                      <Users className="w-3.5 h-3.5 text-amber-600" />
+                    </div>
+                    <div className="text-left leading-tight">
+                      <span className="block font-black text-foreground text-[10px]">Manager</span>
+                      <span className="text-[8px] text-muted-foreground font-semibold">Academics</span>
+                    </div>
+                  </Button>
+                </>
+              )}
+
+              {chainLength >= 2 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => handleQuickLogin(`owner@${activeSubdomain}.lms.com`)}
+                  className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0">
+                    <Key className="w-3.5 h-3.5 text-rose-600" />
+                  </div>
+                  <div className="text-left leading-tight">
+                    <span className="block font-black text-foreground text-[10px]">Owner</span>
+                    <span className="text-[8px] text-muted-foreground font-semibold">Academy</span>
+                  </div>
+                </Button>
+              )}
+
+              {chainLength >= 3 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => handleQuickLogin(`admin@${activeSubdomain}.lms.com`)}
+                  className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                  </div>
+                  <div className="text-left leading-tight">
+                    <span className="block font-black text-foreground text-[10px]">Admin</span>
+                    <span className="text-[8px] text-muted-foreground font-semibold">Academy</span>
+                  </div>
+                </Button>
+              )}
 
               <Button
                 type="button"
@@ -327,7 +380,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
           </CardContent>
         </Card>
 
-        {/* ── Premium Floating Dev Console Trigger ── */}
+        {/* ── Premium Floating Dev Console Trigger ──
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -348,11 +401,11 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
             Open sandbox account emulator
           </TooltipContent>
         </Tooltip>
+        ── */}
 
-        {/* ── Command Center Dialog ── */}
+        {/* ── Command Center Dialog ──
         <Dialog open={showEmulator} onOpenChange={setShowEmulator}>
           <DialogContent className="sm:max-w-lg p-0 gap-0 bg-slate-950/98 border-slate-700/60 shadow-[0_0_60px_rgba(0,0,0,0.5),0_0_30px_rgba(245,158,11,0.08)] overflow-hidden backdrop-blur-xl [&>button]:text-slate-400 [&>button]:hover:text-white">
-            {/* Terminal-style header */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-800/80 to-slate-900 border-b border-slate-700/50 px-5 py-3.5 flex items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
@@ -369,14 +422,12 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
             </div>
 
             <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-              {/* Console prompt */}
               <div className="flex items-center gap-2 text-[11px] font-mono">
                 <span className="text-emerald-400">❯</span>
                 <span className="text-slate-400">Select an account to emulate instant login</span>
                 <span className="w-2 h-4 bg-amber-400/70 animate-pulse rounded-sm"></span>
               </div>
 
-              {/* Role Cards */}
               <div className="space-y-2">
                 {demoAccounts.map((account) => {
                   const IconComp = account.icon;
@@ -396,8 +447,8 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
                       </div>
                       <div className="min-w-0 flex-1 text-left">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white group-hover:opacity-90 transition-opacity">{account.roleName}</span>
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-white transition-colors" />
+                           <span className="text-xs font-bold text-white group-hover:opacity-90 transition-opacity">{account.roleName}</span>
+                           <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-white transition-colors" />
                         </div>
                         <p className="text-[10px] text-slate-400 mt-0.5 leading-normal font-normal">{account.desc}</p>
                         <span className="text-[9px] font-mono text-slate-500 mt-1 block truncate font-normal">{account.email}</span>
@@ -417,7 +468,6 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
               )}
             </div>
 
-            {/* Bottom bar */}
             <div className="border-t border-slate-700/40 px-5 py-2.5 flex items-center justify-between bg-slate-900/50">
               <span className="text-[9px] font-mono text-slate-600">sandbox emulator v1.0</span>
               <div className="flex items-center gap-2">
@@ -429,6 +479,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain }: LoginFormProp
             </div>
           </DialogContent>
         </Dialog>
+        ── */}
       </div>
     </TooltipProvider>
   );

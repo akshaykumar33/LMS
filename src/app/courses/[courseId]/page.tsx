@@ -20,26 +20,9 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
 
   const user = await requireAuth();
 
-  // Redirect admin/staff roles to their respective dashboards
-  if (["Faculty", "Mentor"].includes(user.role)) {
-    redirect("/faculty");
-  }
-
-  if (["Owner", "Admin", "Program Manager"].includes(user.role)) {
-    redirect("/admin/admissions");
-  }
-
+  // Redirect non-student roles that are completely restricted
   if (user.role === "Placement Officer") {
     redirect("/admin/placement");
-  }
-
-  if (user.role === "SuperAdmin") {
-    const parentDomains = ["vt", "vti", "vtu", "test1", "localhost", "", "www"];
-    const currentSub = tenant?.subdomain || "";
-    if (parentDomains.includes(currentSub.toLowerCase())) {
-      redirect("/super-admin");
-    }
-    redirect("/admin/admissions");
   }
 
   // Resolve params
@@ -90,7 +73,7 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
 
   // Fetch student profile details
   let studentProfile: any = null;
-  if (user.role !== "Guest") {
+  if (user.role === "Student") {
     studentProfile = await db.query.students.findFirst({
       where: eq(students.userId, user.userId),
       with: {

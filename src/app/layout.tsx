@@ -16,13 +16,13 @@ const geistMono = Geist_Mono({
 
 export async function generateMetadata(): Promise<Metadata> {
   const tenant = await getTenantContext();
-  const orgName = tenant?.name || "Virginia Tech LMS";
+  const orgName = tenant?.name || "Wysbryx Platform";
   return {
     title: {
       template: `%s | ${orgName}`,
       default: orgName,
     },
-    description: `Virginia Tech - Learning Management Platform - ${orgName}`,
+    description: `Wysbryx - Multi-Tenant Learning Management Platform - ${orgName}`,
   };
 }
 
@@ -115,12 +115,12 @@ export default async function RootLayout({
   }
   
   const preset = themePresets[themeMode] || themePresets["light"];
-  let tenantPrimary = tenant?.branding?.primaryColor || "#0ea5e9";
+  let tenantPrimary = tenant?.branding?.primaryColor || "#f97316";
   let tenantSecondary = tenant?.branding?.secondaryColor || "#1e293b";
 
   // Prevent invisible or unstyled default elements if primary color is configured as black
   if (tenantPrimary === "#000000" || tenantPrimary.toLowerCase() === "black") {
-    tenantPrimary = tenantSecondary !== "#000000" ? tenantSecondary : "#0ea5e9";
+    tenantPrimary = tenantSecondary !== "#000000" ? tenantSecondary : "#f97316";
   }
 
   const primaryColor = preset.primary || tenantPrimary;

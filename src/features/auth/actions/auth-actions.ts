@@ -7,6 +7,7 @@ import { db, dbSubdomainStorage } from "@/db/db";
 import { users, tenants } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { isAncestorOf } from "../services/is-parent-tenant";
 
 function getCookieDomain(host: string): string | undefined {
   const cleanHost = host.split(":")[0];
@@ -42,7 +43,11 @@ export async function loginAction(formData: any) {
     // 1. Fetch user globally by email across all tenant subdomains
     let user: any = null;
     let foundSubdomain: string | null = null;
-    const subdomains = ["vt", "intel", "intel-oregon", "amd", "test1", "test1-sub"];
+    
+    const activeTenants = await db.query.tenants.findMany({
+      where: eq(tenants.status, "active"),
+    });
+    const subdomains = activeTenants.map(t => t.subdomain);
     
     for (const sub of subdomains) {
       const u = await dbSubdomainStorage.run(sub, async () => 
@@ -61,6 +66,14 @@ export async function loginAction(formData: any) {
       return { success: false, error: "Invalid email or password." };
     }
 
+    // Resolve user's actual home tenant subdomain using tenantId (fixes SQLite global scope query matching)
+    if (user.tenantId) {
+      const userTenant = activeTenants.find(t => t.id === user.tenantId);
+      if (userTenant) {
+        foundSubdomain = userTenant.subdomain;
+      }
+    }
+
     if (user.status !== "active") {
       return { success: false, error: `Account status is '${user.status}'. Please contact administration.` };
     }
@@ -71,10 +84,36 @@ export async function loginAction(formData: any) {
       return { success: false, error: "Invalid email or password." };
     }
 
-    // 3. Issue JWT access and refresh tokens
+    // 3. Root Portal Gate — Only SuperAdmin may login on the root/Wysbryx domain
+    const isRootDomain = !tenant || tenant.subdomain === "wysbryx";
+    if (isRootDomain && user.role !== "SuperAdmin") {
+      return { 
+        success: false, 
+        error: "Access restricted. Only the Wysbryx Super Admin may log in on the root platform portal. Please use your organization's subdomain to sign in." 
+      };
+    }
+
+    // 4. Cross-Tenant Ancestry Gate — If logging in on a specific tenant subdomain,
+    // verify the user belongs to this tenant OR their home tenant is an ancestor
+    if (tenant && tenant.subdomain !== "wysbryx" && foundSubdomain) {
+      const userTenant = activeTenants.find(t => t.subdomain === foundSubdomain);
+      if (userTenant && userTenant.id !== tenant.id) {
+        // User's home tenant is different from the login domain
+        const isAncestor = await isAncestorOf(userTenant.id, tenant.id);
+        if (!isAncestor && user.role !== "SuperAdmin") {
+          return {
+            success: false,
+            error: `You are not authorized to access the ${tenant.name} portal. Please log in through your organization's subdomain.`
+          };
+        }
+      }
+    }
+
+    // 5. Issue JWT access and refresh tokens
     const payload = {
       userId: user.id,
       tenantId: user.tenantId,
+      subdomain: foundSubdomain || "public",
       email: user.email,
       role: user.role,
     };
@@ -82,7 +121,7 @@ export async function loginAction(formData: any) {
     const accessToken = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
 
-    // 4. Save to HttpOnly cookies
+    // 6. Save to HttpOnly cookies
     const cookieStore = await cookies();
     const headersList = await headers();
     const host = headersList.get("host") || "";
@@ -174,6 +213,7 @@ export async function refreshSessionAction() {
     const newAccessToken = signAccessToken({
       userId: payload.userId,
       tenantId: payload.tenantId,
+      subdomain: payload.subdomain || "public",
       email: payload.email,
       role: payload.role,
     });
@@ -203,7 +243,11 @@ export async function refreshSessionAction() {
 export async function establishSessionAction(userId: string) {
   try {
     let user: any = null;
-    const subdomains = ["vt", "intel", "intel-oregon", "amd", "test1", "test1-sub"];
+    let foundSub: string | null = null;
+    const activeTenants = await db.query.tenants.findMany({
+      where: eq(tenants.status, "active"),
+    });
+    const subdomains = activeTenants.map(t => t.subdomain);
     for (const sub of subdomains) {
       const u = await dbSubdomainStorage.run(sub, async () => 
         await db.query.users.findFirst({
@@ -212,6 +256,7 @@ export async function establishSessionAction(userId: string) {
       );
       if (u) {
         user = u;
+        foundSub = sub;
         break;
       }
     }
@@ -222,6 +267,7 @@ export async function establishSessionAction(userId: string) {
     const payload = {
       userId: user.id,
       tenantId: user.tenantId,
+      subdomain: foundSub || "public",
       email: user.email,
       role: user.role,
     };

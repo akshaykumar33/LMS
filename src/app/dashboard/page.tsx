@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTenantContext } from "@/features/auth/services/tenant";
 import { requireAuth } from "@/features/auth/services/session";
+import { getAncestorChain } from "@/features/auth/services/is-parent-tenant";
 import { db } from "@/db/db";
 import { students, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -17,27 +18,32 @@ export default async function DashboardPage() {
 
   const user = await requireAuth();
 
-  // Redirect admin/staff roles to their respective dashboards
+  // Redirect operational staff roles first — these work at ALL tenant levels
   if (["Faculty", "Mentor"].includes(user.role)) {
     redirect("/faculty");
   }
-
-  if (["Owner", "Admin", "Program Manager"].includes(user.role)) {
-    redirect("/admin/admissions");
-  }
-
   if (user.role === "Placement Officer") {
     redirect("/admin/placement");
   }
 
-  if (user.role === "SuperAdmin") {
-    // On parent domains, go to the system console
-    const parentDomains = ["vt", "vti", "vtu", "test1", "localhost", "", "www"];
-    const currentSub = tenant?.subdomain || "";
-    if (parentDomains.includes(currentSub.toLowerCase())) {
-      redirect("/super-admin");
+  // Retrieve the ancestor chain to determine the tenant level
+  const chain = await getAncestorChain(tenant.id);
+
+  // Root Platform (Wysbryx) or Tenant (Virginia Tech):
+  // Management roles (SuperAdmin/Owner) land on Portal Home to oversee their hierarchy.
+  // Other admin roles at this level go to the admin panel.
+  if (chain.length <= 2) {
+    if (["SuperAdmin", "Owner"].includes(user.role)) {
+      redirect("/");
     }
-    // On child org subdomains, SuperAdmin gets full admin access
+    // Admin/PM at tenant level still get an admin panel
+    if (["Admin", "Program Manager"].includes(user.role)) {
+      redirect("/admin/admissions");
+    }
+  }
+
+  // Sub-Company / Institute level (chain >= 3): admin roles go to operational dashboard
+  if (["Owner", "Admin", "Program Manager", "SuperAdmin"].includes(user.role)) {
     redirect("/admin/admissions");
   }
 

@@ -46,6 +46,7 @@ interface Tenant {
   createdAt: Date;
   updatedAt: Date;
   parentTenantId: string | null;
+  dbName?: string | null;
   settings?: {
     features?: {
       enableLibrary: boolean;
@@ -97,6 +98,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
   const [primaryColor, setPrimaryColor] = useState("#0ea5e9");
   const [secondaryColor, setSecondaryColor] = useState("#0f172a");
   const [parentTenantId, setParentTenantId] = useState("");
+  const [dbName, setDbName] = useState("");
+  const [dbUrl, setDbUrl] = useState("");
 
   // Edit Form branding fields
   const [editName, setEditName] = useState("");
@@ -107,6 +110,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
   const [editSecondaryColor, setEditSecondaryColor] = useState("#0f172a");
   const [editStatus, setEditStatus] = useState("active");
   const [editParentTenantId, setEditParentTenantId] = useState("");
+  const [editDbName, setEditDbName] = useState("");
+  const [editDbUrl, setEditDbUrl] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "tree">("table");
 
   // Edit Form settings fields
@@ -211,6 +216,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         primaryColor,
         secondaryColor,
         parentTenantId: parentTenantId || undefined,
+        dbName: dbName || undefined,
+        dbUrl: dbUrl || undefined,
       });
 
       if (res.success && res.data) {
@@ -223,6 +230,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         setPrimaryColor("#0ea5e9");
         setSecondaryColor("#0f172a");
         setParentTenantId("");
+        setDbName("");
+        setDbUrl("");
         setTimeout(() => {
           setIsCreateOpen(false);
           setSuccessMsg(null);
@@ -247,6 +256,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
     setEditSecondaryColor(tenant.branding?.secondaryColor || "#0f172a");
     setEditStatus(tenant.status);
     setEditParentTenantId(tenant.parentTenantId || "");
+    setEditDbName(tenant.dbName || "");
+    setEditDbUrl((tenant.settings as any)?.database?.dbUrl || "");
 
     // Load settings values
     const s = tenant.settings || {};
@@ -285,6 +296,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         secondaryColor: editSecondaryColor,
         status: editStatus,
         parentTenantId: editParentTenantId || null,
+        dbName: editDbName || undefined,
+        dbUrl: editDbUrl || undefined,
         settings: {
           features: {
             enableLibrary,
@@ -325,7 +338,11 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
 
   // Helper to build hierarchy tree JSX
   const renderTenantTree = (parentId: string | null = null, depth = 0): React.ReactNode => {
-    const children = tenantsList.filter(t => t.parentTenantId === parentId);
+    const children = tenantsList.filter(t => 
+      parentId === null 
+        ? (t.parentTenantId === null || !tenantsList.some(x => x.id === t.parentTenantId))
+        : t.parentTenantId === parentId
+    );
     if (children.length === 0) return null;
 
     return (
@@ -393,17 +410,15 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                     <Settings className="w-3.5 h-3.5 text-primary" />
                   </button>
 
-                  {t.subdomain !== "vt" && (
-                    <a
-                      href={portalUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="p-2 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary transition-all flex items-center justify-center cursor-pointer"
-                      title="Launch Academy Portal"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  )}
+                  <a
+                    href={portalUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary transition-all flex items-center justify-center cursor-pointer"
+                    title="Launch Academy Portal"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
                 </div>
               </div>
               {renderTenantTree(t.id, depth + 1)}
@@ -546,7 +561,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                       </tr>
                     ) : (
                       filteredTenants.map((t) => {
-                        const isParent = t.subdomain === "vt";
+                        const isParent = false;
                         const isLocal = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
                         const isVercel = typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app");
                         const portalUrl = isLocal
@@ -873,6 +888,29 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                 </select>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">Isolated DB Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. vt_db"
+                    value={dbName}
+                    onChange={e => setDbName(e.target.value)}
+                    className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">Custom Database URL</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. postgresql://..."
+                    value={dbUrl}
+                    onChange={e => setDbUrl(e.target.value)}
+                    className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45"
+                  />
+                </div>
+              </div>
+
               <div className="pt-4 border-t border-border/50 flex items-center justify-end gap-3">
                 <button
                   type="button"
@@ -1061,6 +1099,29 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                             ))
                           }
                         </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">Isolated DB Name</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. vt_db"
+                            value={editDbName}
+                            onChange={e => setEditDbName(e.target.value)}
+                            className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">Custom Database URL</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. postgresql://..."
+                            value={editDbUrl}
+                            onChange={e => setEditDbUrl(e.target.value)}
+                            className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45"
+                          />
+                        </div>
                       </div>
                     </div>
 

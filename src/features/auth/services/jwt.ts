@@ -6,6 +6,7 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "super-secret-jwt-r
 export interface UserTokenPayload {
   userId: string;
   tenantId: string;
+  subdomain: string;
   email: string;
   role: string;
 }
