@@ -4,7 +4,7 @@ import { requireAuth, verifyWriteAccess } from "@/features/auth/services/session
 import { CourseRepository } from "../repository/course-repository";
 import { db } from "@/db/db";
 import * as schema from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getCourseDetailsAction(courseId: string) {
@@ -319,5 +319,58 @@ export async function submitProjectAction(projectId: string, gitRepoUrl: string,
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to submit capstone project." };
+  }
+}
+
+/**
+ * CMS Action: Create a new course under the active tenant context.
+ * Enforces the maxCourses restriction check.
+ */
+export async function createCourseAction(formData: { name: string; code: string; description: string }) {
+  try {
+    const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
+    verifyWriteAccess(user);
+
+    if (!formData.name || !formData.code) {
+      return { success: false, error: "Course name and code are required." };
+    }
+
+    // Check maxCourses restriction
+    const tenant = await db.query.tenants.findFirst({
+      where: eq(schema.tenants.id, user.tenantId),
+    });
+
+    if (tenant) {
+      const maxCourses = (tenant.settings as any)?.restrictions?.maxCourses;
+      if (maxCourses) {
+        const countResult = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(schema.courses)
+          .where(eq(schema.courses.tenantId, user.tenantId));
+        const currentCoursesCount = Number(countResult[0]?.count || 0);
+        if (currentCoursesCount >= Number(maxCourses)) {
+          return {
+            success: false,
+            error: `The maximum course limit (${maxCourses}) for this tenant has been reached. Please upgrade your subscription.`
+          };
+        }
+      }
+    }
+
+    const [newCourse] = await db
+      .insert(schema.courses)
+      .values({
+        tenantId: user.tenantId,
+        name: formData.name,
+        code: formData.code,
+        description: formData.description,
+      })
+      .returning();
+
+    revalidatePath("/admin/courses");
+    revalidatePath("/dashboard");
+    return { success: true, data: newCourse };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to create course." };
   }
 }

@@ -45,6 +45,15 @@ interface DashboardLayoutProps {
     subdomain: string;
     parentTenantId?: string | null;
     isPlacementEnabled?: boolean;
+    status?: string;
+    settings?: {
+      features?: {
+        enableLibrary?: boolean;
+        enablePlacement?: boolean;
+        enableProctoring?: boolean;
+        enableCertificates?: boolean;
+      };
+    } | null;
     branding?: {
       logoUrl?: string;
       primaryColor?: string;
@@ -74,6 +83,13 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
   const [xp, setXp] = useState(450);
   const [level, setLevel] = useState(3);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Enforce Tenant Suspension Check
+  useEffect(() => {
+    if (tenant.status === "suspended" && user.role !== "SuperAdmin") {
+      router.replace("/suspended");
+    }
+  }, [tenant.status, user.role, router]);
 
   useEffect(() => {
     if (user.role === "Student" && typeof window !== "undefined") {
@@ -310,7 +326,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
   };
 
   const rawGroups = getNavigationGroups();
-  const navigationGroups = tenant.isPlacementEnabled !== false
+  let filteredGroups = tenant.isPlacementEnabled !== false
     ? rawGroups
     : rawGroups
         .map(group => ({
@@ -326,6 +342,18 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
           !group.title.toLowerCase().includes("recruiting")
         );
 
+  // Filter out library if enableLibrary feature flag is false
+  const enableLibrary = tenant.settings?.features?.enableLibrary !== false;
+  if (!enableLibrary) {
+    filteredGroups = filteredGroups
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => !item.name.toLowerCase().includes("library"))
+      }))
+      .filter(group => group.items.length > 0);
+  }
+
+  const navigationGroups = filteredGroups;
   const navigationItems = navigationGroups.flatMap(group => group.items);
 
   // Helper to format breadcrumbs

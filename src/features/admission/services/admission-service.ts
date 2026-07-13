@@ -105,6 +105,26 @@ export class AdmissionService {
       throw new Error("Application is already approved.");
     }
 
+    // 0. Enforce maxUsers restriction limit check
+    const tenant = await db.query.tenants.findFirst({
+      where: eq(schema.tenants.id, tenantId),
+    });
+
+    if (tenant) {
+      const maxUsers = (tenant.settings as any)?.restrictions?.maxUsers;
+      if (maxUsers) {
+        const tenantUserCountResult = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(schema.users)
+          .where(eq(schema.users.tenantId, tenantId));
+        
+        const currentUserCount = Number(tenantUserCountResult[0]?.count || 0);
+        if (currentUserCount >= Number(maxUsers)) {
+          throw new Error(`The maximum user registration limit (${maxUsers}) for this tenant has been reached. Please contact the system administrator.`);
+        }
+      }
+    }
+
     // 1. Check Batch capacity
     const batch = await db.query.batches.findFirst({
       where: eq(schema.batches.id, app.batchId),
@@ -146,9 +166,6 @@ export class AdmissionService {
     const count = Number(tenantStudentCountResult[0]?.count || 0) + 1;
     const seq = count.toString().padStart(4, "0");
 
-    const tenant = await db.query.tenants.findFirst({
-      where: eq(schema.tenants.id, tenantId),
-    });
     const subCode = (tenant?.subdomain || "COE").toUpperCase();
     
     const rollNumber = `ME-${subCode}-${year}-${seq}`;
