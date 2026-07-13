@@ -47,24 +47,30 @@ if (useJsonDb) {
     }
   };
 
-  const getDbClientForDatabase = (dbName: string): postgres.Sql => {
-    if (!dbClients.has(dbName)) {
+  const subdomainCustomUrlCache = new Map<string, string>();
+
+  const getDbClientForDatabase = (dbName: string, customDbUrl?: string): postgres.Sql => {
+    const key = customDbUrl || dbName;
+    if (!dbClients.has(key)) {
       try {
-        const url = new URL(connectionStringBase);
-        url.pathname = `/${dbName}`;
-        const client = postgres(url.toString(), {
+        let connString = customDbUrl;
+        if (!connString) {
+          const url = new URL(connectionStringBase);
+          url.pathname = `/${dbName}`;
+          connString = url.toString();
+        }
+        const client = postgres(connString, {
           max: process.env.NODE_ENV === "production" ? undefined : 10,
           idle_timeout: 20,
           connect_timeout: 10,
         });
-        dbClients.set(dbName, client);
+        dbClients.set(key, client);
       } catch (err) {
-        console.error(`Failed to initialize Postgres client for database: ${dbName}`, err);
-        // Fallback to default client if url parsing fails
+        console.error(`Failed to initialize Postgres client for database: ${key}`, err);
         return defaultClient;
       }
     }
-    return dbClients.get(dbName)!;
+    return dbClients.get(key)!;
   };
 
   // Normalize alias subdomains to their canonical schema name
@@ -83,12 +89,18 @@ if (useJsonDb) {
     try {
       // Direct query on defaultClient to prevent recursion
       const result = await defaultClient.unsafe(
-        `SELECT db_name FROM public.tenants WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1`,
+        `SELECT db_name, settings FROM public.tenants WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1`,
         [s]
       );
-      if (result && result.length > 0 && result[0].db_name) {
-        const dbName = result[0].db_name;
+      if (result && result.length > 0) {
+        const dbName = result[0].db_name || getDefaultDatabaseName();
+        const settings = result[0].settings as any;
+        const customDbUrl = settings?.database?.dbUrl;
+        
         subdomainDbCache.set(s, dbName);
+        if (customDbUrl) {
+          subdomainCustomUrlCache.set(s, customDbUrl);
+        }
         return dbName;
       }
     } catch (err) {
@@ -220,7 +232,8 @@ if (useJsonDb) {
         if (subdomain && subdomain !== "public") {
           const normalized = normalizeSubdomain(subdomain);
           const dbName = await resolveDatabaseForSubdomain(subdomain);
-          const activeClient = getDbClientForDatabase(dbName);
+          const customDbUrl = subdomainCustomUrlCache.get(normalized);
+          const activeClient = getDbClientForDatabase(dbName, customDbUrl);
           const schemaName = `tenant_${normalized.replace(/[^a-zA-Z0-9_]/g, "")}`;
           
           console.log(`[DB PROXY] ROUTED QUERY -> Subdomain: "${subdomain}" (normalized: "${normalized}") | DB: "${dbName}" | Schema: "${schemaName}"`);
@@ -244,8 +257,10 @@ if (useJsonDb) {
         // Default client connection routing
         let activeClient = defaultClient;
         if (subdomain) {
+          const normalized = normalizeSubdomain(subdomain);
           const dbName = await resolveDatabaseForSubdomain(subdomain);
-          activeClient = getDbClientForDatabase(dbName);
+          const customDbUrl = subdomainCustomUrlCache.get(normalized);
+          activeClient = getDbClientForDatabase(dbName, customDbUrl);
           console.log(`[DB PROXY] PUBLIC QUERY -> Subdomain: "${subdomain}" | DB: "${dbName}"`);
         } else {
           console.log(`[DB PROXY] BYPASS QUERY -> DB: default`);
@@ -265,10 +280,11 @@ if (useJsonDb) {
           return createAsyncQueryProxy(async (state) => {
             const subdomain = await resolveSubdomainFromHeaders();
             const dbName = await resolveDatabaseForSubdomain(subdomain || "public");
-            const activeClient = getDbClientForDatabase(dbName);
+            const normalized = subdomain ? normalizeSubdomain(subdomain) : "public";
+            const customDbUrl = subdomainCustomUrlCache.get(normalized);
+            const activeClient = getDbClientForDatabase(dbName, customDbUrl);
 
             if (subdomain && subdomain !== "public") {
-              const normalized = normalizeSubdomain(subdomain);
               const schemaName = `tenant_${normalized.replace(/[^a-zA-Z0-9_]/g, "")}`;
               console.log(`[DB PROXY] ROUTED UNSAFE -> Subdomain: "${subdomain}" (normalized: "${normalized}") | DB: "${dbName}" | Schema: "${schemaName}"`);
               return await activeClient.begin(async (sql) => {
@@ -301,10 +317,11 @@ if (useJsonDb) {
           return createAsyncQueryProxy(async () => {
             const subdomain = await resolveSubdomainFromHeaders();
             const dbName = await resolveDatabaseForSubdomain(subdomain || "public");
-            const activeClient = getDbClientForDatabase(dbName);
+            const normalized = subdomain ? normalizeSubdomain(subdomain) : "public";
+            const customDbUrl = subdomainCustomUrlCache.get(normalized);
+            const activeClient = getDbClientForDatabase(dbName, customDbUrl);
 
             if (subdomain && subdomain !== "public") {
-              const normalized = normalizeSubdomain(subdomain);
               const schemaName = `tenant_${normalized.replace(/[^a-zA-Z0-9_]/g, "")}`;
               const originalCallback = args[0];
               console.log(`[DB PROXY] ROUTED TRANSACTION -> Subdomain: "${subdomain}" (normalized: "${normalized}") | DB: "${dbName}" | Schema: "${schemaName}"`);

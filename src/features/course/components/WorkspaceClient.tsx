@@ -10,6 +10,7 @@ import {
 import confetti from "canvas-confetti";
 import { QuizWorkspace } from "@/features/quiz/components/QuizWorkspace";
 import { toggleLessonCompletionAction, submitProjectAction, askAiAction } from "../actions/course-actions";
+import { ScormPlayer } from "./ScormPlayer";
 
 interface Lesson {
   id: string;
@@ -569,6 +570,22 @@ export function WorkspaceClient({
                     <span className="text-[9px] font-black uppercase text-primary tracking-widest">Document Workspace</span>
                     <h3 className="text-sm font-extrabold text-foreground">{activeLesson.title}</h3>
                   </div>
+                </div>
+              )}
+
+              {activeLesson.contentType === "scorm" && (
+                <div className="p-4 bg-neutral-900 border-b border-border flex flex-col items-stretch">
+                  <ScormPlayer
+                    lessonId={activeLesson.id}
+                    fileUrl={activeLesson.fileUrl || null}
+                    onComplete={() => {
+                      confetti({ particleCount: 80, spread: 60 });
+                      // Add lesson to completed array locally
+                      if (!completedLessons.includes(activeLesson.id)) {
+                        setCompletedLessons(prev => [...prev, activeLesson.id]);
+                      }
+                    }}
+                  />
                 </div>
               )}
             </div>
