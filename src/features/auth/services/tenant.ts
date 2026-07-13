@@ -18,6 +18,24 @@ export interface TenantContext {
   } | null;
   status: string;
   isPlacementEnabled: boolean;
+  settings?: {
+    features?: {
+      enableLibrary?: boolean;
+      enablePlacement?: boolean;
+      enableProctoring?: boolean;
+      enableCertificates?: boolean;
+    };
+    gateways?: {
+      stripe?: boolean;
+      razorpay?: boolean;
+      paypal?: boolean;
+    };
+    restrictions?: {
+      maxUsers?: number;
+      maxCourses?: number;
+      allowSelfSignup?: boolean;
+    };
+  } | null;
 }
 
 export async function getTenantContext(): Promise<TenantContext | null> {
@@ -93,6 +111,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       branding,
       status: tenant.status,
       isPlacementEnabled,
+      settings: tenant.settings as any,
     };
   } catch (error) {
     console.error("Failed to fetch tenant context:", error);

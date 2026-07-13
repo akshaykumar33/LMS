@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { verifyAccessToken, UserTokenPayload } from "./jwt";
 import { db, dbSubdomainStorage } from "@/db/db";
-import { users, tenants } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { users, tenants, roles, rolePermissions, permissions } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getTenantContext, getScopedTenantIds } from "./tenant";
 
@@ -82,6 +82,80 @@ export async function requireAuth(allowedRoles?: string[]): Promise<UserTokenPay
 }
 
 /**
+ * Check if the current authenticated user has a specific permission.
+ */
+export async function hasPermission(permissionName: string): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) return false;
+
+  // SuperAdmin has all permissions
+  if (user.role === "SuperAdmin") return true;
+
+  // Guests are restricted to read permissions.
+  if (user.role === "Guest") {
+    if (permissionName.includes(":write") || permissionName.includes(":approve") || permissionName.includes(":publish")) {
+      return false;
+    }
+  }
+
+  // Get user details from DB to find customRoleId
+  const dbUser = await dbSubdomainStorage.run(user.subdomain, async () =>
+    await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    })
+  );
+
+  if (!dbUser) return false;
+
+  let targetRoleId = dbUser.customRoleId;
+
+  // If no custom role is assigned, find the default system role for this tenant matching the user's role name
+  if (!targetRoleId) {
+    const defaultRole = await dbSubdomainStorage.run(user.subdomain, async () =>
+      await db.query.roles.findFirst({
+        where: and(
+          eq(roles.tenantId, user.tenantId),
+          eq(roles.name, user.role)
+        ),
+      })
+    );
+    if (!defaultRole) return false;
+    targetRoleId = defaultRole.id;
+  }
+
+  // Query permissions linked to this role
+  const hasPerm = await dbSubdomainStorage.run(user.subdomain, async () => {
+    const matches = await db
+      .select()
+      .from(rolePermissions)
+      .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+      .where(
+        and(
+          eq(rolePermissions.roleId, targetRoleId),
+          eq(permissions.name, permissionName)
+        )
+      );
+    return matches.length > 0;
+  });
+
+  return hasPerm;
+}
+
+/**
+ * Require a specific permission for the authenticated user, or throw an error.
+ */
+export async function requirePermission(permissionName: string): Promise<UserTokenPayload> {
+  const user = await requireAuth();
+  
+  const permitted = await hasPermission(permissionName);
+  if (!permitted) {
+    throw new Error(`FORBIDDEN: User does not have the required permission '${permissionName}'.`);
+  }
+
+  return user;
+}
+
+/**
  * Ensures the authenticated user is not a Guest before proceeding with database mutations.
  */
 export function verifyWriteAccess(user: { role: string }) {
@@ -89,3 +163,4 @@ export function verifyWriteAccess(user: { role: string }) {
     throw new Error("ACCESS_DENIED: Modifications are disabled in Guest view-only sandbox mode.");
   }
 }
+

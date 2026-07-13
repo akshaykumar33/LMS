@@ -10,6 +10,12 @@ import { DigitalLibraryClient } from "@/features/library/components/DigitalLibra
 export default async function DigitalLibraryPage() {
   const tenant = await getTenantContext();
   if (!tenant) redirect("/");
+
+  // Feature Flag Guard: check if Digital Library is enabled
+  const enableLibrary = tenant.settings?.features?.enableLibrary !== false;
+  if (!enableLibrary) {
+    redirect("/dashboard");
+  }
   
   const user = await requireAuth();
 
