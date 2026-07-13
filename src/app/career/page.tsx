@@ -14,6 +14,10 @@ export default async function CareerPage() {
   const tenant = await getTenantContext();
   if (!tenant) redirect("/");
 
+  if (!tenant.isPlacementEnabled) {
+    redirect("/dashboard");
+  }
+
   const user = await requireAuth();
 
   // Load student profile details

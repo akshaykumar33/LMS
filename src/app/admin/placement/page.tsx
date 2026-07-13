@@ -13,6 +13,10 @@ export default async function AdminPlacementPage() {
   const tenant = await getTenantContext();
   if (!tenant) redirect("/");
 
+  if (!tenant.isPlacementEnabled) {
+    redirect("/dashboard");
+  }
+
   const user = await requireAuth(["Owner", "Admin", "Faculty", "Mentor", "Program Manager", "Placement Officer"]);
 
   // Resolve scoped tenant IDs for hierarchy

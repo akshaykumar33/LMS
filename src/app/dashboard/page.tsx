@@ -23,7 +23,11 @@ export default async function DashboardPage() {
     redirect("/faculty");
   }
   if (user.role === "Placement Officer") {
-    redirect("/admin/placement");
+    if (tenant.isPlacementEnabled) {
+      redirect("/admin/placement");
+    } else {
+      redirect("/");
+    }
   }
 
   // Retrieve the ancestor chain to determine the tenant level

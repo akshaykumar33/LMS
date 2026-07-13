@@ -43,6 +43,7 @@ interface DashboardLayoutProps {
     name: string;
     subdomain: string;
     parentTenantId?: string | null;
+    isPlacementEnabled?: boolean;
     branding?: {
       logoUrl?: string;
       primaryColor?: string;
@@ -293,7 +294,23 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
     ];
   };
 
-  const navigationGroups = getNavigationGroups();
+  const rawGroups = getNavigationGroups();
+  const navigationGroups = tenant.isPlacementEnabled !== false
+    ? rawGroups
+    : rawGroups
+        .map(group => ({
+          ...group,
+          items: group.items.filter(item => 
+            !item.name.toLowerCase().includes("placement") && 
+            !item.name.toLowerCase().includes("career")
+          )
+        }))
+        .filter(group => 
+          group.items.length > 0 && 
+          !group.title.toLowerCase().includes("placement") && 
+          !group.title.toLowerCase().includes("recruiting")
+        );
+
   const navigationItems = navigationGroups.flatMap(group => group.items);
 
   // Helper to format breadcrumbs
