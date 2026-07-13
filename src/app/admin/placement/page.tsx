@@ -5,7 +5,7 @@ import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { CareerRepository } from "@/features/career/repository/career-repository";
 import { PlacementConsole } from "@/features/career/components/PlacementConsole";
-import { db } from "@/db/db";
+import { db, dbSubdomainStorage } from "@/db/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -32,9 +32,11 @@ export default async function AdminPlacementPage() {
     applicantsMap[job.id] = applicants;
   }
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.id, user.userId),
-  });
+  const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+    await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    })
+  );
 
   const userData = {
     userId: user.userId,
@@ -42,6 +44,7 @@ export default async function AdminPlacementPage() {
     lastName: dbUser?.lastName || "Officer",
     email: dbUser?.email || user.email,
     role: user.role,
+    subdomain: user.subdomain,
   };
 
   return (

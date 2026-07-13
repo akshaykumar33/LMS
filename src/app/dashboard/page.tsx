@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getTenantContext } from "@/features/auth/services/tenant";
 import { requireAuth } from "@/features/auth/services/session";
 import { getAncestorChain } from "@/features/auth/services/is-parent-tenant";
-import { db } from "@/db/db";
+import { db, dbSubdomainStorage } from "@/db/db";
 import { students, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
@@ -30,24 +30,16 @@ export default async function DashboardPage() {
     }
   }
 
+  if (["SuperAdmin", "Owner"].includes(user.role)) {
+    redirect("/super-admin");
+  }
+
   // Retrieve the ancestor chain to determine the tenant level
   const chain = await getAncestorChain(tenant.id);
 
   // Root Platform (Wysbryx) or Tenant (Virginia Tech):
-  // Management roles (SuperAdmin/Owner) land on Portal Home to oversee their hierarchy.
-  // Other admin roles at this level go to the admin panel.
-  if (chain.length <= 2) {
-    if (["SuperAdmin", "Owner"].includes(user.role)) {
-      redirect("/");
-    }
-    // Admin/PM at tenant level still get an admin panel
-    if (["Admin", "Program Manager"].includes(user.role)) {
-      redirect("/admin/admissions");
-    }
-  }
-
-  // Sub-Company / Institute level (chain >= 3): admin roles go to operational dashboard
-  if (["Owner", "Admin", "Program Manager", "SuperAdmin"].includes(user.role)) {
+  // Admin/PM at tenant level or sub-company level get an admin panel
+  if (["Admin", "Program Manager"].includes(user.role)) {
     redirect("/admin/admissions");
   }
 
@@ -68,9 +60,11 @@ export default async function DashboardPage() {
     }
   }
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.id, user.userId),
-  });
+  const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+    await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    })
+  );
 
   const userData = {
     userId: user.userId,
@@ -78,6 +72,7 @@ export default async function DashboardPage() {
     lastName: dbUser?.lastName || "",
     email: dbUser?.email || user.email,
     role: user.role,
+    subdomain: user.subdomain,
   };
 
   return (

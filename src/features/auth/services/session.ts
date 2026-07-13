@@ -4,6 +4,7 @@ import { db, dbSubdomainStorage } from "@/db/db";
 import { users, tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { getTenantContext, getScopedTenantIds } from "./tenant";
 
 /**
  * Retrieve the current authenticated user session from JWT HttpOnly cookies.
@@ -53,7 +54,24 @@ export async function requireAuth(allowedRoles?: string[]): Promise<UserTokenPay
   const user = await getCurrentUser();
 
   if (!user) {
+    // Redirect to active tenant's login page if available
+    const activeTenant = await getTenantContext();
+    if (activeTenant && activeTenant.subdomain !== "wysbryx") {
+      redirect(`/login?tenant=${activeTenant.subdomain}`);
+    }
     redirect("/login");
+  }
+
+  // Cross-tenant session protection on single domain
+  const activeTenant = await getTenantContext();
+  if (activeTenant && user.role !== "SuperAdmin") {
+    const allowedTenantIds = await getScopedTenantIds(user.role, user.tenantId || activeTenant.id);
+    if (!allowedTenantIds || !allowedTenantIds.includes(activeTenant.id)) {
+      const cookieStore = await cookies();
+      cookieStore.delete("access_token");
+      cookieStore.delete("refresh_token");
+      redirect(`/login?tenant=${activeTenant.subdomain}`);
+    }
   }
 
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user.role) && user.role !== "Guest" && user.role !== "SuperAdmin") {

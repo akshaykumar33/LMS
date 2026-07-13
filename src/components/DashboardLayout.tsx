@@ -37,6 +37,7 @@ interface DashboardLayoutProps {
     lastName: string;
     email: string;
     role: string;
+    subdomain?: string;
   };
   tenant: {
     id: string;
@@ -152,6 +153,24 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
     }
     
     if (user.role === "SuperAdmin" || user.role === "Owner") {
+      // Check if we are at intel level (the last child level)
+      const isIntelLevel = tenant.subdomain === "intel";
+      if (isIntelLevel) {
+        // Resolve user home subdomain
+        const userSub = user.subdomain || 
+          (user.email.includes("@vt.") ? "vt" : 
+           user.email.includes("wysbryx") ? "wysbryx" : "wysbryx");
+           
+        // Owner of intel (vt) should see all previous sidebar stuffs (System Tenants)
+        // but same won't be for super admin of wysbryx
+        const isOwnerOfIntel = userSub === "vt" || user.role === "Owner";
+        const isSuperAdminOfWysbryx = userSub === "wysbryx" || user.role === "SuperAdmin";
+        
+        if (isSuperAdminOfWysbryx && !isOwnerOfIntel) {
+          return [];
+        }
+      }
+
       return [
         {
           title: "System Administration",

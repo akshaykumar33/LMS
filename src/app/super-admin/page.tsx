@@ -1,10 +1,11 @@
 import { requireAuth } from "@/features/auth/services/session";
-import { db } from "@/db/db";
+import { db, dbSubdomainStorage } from "@/db/db";
 import { tenants, users } from "@/db/schema";
 import { asc, eq, and } from "drizzle-orm";
 import { SuperAdminConsole } from "./SuperAdminConsole";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { getScopedTenantIds } from "@/features/auth/services/tenant";
+import { getScopedTenantIds, getTenantContext } from "@/features/auth/services/tenant";
+import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Super Admin Console",
@@ -14,9 +15,19 @@ export default async function SuperAdminPage() {
   // Enforce global Super Admin / Parent Owner permissions
   const user = await requireAuth(["SuperAdmin", "Owner"]);
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.id, user.userId),
-  });
+  const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+    await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    })
+  );
+
+  const currentTenant = await getTenantContext();
+  if (currentTenant?.subdomain === "intel") {
+    const userSub = user.subdomain || (dbUser?.email.includes("@vt.") ? "vt" : "wysbryx");
+    if (userSub === "wysbryx" || user.role === "SuperAdmin") {
+      redirect("/");
+    }
+  }
 
   const tenant = await db.query.tenants.findFirst({
     where: eq(tenants.id, dbUser?.tenantId || ""),
@@ -50,6 +61,7 @@ export default async function SuperAdminPage() {
     lastName: (dbUser?.email === "superadmin@vt.edu" || dbUser?.email === "superadmin@wysbryx.com") ? "Super Admin" : (dbUser?.lastName || "Admin"),
     email: (dbUser?.email === "superadmin@vt.edu" || dbUser?.email === "superadmin@wysbryx.com") ? "superadmin@wysbryx.com" : (dbUser?.email || user.email),
     role: user.role,
+    subdomain: user.subdomain,
   };
 
   const globalTenant = {

@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/db/db";
+import { db, dbSubdomainStorage } from "@/db/db";
 import { tenants, roles, permissions, rolePermissions, users } from "@/db/schema";
 import { eq, asc, and, inArray } from "drizzle-orm";
 import { requireAuth, verifyWriteAccess } from "@/features/auth/services/session";
@@ -9,9 +9,11 @@ import { getScopedTenantIds } from "@/features/auth/services/tenant";
 
 async function verifyGlobalAdmin(user: any) {
   if (user.role === "Owner") {
-    const dbUser = await db.query.users.findFirst({
-      where: eq(users.id, user.userId),
-    });
+    const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+      await db.query.users.findFirst({
+        where: eq(users.id, user.userId),
+      })
+    );
     const tenant = await db.query.tenants.findFirst({
       where: eq(tenants.id, dbUser?.tenantId || ""),
     });
@@ -33,9 +35,11 @@ export async function getAllTenantsAction() {
     const user = await requireAuth(["SuperAdmin", "Owner"]);
     await verifyGlobalAdmin(user);
 
-    const dbUser = await db.query.users.findFirst({
-      where: eq(users.id, user.userId),
-    });
+    const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+      await db.query.users.findFirst({
+        where: eq(users.id, user.userId),
+      })
+    );
     const userTenantId = dbUser?.tenantId;
 
     let list = await db.query.tenants.findMany({
@@ -81,9 +85,11 @@ export async function createTenantAction(formData: {
       return { success: false, error: "Subdomain is already taken." };
     }
 
-    const dbUser = await db.query.users.findFirst({
-      where: eq(users.id, user.userId),
-    });
+    const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+      await db.query.users.findFirst({
+        where: eq(users.id, user.userId),
+      })
+    );
     const userTenantId = dbUser?.tenantId;
 
     let parentId = formData.parentTenantId || null;
@@ -160,9 +166,11 @@ export async function updateTenantAction(
     await verifyGlobalAdmin(user);
     verifyWriteAccess(user);
 
-    const dbUser = await db.query.users.findFirst({
-      where: eq(users.id, user.userId),
-    });
+    const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+      await db.query.users.findFirst({
+        where: eq(users.id, user.userId),
+      })
+    );
     const userTenantId = dbUser?.tenantId;
 
     let parentId = formData.parentTenantId || null;
@@ -223,9 +231,11 @@ export async function getTenantPermissionsAction(tenantId: string) {
     const user = await requireAuth(["SuperAdmin", "Owner"]);
     await verifyGlobalAdmin(user);
 
-    const dbUser = await db.query.users.findFirst({
-      where: eq(users.id, user.userId),
-    });
+    const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+      await db.query.users.findFirst({
+        where: eq(users.id, user.userId),
+      })
+    );
     if (user.role === "Owner" && dbUser?.tenantId) {
       const allowedIds = await getScopedTenantIds("Owner", dbUser.tenantId);
       if (!allowedIds.includes(tenantId)) {

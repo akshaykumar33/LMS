@@ -188,7 +188,7 @@ export default async function Home() {
   if (chain.length === 2 && childAcademies.length > 0) {
     // Auth Guard: Only SuperAdmin/Owner of this tenant can view the sub-tenant directory
     if (!sessionUser || !["SuperAdmin", "Owner"].includes(sessionUser.role)) {
-      redirect("/login");
+      redirect(`/login?tenant=${tenant.subdomain}`);
     }
 
     // Fetch per-tenant stats for info badges
@@ -387,6 +387,9 @@ export default async function Home() {
     }
   }
 
+  const tenantParam = tenant.subdomain && tenant.subdomain !== "wysbryx" ? `?tenant=${tenant.subdomain}` : "";
+  const loginUrl = `/login${tenantParam}`;
+  const applyUrl = `/admission/apply${tenantParam}`;
   const primaryColor = tenant.branding?.primaryColor || "#0ea5e9";
 
   return (
@@ -437,13 +440,13 @@ export default async function Home() {
             ) : (
               <>
                 <Link 
-                  href="/login" 
+                  href={loginUrl} 
                   className="text-xs font-black text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
                   Sign In
                 </Link>
                 <Link
-                  href="/admission/apply"
+                  href={applyUrl}
                   className="inline-flex items-center justify-center rounded-xl text-xs font-black h-9 px-4 text-white hover:opacity-90 transition-all shadow-md shadow-primary/20 cursor-pointer"
                   style={{ backgroundColor: primaryColor }}
                 >
@@ -476,14 +479,14 @@ export default async function Home() {
  
             <div className="flex flex-col sm:flex-row gap-3">
               <Link
-                href="/admission/apply"
+                href={applyUrl}
                 className="inline-flex items-center justify-center rounded-xl text-xs font-black h-12 px-6 text-white hover:opacity-95 transition-all shadow-md shadow-primary/20 cursor-pointer"
                 style={{ backgroundColor: primaryColor }}
               >
                 Submit Admission Application
               </Link>
               <Link
-                href="/login"
+                href={loginUrl}
                 className="inline-flex items-center justify-center rounded-xl text-xs font-black h-12 px-6 border border-border bg-card/45 hover:bg-secondary/40 transition-all text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 Access Member Dashboard
@@ -527,8 +530,8 @@ export default async function Home() {
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between text-xs text-muted-foreground gap-4 font-semibold">
           <p>&copy; {new Date().getFullYear()} {tenant.branding?.companyName || tenant.name}. All rights reserved.</p>
           <div className="flex items-center gap-6">
-            <Link href="/admission/apply" className="hover:text-foreground transition-colors">Apply Portal</Link>
-            <Link href="/login" className="hover:text-foreground transition-colors">Access Portal</Link>
+            <Link href={applyUrl} className="hover:text-foreground transition-colors">Apply Portal</Link>
+            <Link href={loginUrl} className="hover:text-foreground transition-colors">Access Portal</Link>
             <span className="text-muted-foreground">Enterprise CoE Platform</span>
           </div>
         </div>
