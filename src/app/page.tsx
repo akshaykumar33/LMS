@@ -65,11 +65,7 @@ export default async function Home() {
         <header className="border-b border-border/40 bg-background/50 backdrop-blur-xl relative z-20 sticky top-0">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <img 
-                src="https://www.wysbryx.com/wysbryx_v.png" 
-                className="w-7 h-7 object-contain animate-pulse" 
-                alt="Wysbryx Logo"
-              />
+              <BrandLogo subdomain="wysbryx" />
               <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
                 Wysbryx Platform
               </span>
@@ -419,22 +415,17 @@ export default async function Home() {
             <div className="h-4 w-px bg-border" />
             {sessionUser ? (
               <div className="flex items-center gap-3">
-                <span className="text-[10px] text-muted-foreground font-semibold hidden sm:inline max-w-[120px] truncate" title={sessionUser.email}>
-                  Signed in as <strong className="text-foreground">{sessionUser.email.split("@")[0]}</strong>
-                </span>
-                <div 
-                  className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] shadow-sm select-none border" 
-                  style={{ backgroundColor: primaryColor + "15", borderColor: primaryColor + "30", color: primaryColor }}
-                  title={sessionUser.email}
-                >
-                  {sessionUser.email.substring(0, 2).toUpperCase()}
-                </div>
+                <GatewayUserControls
+                  email={sessionUser.email}
+                  role={sessionUser.role}
+                  primaryColor={primaryColor}
+                />
                 <Link
                   href="/dashboard"
-                  className="inline-flex items-center justify-center rounded-xl text-xs font-black h-9 px-4 text-white hover:opacity-90 transition-all shadow-md shadow-primary/20 cursor-pointer"
+                  className="inline-flex items-center justify-center rounded-xl text-xs font-black h-8 px-4 text-white hover:opacity-90 transition-all shadow-md shadow-primary/20 cursor-pointer"
                   style={{ backgroundColor: primaryColor }}
                 >
-                  Enter Workspace
+                  Workspace
                 </Link>
               </div>
             ) : (

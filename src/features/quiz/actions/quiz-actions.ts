@@ -78,12 +78,18 @@ export async function submitQuizAttemptAction(quizId: string, answers: Submitted
         ? `${studentProfile.firstName} ${studentProfile.lastName}`
         : user.email;
 
+      const { headers } = require("next/headers");
+      const headersList = await headers();
+      const host = headersList.get("host") || "wysbryx.com";
+      const proto = headersList.get("x-forwarded-proto") || "https";
+      const baseUrl = `${proto}://${host}`;
+
       await sendXapiStatement(user.tenantId, {
         actorEmail: user.email,
         actorName: fullName,
         verbId: "http://adlnet.gov/expapi/verbs/answered",
         verbDisplay: "answered",
-        activityId: `https://wysbryx.com/activities/quizzes/${quizId}`,
+        activityId: `${baseUrl}/activities/quizzes/${quizId}`,
         activityName: result.quizTitle || "Quiz",
         resultScoreRaw: result.score,
         resultSuccess: result.passed,

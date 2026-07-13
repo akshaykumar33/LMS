@@ -285,13 +285,19 @@ export async function toggleLessonCompletionAction(lessonId: string, completed: 
         const lessonInfo = await db.query.lessons.findFirst({
           where: eq(schema.lessons.id, lessonId),
         });
+        const { headers } = require("next/headers");
+        const headersList = await headers();
+        const host = headersList.get("host") || "wysbryx.com";
+        const proto = headersList.get("x-forwarded-proto") || "https";
+        const baseUrl = `${proto}://${host}`;
+
         if (lessonInfo) {
           await sendXapiStatement(user.tenantId, {
             actorEmail: user.email,
             actorName: student.fullName || user.email,
             verbId: "http://adlnet.gov/expapi/verbs/completed",
             verbDisplay: "completed",
-            activityId: `https://wysbryx.com/activities/lessons/${lessonId}`,
+            activityId: `${baseUrl}/activities/lessons/${lessonId}`,
             activityName: lessonInfo.title,
             resultCompletion: true,
           });
