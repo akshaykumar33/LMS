@@ -29,9 +29,9 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Normalize bare localhost or empty subdomain to "wysbryx"
-  if (!subdomain || subdomain === "localhost" || subdomain === "www") {
-    subdomain = "wysbryx";
+  // If subdomain is localhost or www, clear it to allow fallbacks
+  if (subdomain === "localhost" || subdomain === "www") {
+    subdomain = "";
   }
 
   // Support nested path-based routing: /tenant/parent/sub/child/...
@@ -59,6 +59,11 @@ export function middleware(request: NextRequest) {
     if (cookieSubdomain && url.pathname !== "/") {
       subdomain = cookieSubdomain;
     }
+  }
+
+  // Normalize empty subdomain to "wysbryx" as the absolute last fallback
+  if (!subdomain) {
+    subdomain = "wysbryx";
   }
 
   // Always set the header so getTenantContext() can distinguish root domain (empty) from missing header
