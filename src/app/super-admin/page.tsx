@@ -21,13 +21,6 @@ export default async function SuperAdminPage() {
     })
   );
 
-  const currentTenant = await getTenantContext();
-  if (currentTenant?.subdomain === "intel") {
-    const userSub = user.subdomain || (dbUser?.email.includes("@vt.") ? "vt" : "wysbryx");
-    if (userSub === "wysbryx" || user.role === "SuperAdmin") {
-      redirect("/");
-    }
-  }
 
   const tenant = await db.query.tenants.findFirst({
     where: eq(tenants.id, dbUser?.tenantId || ""),

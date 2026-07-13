@@ -152,33 +152,64 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
       ];
     }
     
+    const isIntelLevel = tenant.subdomain === "intel";
+    const userSub = user.subdomain || 
+      (user.email.includes("@vt.") ? "vt" : 
+       user.email.includes("@intel.") ? "intel" :
+       user.email.includes("wysbryx") ? "wysbryx" : "wysbryx");
+       
+    const isVtOwner = user.role === "Owner" && userSub === "vt";
+    const isIntelOwner = user.role === "Owner" && userSub === "intel";
+    const isWysbryxSuperAdmin = user.role === "SuperAdmin" && userSub === "wysbryx";
+
     if (user.role === "SuperAdmin" || user.role === "Owner") {
-      // Check if we are at intel level (the last child level)
-      const isIntelLevel = tenant.subdomain === "intel";
-      if (isIntelLevel) {
-        // Resolve user home subdomain
-        const userSub = user.subdomain || 
-          (user.email.includes("@vt.") ? "vt" : 
-           user.email.includes("wysbryx") ? "wysbryx" : "wysbryx");
-           
-        // Owner of intel (vt) should see all previous sidebar stuffs (System Tenants)
-        // but same won't be for super admin of wysbryx
-        const isOwnerOfIntel = userSub === "vt" || user.role === "Owner";
-        const isSuperAdminOfWysbryx = userSub === "wysbryx" || user.role === "SuperAdmin";
-        
-        if (isSuperAdminOfWysbryx && !isOwnerOfIntel) {
-          return [];
-        }
+      const groups: {
+        title: string;
+        items: {
+          name: string;
+          href: string;
+          icon: any;
+        }[];
+      }[] = [];
+
+      // VT Owner or Intel Owner at Intel level should see the operational admin links
+      const showAdminConsoleForOwner = isIntelLevel && (isVtOwner || isIntelOwner);
+      if (showAdminConsoleForOwner) {
+        groups.push(
+          {
+            title: "Student Admissions",
+            items: [
+              { name: "Admissions Hub", href: "/admin/admissions", icon: Users },
+            ]
+          },
+          {
+            title: "Curriculum & Analytics",
+            items: [
+              { name: "Curriculum Manager", href: "/admin/courses", icon: BookOpen },
+              { name: "Platform Analytics", href: "/admin/analytics", icon: BarChart3 },
+            ]
+          },
+          {
+            title: "Recruiting",
+            items: [
+              { name: "Placement Console", href: "/admin/placement", icon: Briefcase },
+            ]
+          }
+        );
       }
 
-      return [
-        {
+      // Hide System Tenants only if we are at intel level and user is Intel Owner
+      const showSystemTenants = !(isIntelLevel && isIntelOwner);
+      if (showSystemTenants) {
+        groups.push({
           title: "System Administration",
           items: [
             { name: "System Tenants", href: "/super-admin", icon: Layers },
           ]
-        }
-      ];
+        });
+      }
+
+      return groups;
     }
 
     if (["Faculty", "Mentor"].includes(user.role)) {
