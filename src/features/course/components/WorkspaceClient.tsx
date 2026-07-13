@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { QuizWorkspace } from "@/features/quiz/components/QuizWorkspace";
-import { toggleLessonCompletionAction, submitProjectAction } from "../actions/course-actions";
+import { toggleLessonCompletionAction, submitProjectAction, askAiAction } from "../actions/course-actions";
 
 interface Lesson {
   id: string;
@@ -60,6 +60,7 @@ interface WorkspaceClientProps {
     lastName: string;
     role?: string;
   };
+  enableProctoring?: boolean;
 }
 
 export function WorkspaceClient({ 
@@ -72,7 +73,8 @@ export function WorkspaceClient({
   capstoneSubmission,
   tenantName, 
   primaryColor = "#0ea5e9",
-  user
+  user,
+  enableProctoring = false
 }: WorkspaceClientProps) {
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -351,51 +353,47 @@ export function WorkspaceClient({
 
   // AI Assistant trigger actions
   const askAI = async (customPrompt?: string) => {
+    if (!activeLesson) return;
     const queryText = customPrompt || aiQuery;
     if (!queryText.trim()) return;
 
+    setAiMessages(prev => [...prev, { sender: "user", text: queryText }]);
     if (!customPrompt) {
-      setAiMessages(prev => [...prev, { sender: "user", text: queryText }]);
       setAiQuery("");
     }
     setAiLoading(true);
 
-    setTimeout(() => {
-      let aiResponse = "I am processing your query based on current lecture transcript notes.";
-      
-      const lessonTitle = activeLesson?.title.toLowerCase() || "";
-      if (queryText.includes("summarize") || queryText.includes("Summary")) {
-        aiResponse = `Here is a structured summary of "${activeLesson?.title || "today's lesson"}":
-• **Core Objective**: Master the physical operations, structures, and limits of current semiconductors.
-• **Key Terms**: Sub-threshold slope, leakage current, photo-resist degradation, and optical diffraction thresholds.
-• **Significance**: Understanding these parameters is critical to ensuring VLSI layouts successfully pass physical verification rules.`;
-      } else if (queryText.includes("flashcard") || queryText.includes("Flashcards")) {
-        setFlashcards([
-          { q: "What is the primary function of a photoresist in lithography?", a: "A light-sensitive polymer applied to the wafer. Exposure to UV light through a mask modifies its chemical solubility, allowing patterns to be etched." },
-          { q: "Explain sub-threshold leakage.", a: "The current that flows between source and drain even when the gate-source voltage is below the threshold voltage (Vth). Crucial to minimize in mobile designs." }
-        ]);
-        aiResponse = "I have generated 2 interactive learning flashcards for you! See them in the AI panel below.";
-      } else if (queryText.includes("quiz") || queryText.includes("Quiz")) {
-        setCustomQuiz([
-          {
-            q: "What parameter limits resolution in optical lithography?",
-            opts: ["Light wavelength (lambda)", "Transistor channel length", "Substrate doping density", "Metal layer thickness"],
-            answer: 0
-          },
-          {
-            q: "Which state describes a transistor turned fully off but still leaking current?",
-            opts: ["Saturation", "Sub-threshold conduction", "Linear operation", "Avalanche breakdown"],
-            answer: 1
-          }
-        ]);
-        aiResponse = "I have compiled a 2-question quick test based on this module. Complete it in the assistant panel below!";
-      } else {
-        aiResponse = `Regarding "${queryText}": In modern semiconductor fabrication, this relates directly to ensuring high yields on advanced nodes (e.g. 3nm FinFET). The structural limitations dictate that we must model thermal dissipation, layout parasitics, and leakage profiles accurately to avoid chip failure.`;
-      }
+    try {
+      const res = await askAiAction(activeLesson.id, queryText);
+      if (res.success && res.data) {
+        const payload = res.data;
+        setAiMessages(prev => [...prev, { sender: "ai", text: payload.text }]);
+        
+        if (payload.flashcards) {
+          setFlashcards(payload.flashcards);
+        } else if (customPrompt === "Generate Flashcards") {
+          setFlashcards([]);
+        }
 
-      setAiMessages(prev => [...prev, { sender: "ai", text: aiResponse }]);
+        if (payload.quiz) {
+          setCustomQuiz(payload.quiz);
+        } else if (customPrompt === "Quiz me") {
+          setCustomQuiz([]);
+        }
+      } else {
+        setAiMessages(prev => [
+          ...prev, 
+          { sender: "ai", text: `Error: ${res.error || "Failed to communicate with AI Tutor Assistant."}` }
+        ]);
+      }
+    } catch (err: any) {
+      setAiMessages(prev => [
+        ...prev, 
+        { sender: "ai", text: `System Error: ${err.message || "An unexpected error occurred."}` }
+      ]);
+    } finally {
       setAiLoading(false);
-    }, 1200);
+    }
   };
 
   const handleVote = (option: string) => {
@@ -510,6 +508,7 @@ export function WorkspaceClient({
               quiz={activeQuiz} 
               tenantName={tenantName}
               primaryColor={primaryColor}
+              enableProctoring={enableProctoring}
             />
           </div>
         ) : activeLesson ? (

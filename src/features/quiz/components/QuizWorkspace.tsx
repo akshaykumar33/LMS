@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { submitQuizAttemptAction } from "../actions/quiz-actions";
 import { ArrowRight } from "lucide-react";
 
@@ -25,9 +25,10 @@ interface QuizWorkspaceProps {
   quiz: Quiz;
   tenantName: string;
   primaryColor?: string;
+  enableProctoring?: boolean;
 }
 
-export function QuizWorkspace({ quiz, tenantName, primaryColor }: QuizWorkspaceProps) {
+export function QuizWorkspace({ quiz, tenantName, primaryColor, enableProctoring = false }: QuizWorkspaceProps) {
   const [step, setStep] = useState<"intro" | "questions" | "results">("intro");
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -37,12 +38,101 @@ export function QuizWorkspace({ quiz, tenantName, primaryColor }: QuizWorkspaceP
   const [unlockedCert, setUnlockedCert] = useState(false);
   const [certCode, setCertCode] = useState("");
 
+  const [infractionCount, setInfractionCount] = useState(0);
+  const [proctorWarning, setProctorWarning] = useState<string | null>(null);
+
+  const answersRef = React.useRef(answers);
+  React.useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  const triggerAutoSubmit = async (currentInfractions: number) => {
+    setLoading(true);
+    try {
+      const formattedAnswers = Object.entries(answersRef.current).map(([qId, optId]) => ({
+        questionId: qId,
+        selectedOptionId: optId,
+      }));
+
+      const res = await submitQuizAttemptAction(quiz.id, formattedAnswers, currentInfractions);
+      if (res.success && res.data) {
+        setResultsData(res.data);
+        setStep("results");
+      } else {
+        throw new Error(res.error || "Failed to auto-submit quiz.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Auto-submission error.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!enableProctoring || step !== "questions") return;
+
+    const handleInfraction = (msg: string) => {
+      setInfractionCount((prev) => {
+        const next = prev + 1;
+        setProctorWarning(`Proctoring Alert: ${msg} detected. Infraction logged (${next}/3).`);
+        setTimeout(() => setProctorWarning(null), 5000);
+
+        if (next >= 3) {
+          setError("Session terminated: Too many proctoring infractions detected.");
+          triggerAutoSubmit(next);
+        }
+        return next;
+      });
+    };
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        handleInfraction("Tab switch / Window minimization");
+      }
+    };
+
+    const handleBlur = () => {
+      handleInfraction("Lost focus (clicked outside workspace)");
+    };
+
+    const handleCopy = (e: ClipboardEvent) => {
+      e.preventDefault();
+      handleInfraction("Copy action");
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      handleInfraction("Paste action");
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      handleInfraction("Right click action");
+    };
+
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("blur", handleBlur);
+    document.addEventListener("copy", handleCopy);
+    document.addEventListener("paste", handlePaste);
+    document.addEventListener("contextmenu", handleContextMenu);
+
+    return () => {
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("blur", handleBlur);
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("paste", handlePaste);
+      document.removeEventListener("contextmenu", handleContextMenu);
+    };
+  }, [step, enableProctoring]);
+
   const handleStart = () => {
     setError(null);
     setAnswers({});
     setCurrentIdx(0);
     setUnlockedCert(false);
     setCertCode("");
+    setInfractionCount(0);
+    setProctorWarning(null);
     setStep("questions");
   };
 
@@ -87,7 +177,7 @@ export function QuizWorkspace({ quiz, tenantName, primaryColor }: QuizWorkspaceP
         selectedOptionId: optId,
       }));
 
-      const res = await submitQuizAttemptAction(quiz.id, formattedAnswers);
+      const res = await submitQuizAttemptAction(quiz.id, formattedAnswers, infractionCount);
       if (res.success && res.data) {
         setResultsData(res.data);
         setStep("results");
@@ -177,6 +267,12 @@ export function QuizWorkspace({ quiz, tenantName, primaryColor }: QuizWorkspaceP
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg text-xs text-red-400">
             ⚠️ {error}
+          </div>
+        )}
+
+        {proctorWarning && (
+          <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-lg text-xs text-amber-400 font-semibold animate-pulse">
+            🛡️ {proctorWarning}
           </div>
         )}
 

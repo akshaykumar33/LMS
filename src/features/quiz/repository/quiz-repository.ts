@@ -59,7 +59,8 @@ export class QuizRepository {
     tenantId: string,
     studentId: string,
     quizId: string,
-    answers: SubmittedAnswer[]
+    answers: SubmittedAnswer[],
+    infractionCount: number = 0
   ) {
     // 1. Fetch Quiz with its correct keys
     const [quiz] = await db
@@ -128,6 +129,8 @@ export class QuizRepository {
         score: scorePercentage,
         passed,
         answers,
+        infractionCount,
+        isFlaggedForAudit: infractionCount > 3,
       })
       .returning();
 
