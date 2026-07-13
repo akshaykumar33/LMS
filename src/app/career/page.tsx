@@ -3,7 +3,7 @@ import { getTenantContext } from "@/features/auth/services/tenant";
 import { requireAuth } from "@/features/auth/services/session";
 import { getAncestorChain } from "@/features/auth/services/is-parent-tenant";
 import { CareerRepository } from "@/features/career/repository/career-repository";
-import { db } from "@/db/db";
+import { db, dbSubdomainStorage } from "@/db/db";
 import { students, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { AnalyticsRepository } from "@/features/analytics/repository/analytics-repository";
@@ -13,6 +13,10 @@ import { StudentCareerPortal } from "@/features/career/components/StudentCareerP
 export default async function CareerPage() {
   const tenant = await getTenantContext();
   if (!tenant) redirect("/");
+
+  if (!tenant.isPlacementEnabled) {
+    redirect("/dashboard");
+  }
 
   const user = await requireAuth();
 
@@ -76,9 +80,11 @@ export default async function CareerPage() {
     }
   }));
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.id, user.userId),
-  });
+  const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+    await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    })
+  );
 
   const userData = {
     userId: user.userId,

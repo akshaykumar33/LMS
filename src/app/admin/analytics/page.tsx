@@ -6,7 +6,7 @@ import { AnalyticsRepository } from "@/features/analytics/repository/analytics-r
 import { ClipboardList, CheckCircle2, Clock, XCircle, Users, BookOpen, BarChart3, Trophy, TrendingUp } from "lucide-react";
 import { AnalyticsCharts } from "@/features/analytics/components/AnalyticsCharts";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { db } from "@/db/db";
+import { db, dbSubdomainStorage } from "@/db/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -16,9 +16,11 @@ export default async function AdminAnalyticsPage() {
   const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
   const stats = await AnalyticsRepository.getTenantAnalytics(user.tenantId);
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.id, user.userId),
-  });
+  const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+    await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    })
+  );
 
   const userData = {
     userId: user.userId,
@@ -26,6 +28,7 @@ export default async function AdminAnalyticsPage() {
     lastName: dbUser?.lastName || "",
     email: dbUser?.email || user.email,
     role: user.role,
+    subdomain: user.subdomain,
   };
 
   const primaryColor = tenant.branding?.primaryColor || "#0ea5e9";

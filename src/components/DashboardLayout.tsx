@@ -37,12 +37,14 @@ interface DashboardLayoutProps {
     lastName: string;
     email: string;
     role: string;
+    subdomain?: string;
   };
   tenant: {
     id: string;
     name: string;
     subdomain: string;
     parentTenantId?: string | null;
+    isPlacementEnabled?: boolean;
     branding?: {
       logoUrl?: string;
       primaryColor?: string;
@@ -120,7 +122,6 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
   // isParentOrg is passed from server components that query child tenants
   // Falls back to checking parentTenantId for backward compatibility
   const isOnParentDomain = isParentOrg ?? !tenant.parentTenantId;
-  const isSystemAdmin = user.role === "SuperAdmin" || (user.role === "Owner" && isOnParentDomain);
   const logoHref = "/";
 
   // Dynamic Categorized Navigation groups based on user role
@@ -151,6 +152,35 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
       ];
     }
     
+    if (user.role === "SuperAdmin" || user.role === "Owner") {
+      // Check if we are at intel level (the last child level)
+      const isIntelLevel = tenant.subdomain === "intel";
+      if (isIntelLevel) {
+        // Resolve user home subdomain
+        const userSub = user.subdomain || 
+          (user.email.includes("@vt.") ? "vt" : 
+           user.email.includes("wysbryx") ? "wysbryx" : "wysbryx");
+           
+        // Owner of intel (vt) should see all previous sidebar stuffs (System Tenants)
+        // but same won't be for super admin of wysbryx
+        const isOwnerOfIntel = userSub === "vt" || user.role === "Owner";
+        const isSuperAdminOfWysbryx = userSub === "wysbryx" || user.role === "SuperAdmin";
+        
+        if (isSuperAdminOfWysbryx && !isOwnerOfIntel) {
+          return [];
+        }
+      }
+
+      return [
+        {
+          title: "System Administration",
+          items: [
+            { name: "System Tenants", href: "/super-admin", icon: Layers },
+          ]
+        }
+      ];
+    }
+
     if (["Faculty", "Mentor"].includes(user.role)) {
       return [
         {
@@ -171,7 +201,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
       ];
     }
 
-    if (["Owner", "Admin", "Program Manager"].includes(user.role)) {
+    if (["Admin", "Program Manager"].includes(user.role)) {
       return [
         {
           title: "Student Admissions",
@@ -199,51 +229,6 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
       return [
         {
           title: "Recruiting & Placements",
-          items: [
-            { name: "Placement Console", href: "/admin/placement", icon: Briefcase },
-          ]
-        }
-      ];
-    }
-
-    if (isSystemAdmin) {
-      return [
-        {
-          title: "Parent Workspace",
-          items: [
-            { name: "Admissions Hub", href: "/admin/admissions", icon: Users },
-            { name: "Curriculum Manager", href: "/admin/courses", icon: BookOpen },
-            { name: "Platform Analytics", href: "/admin/analytics", icon: BarChart3 },
-            { name: "Placement Console", href: "/admin/placement", icon: Briefcase },
-          ]
-        }
-      ];
-    }
-
-    if (user.role === "SuperAdmin") {
-      // On child org subdomain: SuperAdmin gets full admin controls
-      return [
-        {
-          title: "System Administration",
-          items: [
-            { name: "System Tenants", href: "/super-admin", icon: Layers },
-          ]
-        },
-        {
-          title: "Student Admissions",
-          items: [
-            { name: "Admissions Hub", href: "/admin/admissions", icon: Users },
-          ]
-        },
-        {
-          title: "Curriculum & Analytics",
-          items: [
-            { name: "Curriculum Manager", href: "/admin/courses", icon: BookOpen },
-            { name: "Platform Analytics", href: "/admin/analytics", icon: BarChart3 },
-          ]
-        },
-        {
-          title: "Recruiting",
           items: [
             { name: "Placement Console", href: "/admin/placement", icon: Briefcase },
           ]
@@ -293,7 +278,23 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
     ];
   };
 
-  const navigationGroups = getNavigationGroups();
+  const rawGroups = getNavigationGroups();
+  const navigationGroups = tenant.isPlacementEnabled !== false
+    ? rawGroups
+    : rawGroups
+        .map(group => ({
+          ...group,
+          items: group.items.filter(item => 
+            !item.name.toLowerCase().includes("placement") && 
+            !item.name.toLowerCase().includes("career")
+          )
+        }))
+        .filter(group => 
+          group.items.length > 0 && 
+          !group.title.toLowerCase().includes("placement") && 
+          !group.title.toLowerCase().includes("recruiting")
+        );
+
   const navigationItems = navigationGroups.flatMap(group => group.items);
 
   // Helper to format breadcrumbs

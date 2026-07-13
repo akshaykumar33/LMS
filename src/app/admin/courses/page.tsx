@@ -5,7 +5,7 @@ import { CourseRepository } from "@/features/course/repository/course-repository
 import { CourseManagerConsole } from "@/features/course/components/CourseManagerConsole";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { db } from "@/db/db";
+import { db, dbSubdomainStorage } from "@/db/db";
 import { users, tenants } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -44,9 +44,11 @@ export default async function AdminCoursesPage() {
     })),
   }));
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.id, user.userId),
-  });
+  const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+    await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    })
+  );
 
   const userData = {
     userId: user.userId,
@@ -54,6 +56,7 @@ export default async function AdminCoursesPage() {
     lastName: dbUser?.lastName || "",
     email: dbUser?.email || user.email,
     role: user.role,
+    subdomain: user.subdomain,
   };
 
   return (

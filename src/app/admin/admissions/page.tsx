@@ -4,7 +4,7 @@ import { requireAuth } from "@/features/auth/services/session";
 import { AdmissionRepository } from "@/features/admission/repository/admission-repository";
 import { AdmissionsDashboard } from "@/features/admission/components/AdmissionsDashboard";
 import { logoutAction } from "@/features/auth/actions/auth-actions";
-import { db } from "@/db/db";
+import { db, dbSubdomainStorage } from "@/db/db";
 import { batches, users } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -37,9 +37,11 @@ export default async function AdminAdmissionsPage() {
     redirect("/login");
   };
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.id, user.userId),
-  });
+  const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
+    await db.query.users.findFirst({
+      where: eq(users.id, user.userId),
+    })
+  );
 
   const userData = {
     userId: user.userId,
@@ -47,6 +49,7 @@ export default async function AdminAdmissionsPage() {
     lastName: dbUser?.lastName || "",
     email: dbUser?.email || user.email,
     role: user.role,
+    subdomain: user.subdomain,
   };
 
   return (

@@ -17,6 +17,7 @@ export interface TenantContext {
     companyName?: string;
   } | null;
   status: string;
+  isPlacementEnabled: boolean;
 }
 
 export async function getTenantContext(): Promise<TenantContext | null> {
@@ -64,6 +65,25 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       };
     }
 
+    // Resolve hierarchical placements flag by walking up parentTenantId chain
+    let isPlacementEnabled = true;
+    try {
+      const allTenants = await db.query.tenants.findMany();
+      const tenantMap = new Map<string, any>(allTenants.map(t => [t.id, t]));
+      let current = tenantMap.get(tenant.id);
+      while (current) {
+        const features = current.settings?.features;
+        if (features && features.enablePlacement === false) {
+          isPlacementEnabled = false;
+          break;
+        }
+        if (!current.parentTenantId) break;
+        current = tenantMap.get(current.parentTenantId);
+      }
+    } catch (e) {
+      console.error("Failed to resolve placement hierarchy:", e);
+    }
+
     return {
       id: tenant.id,
       name: tenant.name,
@@ -72,6 +92,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       parentTenantId: tenant.parentTenantId,
       branding,
       status: tenant.status,
+      isPlacementEnabled,
     };
   } catch (error) {
     console.error("Failed to fetch tenant context:", error);

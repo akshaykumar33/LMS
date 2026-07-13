@@ -21,6 +21,24 @@ interface AnalyticsChartsProps {
 }
 
 export function AnalyticsCharts({ funnelData, performanceData, primaryColor }: AnalyticsChartsProps) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-card border border-border rounded-xl p-6 h-80 flex items-center justify-center text-xs text-muted-foreground animate-pulse">
+          Loading charts...
+        </div>
+        <div className="bg-card border border-border rounded-xl p-6 h-80 flex items-center justify-center text-xs text-muted-foreground animate-pulse">
+          Loading charts...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Bar Chart: Admission Funnel */}

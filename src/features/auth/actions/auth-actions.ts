@@ -190,6 +190,12 @@ export async function logoutAction() {
     domain: cookieDomain,
   });
 
+  cookieStore.delete({
+    name: "x-tenant-subdomain",
+    path: "/",
+    domain: cookieDomain,
+  });
+
   return { success: true };
 }
 

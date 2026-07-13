@@ -143,14 +143,19 @@ export class AnalyticsRepository {
       ));
 
     return {
-      applications: appStats,
-      totalStudents: studentStats.totalStudents,
-      totalStaff: staffCount.total,
-      totalCourses: courseStats.totalCourses,
+      applications: {
+        totalApplications: Number(appStats?.totalApplications ?? 0),
+        approved: Number(appStats?.approved ?? 0),
+        pending: Number(appStats?.pending ?? 0),
+        rejected: Number(appStats?.rejected ?? 0),
+      },
+      totalStudents: Number(studentStats?.totalStudents ?? 0),
+      totalStaff: Number(staffCount?.total ?? 0),
+      totalCourses: Number(courseStats?.totalCourses ?? 0),
       quizPerformance: {
-        totalAttempts: quizStats.totalAttempts,
-        avgScore: Math.round(Number(quizStats.avgScore)),
-        passRate: Math.round(Number(quizStats.passRate)),
+        totalAttempts: Number(quizStats?.totalAttempts ?? 0),
+        avgScore: Math.round(Number(quizStats?.avgScore ?? 0)),
+        passRate: Math.round(Number(quizStats?.passRate ?? 0)),
       },
     };
   }
