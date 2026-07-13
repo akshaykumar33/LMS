@@ -153,15 +153,35 @@ export async function updateLessonAction(
       return { success: false, error: "Lesson not found or unauthorized." };
     }
 
+    let zoomMeetingId = formData.zoomMeetingId || lesson.zoomMeetingId;
+    let zoomPasscode = formData.zoomPasscode || lesson.zoomPasscode;
+    let videoUrl = formData.videoUrl;
+    const contentType = formData.contentType || lesson.contentType;
+
+    if (contentType === "live_class" && !zoomMeetingId) {
+      try {
+        const { createZoomMeeting } = require("../services/zoom-service");
+        const startTime = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+        const meeting = await createZoomMeeting(user.tenantId, formData.title, startTime, 60);
+        if (meeting) {
+          zoomMeetingId = meeting.meetingId;
+          zoomPasscode = meeting.passcode;
+          videoUrl = meeting.joinUrl;
+        }
+      } catch (zoomError) {
+        console.error("Zoom auto-scheduling failed:", zoomError);
+      }
+    }
+
     await db
       .update(schema.lessons)
       .set({
         title: formData.title,
         content: formData.content, // serves as transcript/notes content
-        videoUrl: formData.videoUrl,
-        contentType: formData.contentType || lesson.contentType,
-        zoomMeetingId: formData.zoomMeetingId || lesson.zoomMeetingId,
-        zoomPasscode: formData.zoomPasscode || lesson.zoomPasscode,
+        videoUrl: videoUrl,
+        contentType: contentType,
+        zoomMeetingId: zoomMeetingId,
+        zoomPasscode: zoomPasscode,
         fileUrl: formData.fileUrl !== undefined ? formData.fileUrl : lesson.fileUrl,
         updatedAt: new Date(),
       })
