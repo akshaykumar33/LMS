@@ -519,6 +519,7 @@ export const lessonProgress = pgTable("lesson_progress", {
   studentId: uuid("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
   lessonId: uuid("lesson_id").notNull().references(() => lessons.id, { onDelete: "cascade" }),
   completed: boolean("completed").notNull().default(false),
+  scormData: jsonb("scorm_data").$type<any>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => {
   return {

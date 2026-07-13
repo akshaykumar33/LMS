@@ -28,9 +28,40 @@ export function NotificationBell() {
   useEffect(() => {
     fetchNotifications();
 
-    // Set up polling for new notifications every 5 seconds for real-time feel
-    const interval = setInterval(fetchNotifications, 5000);
-    return () => clearInterval(interval);
+    // Establish real-time Server-Sent Events (SSE) notification stream
+    const eventSource = new EventSource("/api/notifications/stream");
+
+    eventSource.addEventListener("initial", (event: any) => {
+      try {
+        const data = JSON.parse(event.data);
+        setNotifications(data as NotificationItem[]);
+      } catch (e) {
+        console.error("Failed to parse initial SSE data:", e);
+      }
+    });
+
+    eventSource.addEventListener("update", (event: any) => {
+      try {
+        const data = JSON.parse(event.data) as NotificationItem[];
+        setNotifications((prev) => {
+          const existingIds = new Set(prev.map((n) => n.id));
+          const fresh = data.filter((n) => !existingIds.has(n.id));
+          return [...fresh, ...prev];
+        });
+      } catch (e) {
+        console.error("Failed to parse update SSE data:", e);
+      }
+    });
+
+    eventSource.onerror = () => {
+      // Fallback to standard 15s polling if SSE connection is interrupted
+      const interval = setInterval(fetchNotifications, 15000);
+      return () => clearInterval(interval);
+    };
+
+    return () => {
+      eventSource.close();
+    };
   }, []);
 
   // Close dropdown when clicking outside

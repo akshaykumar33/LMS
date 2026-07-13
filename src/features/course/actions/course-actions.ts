@@ -279,6 +279,28 @@ export async function toggleLessonCompletionAction(lessonId: string, completed: 
       });
     }
 
+    if (completed) {
+      try {
+        const { sendXapiStatement } = require("@/features/analytics/services/xapi-service");
+        const lessonInfo = await db.query.lessons.findFirst({
+          where: eq(schema.lessons.id, lessonId),
+        });
+        if (lessonInfo) {
+          await sendXapiStatement(user.tenantId, {
+            actorEmail: user.email,
+            actorName: student.fullName || user.email,
+            verbId: "http://adlnet.gov/expapi/verbs/completed",
+            verbDisplay: "completed",
+            activityId: `https://wysbryx.com/activities/lessons/${lessonId}`,
+            activityName: lessonInfo.title,
+            resultCompletion: true,
+          });
+        }
+      } catch (e) {
+        console.error("Failed to dispatch xAPI statement for lesson:", e);
+      }
+    }
+
     revalidatePath(`/courses/[courseId]`, "page");
     revalidatePath("/dashboard");
     revalidatePath("/progress");
