@@ -24,7 +24,7 @@ export async function getQuizDetailsAction(quizId: string) {
   }
 }
 
-export async function submitQuizAttemptAction(quizId: string, answers: SubmittedAnswer[]) {
+export async function submitQuizAttemptAction(quizId: string, answers: SubmittedAnswer[], infractionCount?: number) {
   try {
     const user = await requireAuth();
     if (!user) {
@@ -46,7 +46,8 @@ export async function submitQuizAttemptAction(quizId: string, answers: Submitted
       user.tenantId,
       student.id,
       quizId,
-      answers
+      answers,
+      infractionCount
     );
 
     try {

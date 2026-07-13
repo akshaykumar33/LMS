@@ -394,3 +394,39 @@ export async function createCourseAction(formData: { name: string; code: string;
     return { success: false, error: error.message || "Failed to create course." };
   }
 }
+
+export async function askAiAction(lessonId: string, query: string) {
+  try {
+    const user = await requireAuth();
+    if (!user) {
+      return { success: false, error: "UNAUTHORIZED" };
+    }
+
+    const lesson = await db.query.lessons.findFirst({
+      where: eq(schema.lessons.id, lessonId),
+      with: {
+        module: {
+          with: {
+            course: true,
+          },
+        },
+      },
+    });
+
+    if (!lesson || lesson.module.course.tenantId !== user.tenantId) {
+      return { success: false, error: "Lesson context not found or unauthorized." };
+    }
+
+    const { getAiCompletionForTenant } = await import("../services/ai-service");
+    const result = await getAiCompletionForTenant(
+      user.tenantId,
+      lesson.title,
+      lesson.content || "",
+      query
+    );
+
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to query AI Assistant." };
+  }
+}
