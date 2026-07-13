@@ -15,11 +15,12 @@ export function BrandLogo({ subdomain, className = "h-8 w-auto", href, iconOnly 
     if (normSubdomain === "wysbryx" || normSubdomain === "localhost" || normSubdomain === "") {
       return (
         <div className="flex items-center gap-1.5 font-sans">
-          <img 
-            src="https://www.wysbryx.com/wysbryx_v.png" 
-            className="w-6 h-6 object-contain animate-pulse" 
-            alt="Wysbryx Logo"
-          />
+          <svg className="w-6 h-6 shrink-0 text-orange-500 animate-pulse" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="28" height="28" rx="7" fill="currentColor" />
+            <path d="M9 22L16 8L23 22" stroke="#FFFFFF" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M13 16.5H19" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+            <circle cx="16" cy="15" r="1.5" fill="#FFFFFF" />
+          </svg>
           {!iconOnly && (
             <span className="text-xs font-extrabold text-foreground uppercase tracking-wider">
               Wysbryx

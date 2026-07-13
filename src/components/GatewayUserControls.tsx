@@ -49,7 +49,7 @@ export function GatewayUserControls({ email, role, showGatewayLink, primaryColor
           className="inline-flex items-center gap-1.5 rounded-xl text-[10px] font-bold h-8 px-3 bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all border border-border/50 cursor-pointer"
           title="Back to Platform Home"
         >
-          <Home className="w-3 h-3" /> Home
+          Platform Hub
         </a>
       )}
 
