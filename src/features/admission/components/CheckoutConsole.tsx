@@ -227,18 +227,18 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
             </p>
           </div>
 
-          <div className="bg-slate-900/60 border border-border p-5 rounded-2xl text-left max-w-md mx-auto space-y-3.5">
+          <div className="bg-slate-900/70 border border-border p-5 rounded-2xl text-left max-w-md mx-auto space-y-3.5">
             <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Enrolled Student</span>
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Enrolled Student</span>
               <span className="text-xs font-bold text-white font-mono">{application.firstName} {application.lastName}</span>
             </div>
             <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Cohort Batch</span>
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Cohort Batch</span>
               <span className="text-xs font-bold text-emerald-400">{application.batch.name}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Enrollment Status</span>
-              <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase">
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Enrollment Status</span>
+              <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-black uppercase">
                 Active / Paid
               </span>
             </div>
@@ -373,7 +373,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                   <div className="space-y-3 flex-1 text-center sm:text-left">
                     <div className="space-y-0.5">
                       <p className="text-xs font-bold text-white">Scan QR Code or Enter UPI ID</p>
-                      <p className="text-[10px] text-slate-400 leading-normal">
+                      <p className="text-[10px] text-slate-500 leading-normal">
                         Scan using any Sandbox UPI App (BHIM, PhonePe, Google Pay, Paytm) to complete.
                       </p>
                     </div>
@@ -384,7 +384,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                         type="text"
                         value={upiId}
                         onChange={(e) => setUpiId(e.target.value)}
-                        className="h-9 text-xs bg-slate-900"
+                        className="h-9 text-xs bg-slate-900 border border-slate-600 text-white"
                         placeholder="username@okaxis"
                       />
                     </div>
@@ -465,7 +465,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                           type="email"
                           value={paypalEmail}
                           onChange={(e) => setPaypalEmail(e.target.value)}
-                          className="h-9 text-xs bg-slate-900"
+                          className="h-9 text-xs bg-slate-900 text-white placeholder:text-slate-400 border border-slate-700"
                           placeholder="sandbox-buyer@paypal.com"
                         />
                       </div>
@@ -476,7 +476,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                           type="password"
                           value={paypalPassword}
                           onChange={(e) => setPaypalPassword(e.target.value)}
-                          className="h-9 text-xs bg-slate-900"
+                          className="h-9 text-xs bg-slate-900 text-white placeholder:text-slate-400 border border-slate-700"
                           placeholder="••••••••"
                         />
                       </div>
@@ -495,23 +495,23 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                     <div className="flex justify-between items-start border-b border-border/40 pb-2">
                       <div className="space-y-0.5">
                         <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wide">✓ Account Connected</span>
-                        <p className="text-xs font-mono font-bold text-white">{paypalEmail}</p>
+                        <p className="text-xs font-mono font-bold text-slate-800">{paypalEmail}</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => setPaypalAuthorized(false)}
-                        className="text-[9px] text-slate-500 hover:underline"
+                        className="text-[9px] text-slate-600 hover:text-slate-800 hover:underline"
                       >
                         Change account
                       </button>
                     </div>
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400">Sandbox Balance</span>
-                      <strong className="text-white">$24,980.00 USD</strong>
+                      <span className="text-slate-600">Sandbox Balance</span>
+                      <strong className="text-slate-900">$24,980.00 USD</strong>
                     </div>
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400">Authorized Amount</span>
-                      <strong className="text-white">$1,500.00 USD</strong>
+                      <span className="text-slate-600">Authorized Amount</span>
+                      <strong className="text-slate-900">$1,500.00 USD</strong>
                     </div>
                   </div>
                 )}

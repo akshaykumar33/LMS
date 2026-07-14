@@ -362,8 +362,13 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
   const getBreadcrumbs = () => {
     const segments = pathname.split("/").filter(Boolean);
     if (segments.length === 0) return [{ label: "Home", href: "/dashboard" }];
+
+    const effectiveSegments =
+    segments[0] === "admin" && segments.length > 1
+      ? segments.slice(1) // ["placement"]
+      : segments;
     
-    return segments.map((seg, idx) => {
+    return effectiveSegments.map((seg, idx) => {
       const href = "/" + segments.slice(0, idx + 1).join("/");
       let label = seg.charAt(0).toUpperCase() + seg.slice(1);
       
