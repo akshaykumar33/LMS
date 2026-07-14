@@ -108,9 +108,9 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // If logged in and hitting login page via navigation (not a server action POST), redirect to dashboard
+  // If logged in and hitting login page via navigation (not a server action POST), redirect to root
   if (isAuthRoute && accessToken && !isServerAction) {
-    response = NextResponse.redirect(new URL("/dashboard", request.url));
+    response = NextResponse.redirect(new URL("/", request.url));
   }
 
   if (!response) {

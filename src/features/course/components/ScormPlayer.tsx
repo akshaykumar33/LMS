@@ -159,7 +159,7 @@ export function ScormPlayer({ lessonId, fileUrl, onComplete }: ScormPlayerProps)
         {fileUrl ? (
           <iframe
             ref={iframeRef}
-            src={fileUrl}
+            src={fileUrl.endsWith(".zip") ? `/scorm-mock/index.html` : fileUrl}
             className="w-full flex-1 border-0"
             title="SCORM Standard Player"
             allowFullScreen

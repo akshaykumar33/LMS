@@ -9,18 +9,17 @@ interface BrandLogoProps {
 }
 
 export function BrandLogo({ subdomain, className = "h-8 w-auto", href, iconOnly = false }: BrandLogoProps) {
-  const normSubdomain = subdomain.toLowerCase();
+  const normSubdomain = subdomain.toLowerCase() === "vti" ? "vt" : subdomain.toLowerCase();
 
   const renderLogo = () => {
     if (normSubdomain === "wysbryx" || normSubdomain === "localhost" || normSubdomain === "") {
       return (
-        <div className="flex items-center gap-1.5 font-sans">
-          <svg className="w-6 h-6 shrink-0 text-orange-500 animate-pulse" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="2" y="2" width="28" height="28" rx="7" fill="currentColor" />
-            <path d="M9 22L16 8L23 22" stroke="#FFFFFF" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M13 16.5H19" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
-            <circle cx="16" cy="15" r="1.5" fill="#FFFFFF" />
-          </svg>
+        <div className={`flex items-center gap-1.5 font-sans ${className}`}>
+          <img 
+            src="https://www.wysbryx.com/wysbryx_v.png" 
+            alt="Wysbryx Logo" 
+            className="w-6 h-6 object-contain"
+          />
           {!iconOnly && (
             <span className="text-xs font-extrabold text-foreground uppercase tracking-wider">
               Wysbryx
@@ -90,8 +89,11 @@ export function BrandLogo({ subdomain, className = "h-8 w-auto", href, iconOnly 
 
     if (normSubdomain === "vt") {
       return (
-        <div className="flex items-center gap-1.5 font-sans">
-          <span className="w-6 h-6 rounded bg-gradient-to-tr from-maroon to-orange text-white flex items-center justify-center text-xs font-black">
+        <div className={`flex items-center gap-1.5 font-sans ${className}`}>
+          <span 
+            className="w-6 h-6 rounded text-white flex items-center justify-center text-xs font-black"
+            style={{ background: "linear-gradient(135deg, #861F41 0%, #E57724 100%)" }}
+          >
             VT
           </span>
           {!iconOnly && (

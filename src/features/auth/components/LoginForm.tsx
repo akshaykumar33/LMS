@@ -55,7 +55,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
 export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain, chainLength = 3 }: LoginFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
 
   const [email, setEmail] = useState(searchParams.get("email") || "");
   const [password, setPassword] = useState("");
@@ -100,7 +100,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
     try {
       const result = await loginAction({ email: demoEmail, password: "Password123" });
       if (result.success) {
-        router.push("/dashboard");
+        router.push("/");
         router.refresh();
       } else {
         setError(result.error || "Demo login failed.");

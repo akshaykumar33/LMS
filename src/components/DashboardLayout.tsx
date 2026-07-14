@@ -139,7 +139,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
   // isParentOrg is passed from server components that query child tenants
   // Falls back to checking parentTenantId for backward compatibility
   const isOnParentDomain = isParentOrg ?? !tenant.parentTenantId;
-  const logoHref = "/dashboard";
+  const logoHref = (user.role === "SuperAdmin" || user.role === "Owner") ? "/" : "/dashboard";
 
   // Dynamic Categorized Navigation groups based on user role
   const getNavigationGroups = () => {

@@ -133,6 +133,12 @@ export async function createTenantAction(formData: {
         },
         database: {
           dbUrl: formData.dbUrl || "",
+        },
+        ai: {
+          enableAi: true,
+          provider: "mock",
+          apiKey: "",
+          model: "gpt-4o-mini",
         }
       },
       status: "active",

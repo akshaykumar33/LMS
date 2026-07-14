@@ -355,7 +355,7 @@ async function main() {
       const batchSize = 50;
       for (let i = 0; i < targetRows.length; i += batchSize) {
         const chunk = targetRows.slice(i, i + batchSize);
-        await db.insert(drizzleTable).values(chunk);
+        await db.insert(drizzleTable).values(chunk).onConflictDoNothing();
       }
     }
 
@@ -483,6 +483,17 @@ async function main() {
   const test1Db = drizzle(test1Client, { schema });
 
   // Seed Test1 Central Registry Records
+  await test1Db.insert(schema.tenants).values({
+    id: "96652527-1198-4bbb-8bc4-30781efaed18",
+    name: "Wysbryx Platform",
+    subdomain: "wysbryx",
+    customDomain: "wysbryx.com",
+    dbName: "vt_db",
+    status: "active",
+    branding: { logoUrl: "https://www.wysbryx.com/wysbryx_v.png", primaryColor: "#f97316" },
+    settings: { features: { enableLibrary: true, enablePlacement: true, enableProctoring: true }, gateways: { stripe: true }, restrictions: { maxUsers: 1000, maxCourses: 1000 } }
+  }).onConflictDoNothing();
+
   const [test1Tenant] = await test1Db.insert(schema.tenants).values({
     id: "15b66b68-2e97-4bad-b756-e4cc16923530", // Match to TSMC
     name: "Test Organization parent",
