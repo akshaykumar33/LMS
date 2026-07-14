@@ -65,6 +65,233 @@ interface WorkspaceClientProps {
   enableAi?: boolean;
 }
 
+function renderFormattedContent(text: string, primaryColor: string) {
+  // 1. Detect if it is Score Bot report card format
+  if (text.includes("Score Bot Report Card") || text.includes("🎯 **Score Bot Report Card**")) {
+    const studentMatch = text.match(/Student\*+:\s*(.*)/i);
+    const rollMatch = text.match(/Roll Number\*+:\s*(.*)/i);
+    const progressMatch = text.match(/Roadmap Progress\*+:\s*(\d+)\/(\d+)/i);
+    const quizzesMatch = text.match(/Quizzes Attempted\*+:\s*(\d+)\s*\|\s*Passed:\s*(\d+)/i);
+    const scoreMatch = text.match(/Average Quiz Score\*+:\s*(\d+)%/i);
+    const integrityMatch = text.match(/Proctor Integrity Status\*+:\s*(\d+)\s*warnings\s*\(([^)]+)\)/i);
+    
+    const recIndex = text.indexOf("Recommendation");
+    let recommendation = "";
+    if (recIndex !== -1) {
+      recommendation = text.substring(recIndex + 14).replace(/^[:\-\s\n*]+/g, "").trim();
+    }
+
+    const studentName = studentMatch ? studentMatch[1].trim() : "Student";
+    const rollNumber = rollMatch ? rollMatch[1].trim() : "N/A";
+    const compLessons = progressMatch ? parseInt(progressMatch[1]) : 0;
+    const totalLessons = progressMatch ? parseInt(progressMatch[2]) : 6;
+    const progressPercent = totalLessons > 0 ? Math.round((compLessons / totalLessons) * 100) : 0;
+    const quizCount = quizzesMatch ? parseInt(quizzesMatch[1]) : 0;
+    const quizPassed = quizzesMatch ? parseInt(quizzesMatch[2]) : 0;
+    const avgScore = scoreMatch ? parseInt(scoreMatch[1]) : 0;
+    const warnings = integrityMatch ? parseInt(integrityMatch[1]) : 0;
+    const status = integrityMatch ? integrityMatch[2].trim() : "CLEAR";
+
+    const isFlagged = status.includes("FLAG") || warnings > 1;
+
+    return (
+      <div className="space-y-3.5 font-sans text-[11px] bg-slate-900 border border-border/80 p-4 rounded-xl shadow-lg relative overflow-hidden text-left">
+        <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+        
+        <div className="flex items-center justify-between border-b border-border/40 pb-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs">🎯</span>
+            <span className="font-extrabold text-foreground tracking-wide uppercase text-[9px]">Score Bot Analytics</span>
+          </div>
+          <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider ${
+            isFlagged ? "bg-red-500/10 text-red-400 border border-red-500/20" : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+          }`}>
+            {isFlagged ? "⚠️ FLAG AUDIT" : "✅ CLEAR"}
+          </span>
+        </div>
+
+        {/* Student Metadata */}
+        <div className="grid grid-cols-2 gap-2 text-[9.5px] bg-secondary/15 p-2 rounded-lg border border-border/20">
+          <div>
+            <span className="text-muted-foreground block font-medium">Student</span>
+            <strong className="text-foreground font-bold">{studentName}</strong>
+          </div>
+          <div>
+            <span className="text-muted-foreground block font-medium">Roll Number</span>
+            <strong className="text-foreground font-bold font-mono">{rollNumber}</strong>
+          </div>
+        </div>
+
+        {/* Roadmap Progress Bar */}
+        <div className="space-y-1">
+          <div className="flex justify-between items-center text-[9.5px]">
+            <span className="font-bold text-muted-foreground">Course Completion</span>
+            <span className="font-black text-foreground">{compLessons}/{totalLessons} ({progressPercent}%)</span>
+          </div>
+          <div className="w-full bg-secondary/35 h-1.5 rounded-full overflow-hidden border border-border/40">
+            <div 
+              className="h-full rounded-full transition-all duration-500" 
+              style={{ width: `${progressPercent}%`, backgroundColor: primaryColor }}
+            />
+          </div>
+        </div>
+
+        {/* Analytical Grid widgets */}
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* Average quiz score widget */}
+          <div className="bg-secondary/10 border border-border/30 p-2.5 rounded-xl flex flex-col items-center justify-center text-center space-y-1">
+            <span className="text-[8.5px] font-extrabold text-muted-foreground uppercase tracking-wider">Average Score</span>
+            <div className="relative flex items-center justify-center my-0.5">
+              <svg className="w-10 h-10 transform -rotate-90">
+                <circle cx="20" cy="20" r="16" stroke="rgba(255,255,255,0.05)" strokeWidth="2.5" fill="transparent" />
+                <circle cx="20" cy="20" r="16" stroke={primaryColor} strokeWidth="2.5" fill="transparent" 
+                        strokeDasharray={100.5} strokeDashoffset={100.5 - (100.5 * Math.min(avgScore, 100)) / 100} />
+              </svg>
+              <span className="absolute text-[9.5px] font-black text-foreground">{avgScore}%</span>
+            </div>
+          </div>
+
+          {/* Assessment metrics */}
+          <div className="bg-secondary/10 border border-border/30 p-2.5 rounded-xl flex flex-col justify-between text-left space-y-1">
+            <div>
+              <span className="text-[8.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">Quizzes</span>
+              <div className="text-base font-black text-foreground mt-0.5">{quizCount}</div>
+              <span className="text-[8.5px] text-muted-foreground font-semibold">Attempted</span>
+            </div>
+            <div className="border-t border-border/20 pt-1 mt-1 flex justify-between items-center text-[8.5px]">
+              <span className="text-muted-foreground">Passed:</span>
+              <strong className="text-emerald-400 font-bold">{quizPassed}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Integrity status info */}
+        {warnings > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 p-2 rounded-lg text-[9px] leading-relaxed flex items-start gap-1">
+            <span className="text-xs shrink-0">⚠️</span>
+            <div>
+              <strong>Security Warnings:</strong> {warnings} warning(s) flagged. Keep camera aligned to workspace.
+            </div>
+          </div>
+        )}
+
+        {/* AI recommendation panel */}
+        {recommendation && (
+          <div className="border-l-2 bg-primary/5 p-2.5 rounded-r-lg text-[9.5px] leading-relaxed" style={{ borderColor: primaryColor }}>
+            <span className="font-extrabold text-foreground uppercase tracking-wider block text-[7.5px] mb-1 opacity-70">AI Coach Advice</span>
+            <span className="text-muted-foreground font-medium">{recommendation}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 2. Otherwise render standard formatted markdown lines
+  const lines = text.split("\n");
+  return (
+    <div className="space-y-1.5 font-sans leading-relaxed text-left">
+      {lines.map((line, lIdx) => {
+        let trimmed = line.trim();
+        if (!trimmed) return <div key={lIdx} className="h-1" />;
+
+        // Handle Horizontal rule
+        if (trimmed === "---" || trimmed === "***" || trimmed.startsWith("---")) {
+          return <hr key={lIdx} className="my-2 border-border/40" />;
+        }
+
+        // Handle Header tags
+        if (trimmed.startsWith("### ")) {
+          return <h4 key={lIdx} className="text-xs font-black text-foreground mt-2 mb-1">{trimmed.substring(4)}</h4>;
+        }
+        if (trimmed.startsWith("## ")) {
+          return <h3 key={lIdx} className="text-sm font-extrabold text-foreground mt-3 mb-1">{trimmed.substring(3)}</h3>;
+        }
+
+        // Handle list bullet item
+        const isBullet = trimmed.startsWith("•") || trimmed.startsWith("-") || trimmed.startsWith("*");
+        if (isBullet) {
+          trimmed = trimmed.substring(1).trim();
+        }
+
+        // Format inline items: bold **, links [](), inline code/math formulas $
+        const formattedNodes: React.ReactNode[] = [];
+        let cursor = 0;
+
+        while (cursor < trimmed.length) {
+          if (trimmed.startsWith("**", cursor)) {
+            const nextIdx = trimmed.indexOf("**", cursor + 2);
+            if (nextIdx !== -1) {
+              formattedNodes.push(
+                <strong key={cursor} className="font-bold text-foreground">
+                  {trimmed.substring(cursor + 2, nextIdx)}
+                </strong>
+              );
+              cursor = nextIdx + 2;
+              continue;
+            }
+          }
+
+          if (trimmed.startsWith("[", cursor)) {
+            const closingBracket = trimmed.indexOf("]", cursor + 1);
+            if (closingBracket !== -1 && trimmed.startsWith("(", closingBracket + 1)) {
+              const closingParen = trimmed.indexOf(")", closingBracket + 2);
+              if (closingParen !== -1) {
+                const linkText = trimmed.substring(cursor + 1, closingBracket);
+                const linkUrl = trimmed.substring(closingBracket + 2, closingParen);
+                formattedNodes.push(
+                  <a
+                    key={cursor}
+                    href={linkUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:opacity-85 font-black"
+                    style={{ color: primaryColor }}
+                  >
+                    {linkText}
+                  </a>
+                );
+                cursor = closingParen + 1;
+                continue;
+              }
+            }
+          }
+
+          if (trimmed.startsWith("$", cursor)) {
+            const closingMath = trimmed.indexOf("$", cursor + 1);
+            if (closingMath !== -1) {
+              formattedNodes.push(
+                <code key={cursor} className="bg-secondary/40 px-1 py-0.5 rounded text-[10px] font-mono text-amber-400 font-bold">
+                  {trimmed.substring(cursor + 1, closingMath)}
+                </code>
+              );
+              cursor = closingMath + 1;
+              continue;
+            }
+          }
+
+          formattedNodes.push(trimmed[cursor]);
+          cursor++;
+        }
+
+        if (isBullet) {
+          return (
+            <div key={lIdx} className="flex items-start gap-2 pl-3 py-0.5 text-[11px]">
+              <span className="text-primary font-bold shrink-0 mt-0.5" style={{ color: primaryColor }}>•</span>
+              <span className="text-muted-foreground flex-1">{formattedNodes}</span>
+            </div>
+          );
+        }
+
+        return (
+          <p key={lIdx} className="text-muted-foreground text-[11px]">
+            {formattedNodes}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export function WorkspaceClient({ 
   course, 
   quizzes, 
@@ -650,13 +877,17 @@ export function WorkspaceClient({
               {activeLesson.contentType === "video" && activeLesson.videoUrl && (
                 <div className="aspect-video max-h-[38vh] mx-auto bg-black relative flex items-center justify-center">
                   <video 
-                    src={activeLesson.videoUrl} 
+                    key={activeLesson.videoUrl}
                     controls 
                     className="w-full h-full object-contain"
                     poster="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=1200"
                     onLoadedMetadata={handleVideoLoadedMetadata}
                     onTimeUpdate={handleVideoTimeUpdate}
-                  />
+                    playsInline
+                  >
+                    <source src={activeLesson.videoUrl} type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
                 </div>
               )}
 
@@ -734,10 +965,12 @@ export function WorkspaceClient({
                   </div>
                   <div className="max-w-md mx-auto">
                     <audio 
-                      src={activeLesson.videoUrl} 
+                      key={activeLesson.videoUrl}
                       controls 
                       className="w-full"
-                    />
+                    >
+                      <source src={activeLesson.videoUrl} type="audio/mpeg" />
+                    </audio>
                   </div>
                   {/* Waveform graphic visualization */}
                   <div className="flex justify-center items-end gap-1 h-8 max-w-[200px] mx-auto select-none">
@@ -1314,7 +1547,7 @@ export function WorkspaceClient({
                         : "bg-primary/5 border-primary/25 text-foreground max-w-[90%]"
                     }`}
                   >
-                    {msg.text}
+                    {renderFormattedContent(msg.text, primaryColor)}
                     
                     {hasRag && (
                       <div className="mt-2.5 pt-2 border-t border-primary/10">

@@ -571,16 +571,6 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         >
           Database Health
         </button>
-        <button
-          onClick={() => setActiveMainTab("billing" as any)}
-          className={`pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 px-2 shrink-0 cursor-pointer ${
-            (activeMainTab as any) === "billing" 
-              ? "border-primary text-primary" 
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Billing & Subscriptions
-        </button>
       </div>
 
       {activeMainTab === "academies" ? (
@@ -1025,67 +1015,6 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         </div>
       )}
 
-      {activeMainTab === ("billing" as any) && (
-        <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-6 space-y-6 border border-border shadow-sm">
-          <div className="border-b border-border/40 pb-4 flex justify-between items-center flex-wrap gap-4">
-            <div>
-              <h3 className="text-sm font-black text-foreground flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-primary" /> Billing & Seat Operations
-              </h3>
-              <p className="text-xs text-muted-foreground font-semibold mt-0.5">
-                Manage active subscription tiers, seats usage statistics, and test checkout integrations.
-              </p>
-            </div>
-            
-            <button
-              onClick={() => {
-                setCheckoutSuccess(false);
-                setIsCheckoutOpen(true);
-              }}
-              className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-95 shadow-md flex items-center gap-1.5 cursor-pointer"
-            >
-              <CreditCard className="w-3.5 h-3.5" /> Launch Stripe Simulator
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {[
-              { label: "Active Plan", val: "Enterprise Scale", desc: "Annual tier configured" },
-              { label: "Total Seats", val: "148 / 200", desc: "74% slots occupied" },
-              { label: "Seat Cost", val: "$4.50 / seat", desc: "Discounted corporate rate" },
-              { label: "Next Invoice", val: "Aug 1, 2026", desc: "Auto-charged via Stripe" }
-            ].map((metric, i) => (
-              <div key={i} className="p-4 bg-muted/15 border border-border/40 rounded-2xl space-y-1.5">
-                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block">{metric.label}</span>
-                <p className="text-xl font-black text-foreground">{metric.val}</p>
-                <span className="text-[9px] text-muted-foreground font-semibold block">{metric.desc}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Seat Distribution Chart */}
-          <div className="p-5 bg-muted/10 border border-border/45 rounded-2xl space-y-4">
-            <h4 className="text-xs font-black uppercase text-foreground">Monthly Active Seats Usage</h4>
-            <div className="flex items-end justify-between gap-2 h-40 pt-4 px-2 font-mono text-[9px] text-muted-foreground">
-              {[
-                { m: "Jan", val: 90 },
-                { m: "Feb", val: 105 },
-                { m: "Mar", val: 110 },
-                { m: "Apr", val: 125 },
-                { m: "May", val: 135 },
-                { m: "Jun", val: 148 }
-              ].map((bar, idx) => (
-                <div key={idx} className="flex-1 flex flex-col items-center gap-1.5">
-                  <div className="w-full bg-primary/15 hover:bg-primary/25 border-x border-t border-primary/20 rounded-t-lg transition-colors flex items-end justify-center" style={{ height: `${bar.val}px` }}>
-                    <span className="text-primary font-bold text-[8px] mb-1">{bar.val}</span>
-                  </div>
-                  <span>{bar.m}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Stripe Simulator Dialog Modal */}
       {isCheckoutOpen && (

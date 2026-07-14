@@ -113,6 +113,7 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
       content: editingLesson.content || "",
       videoUrl: editingLesson.videoUrl || "",
       fileUrl: editingLesson.fileUrl || "",
+      contentType: editingLesson.contentType,
     });
     setIsSubmitting(false);
 
@@ -486,6 +487,22 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                 onChange={(e) => setEditingLesson({ ...editingLesson, title: e.target.value })}
                 className="h-10 text-xs"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground font-bold uppercase">Content Type</Label>
+              <select
+                value={editingLesson.contentType}
+                onChange={(e) => setEditingLesson({ ...editingLesson, contentType: e.target.value })}
+                className="w-full h-10 bg-secondary/40 border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="video">Video Lesson</option>
+                <option value="text">Text / Notes / PDF</option>
+                <option value="live_class">Live Class / Zoom</option>
+                <option value="audio">Audio Lecture</option>
+                <option value="excel">Interactive Spreadsheet (Excel)</option>
+                <option value="scorm">Interactive SCORM Package</option>
+              </select>
             </div>
 
             <div className="space-y-2">

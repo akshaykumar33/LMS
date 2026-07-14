@@ -436,6 +436,94 @@ export async function askAiAction(lessonId: string, query: string, botType: "tut
       });
 
       const normalizedQuery = query.toLowerCase();
+      const isSummaryRequest = normalizedQuery.includes("summary") || 
+                              normalizedQuery.includes("summarize") || 
+                              normalizedQuery.includes("explain") || 
+                              normalizedQuery.includes("tell me about");
+
+      // Find if they named a specific book or matched any word in a title
+      let targetItem = items.find(item => {
+        const titleWords = item.title.toLowerCase().split(/\s+/);
+        return titleWords.some(word => word.length > 3 && normalizedQuery.includes(word));
+      });
+
+      if (isSummaryRequest && !targetItem) {
+        // Fallback to first book in library if they just asked to summarize in general
+        targetItem = items.find(item => item.category === "book") || items[0];
+      }
+
+      if (targetItem) {
+        let summaryText = "";
+        const title = targetItem.title;
+        
+        if (title.includes("CMOS VLSI")) {
+          summaryText = `📚 **Book Bot Summary: CMOS VLSI Design Lecture Handbook**
+***
+**Overview**: This textbook is the definitive reference for standard cell design and silicon layouts.
+
+**Key Chapters & Technical Core**:
+1. **Transistor Physics**: Covers drift-diffusion models, threshold voltage shift ($V_{th}$), and drain current ($I_{ds}$) in sub-micron regimes.
+2. **Layout Design Rules**: Explains $\\lambda$-based rules, stick diagrams, Euler paths for optimal routing, and diffusion sharing to minimize parasitic capacitances.
+3. **Delay & Timing**: Focuses on the RC delay model, Elmore Delay, logical effort calculations, and buffer sizing for fan-out loading.
+4. **Power Dissipation**: Analyzes dynamic power ($C V_{dd}^2 f$), short-circuit current, and leakage mechanisms (sub-threshold, gate oxide tunneling).
+
+🔗 [Download & Read the Watermarked Document](/api/download?id=${targetItem.id})`;
+        } else if (title.includes("FinFET")) {
+          summaryText = `📚 **Book Bot Summary: FinFET Device Physics and Chapter 1 Modeling**
+***
+**Overview**: This advanced reference guide examines the evolution from planar transistor architectures to 3D tri-gate configurations.
+
+**Key Chapters & Technical Core**:
+1. **Electrostatic Channel Control**: Explores how wrapping the gate around three sides of the channel eliminates short-channel leakage.
+2. **Subthreshold Slope (SS)**: Demonstrates mathematically how FinFETs approach the ideal limit of $60\\text{ mV/decade}$ at room temperature.
+3. **Quantum Effects**: Discusses quantum confinement in thin silicon fins (<5nm fin width) and carrier mobility variations.
+4. **Parasitics & Sizing**: Sizing is discrete (quantized by the number of fins). Details Fin pitch layout constraints.
+
+🔗 [Download & Read the Watermarked Document](/api/download?id=${targetItem.id})`;
+        } else if (title.includes("ASML") || title.includes("Lithography")) {
+          summaryText = `📚 **Book Bot Summary: ASML EUV Lithography Corporate Tech Specification Sheet**
+***
+**Overview**: Detailed specifications of ASML's Extreme Ultraviolet (EUV) Twinscan machines.
+
+**Key Design Elements**:
+1. **Light Generation**: Utilizes a CO2 laser firing at 50,000 droplets of molten tin per second to generate extreme ultraviolet light at $13.5\\text{ nm}$ wavelengths.
+2. **Bragg Reflective Optics**: Since EUV light is absorbed by glass lenses, ASML uses molybdenum-silicon (Mo/Si) multilayer mirrors with reflectivities of ~70%.
+3. **Vacuum Operations**: The entire scanner path must be under ultra-high vacuum to prevent gas molecules from absorbing light.
+4. **Numerical Aperture (NA)**: Discusses resolution limits ($R = k_1 \\frac{\\lambda}{\\text{NA}}$) and the shift to High-NA (0.55 NA) lenses.
+
+🔗 [Download & Read the Watermarked Document](/api/download?id=${targetItem.id})`;
+        } else if (title.includes("Gate-All-Around") || title.includes("GAA")) {
+          summaryText = `📚 **Book Bot Summary: Sub-3nm Gate-All-Around (GAA) Transistor Performance Study**
+***
+**Overview**: Analysis of transition from FinFET to stacked nanosheet Gate-All-Around structures.
+
+**Key Technical Findings**:
+1. **Full Gate Wrap**: Stacking nanosheets horizontally allows the gate to surround the channel entirely, minimizing drain-induced barrier lowering (DIBL).
+2. **Variable Nanosheet Width**: Unlike FinFETs (discrete fins), GAA nanosheet width can be adjusted continuously to trade off speed vs power.
+3. **Parasitic Resistance**: Evaluates source-drain contact resistance scaling issues.
+
+🔗 [Download & Read the Watermarked Document](/api/download?id=${targetItem.id})`;
+        } else {
+          summaryText = `📚 **Book Bot Summary: ${targetItem.title}**
+***
+**Overview**: Technical reference manual curated for the current learning path.
+
+**Summary points**:
+- **Topic Scope**: ${targetItem.description || "Foundational concepts."}
+- **Author/Org**: ${targetItem.author || "Industry Experts"}
+- **Application**: Crucial for synthesis, layout verification, and design rule checks.
+
+🔗 [Download & Read the Watermarked Document](/api/download?id=${targetItem.id})`;
+        }
+
+        return {
+          success: true,
+          data: {
+            text: summaryText
+          }
+        };
+      }
+
       const matched = items.filter(item => 
         item.title.toLowerCase().includes(normalizedQuery) ||
         (item.author && item.author.toLowerCase().includes(normalizedQuery)) ||
@@ -448,10 +536,10 @@ export async function askAiAction(lessonId: string, query: string, botType: "tut
           success: true,
           data: {
             text: `📚 **Book Bot Librarian**: I searched the digital library catalog for "${query}" but found no matching titles.
-
+ 
 Here are some general resources available in your tenant library:
-${items.slice(0, 3).map(item => `- **${item.title}** by ${item.author || "Unknown"} (${item.category}) [Download Link](${item.fileUrl})`).join("\n")}
-
+${items.slice(0, 3).map(item => `- **${item.title}** by ${item.author || "Unknown"} (${item.category}) [Download Link](/api/download?id=${item.id})`).join("\n")}
+ 
 Try searching for terms like "CMOS", "FinFET", "EUV", or "Lithography".`
           }
         };
@@ -461,12 +549,12 @@ Try searching for terms like "CMOS", "FinFET", "EUV", or "Lithography".`
         success: true,
         data: {
           text: `📚 **Book Bot Librarian**: I found ${matched.length} matching resources in the digital library matching your query "${query}":
-
+ 
 ${matched.map(item => `• **${item.title}**
   *Author*: ${item.author || "Unknown"} | *Category*: ${item.category}
   *Overview*: ${item.description || "No description provided."}
-  🔗 [Access Resource Document](${item.fileUrl})`).join("\n\n")}
-
+  🔗 [Access Resource Document](/api/download?id=${item.id})`).join("\n\n")}
+ 
 Let me know if you would like me to explain any of these references or summarize their contents!`
         }
       };
@@ -521,7 +609,7 @@ Let me know if you would like me to explain any of these references or summarize
 
       const scoreReport = `🎯 **Score Bot Report Card**
 --------------------------------------------------
-👤 **Student**: ${user.firstName} ${user.lastName || ""}
+👤 **Student**: ${student.fullName || user.email}
 🎫 **Roll Number**: ${student.rollNumber}
 📈 **Roadmap Progress**: ${completedCount}/${totalLessons} lessons completed (${progressPercent}%)
 📝 **Quizzes Attempted**: ${totalQuizzes} | Passed: ${passedQuizzes}
