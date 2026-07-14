@@ -32,17 +32,35 @@ export async function GET(request: NextRequest) {
 
     // 3. Fetch the original file content
     console.log(`[DOWNLOAD API] Fetching original file from: ${item.fileUrl}`);
-    const fileResponse = await fetch(item.fileUrl);
-    if (!fileResponse.ok) {
-      return new NextResponse("Failed to download original resource file", { status: 502 });
+    let fileBuffer: Buffer;
+    let fileContentType: string;
+    let extension = "pdf";
+
+    if (item.fileUrl.startsWith("http://") || item.fileUrl.startsWith("https://")) {
+      const fileResponse = await fetch(item.fileUrl);
+      if (!fileResponse.ok) {
+        return new NextResponse("Failed to download original resource file", { status: 502 });
+      }
+      fileContentType = fileResponse.headers.get("content-type") || "application/octet-stream";
+      const arrayBuffer = await fileResponse.arrayBuffer();
+      fileBuffer = Buffer.from(arrayBuffer);
+      const originalFilename = item.fileUrl.split("/").pop()?.split("?")[0] || "document.pdf";
+      extension = originalFilename.split(".").pop()?.toLowerCase() || "pdf";
+    } else {
+      // Relative local file path (e.g. /materials/weste-harris.pdf)
+      const path = await import("path");
+      const fs = await import("fs");
+      const cleanPath = item.fileUrl.startsWith("/") ? item.fileUrl.substring(1) : item.fileUrl;
+      const filePath = path.join(process.cwd(), "public", cleanPath);
+      if (!fs.existsSync(filePath)) {
+        console.error(`[DOWNLOAD API] Local file not found: ${filePath}`);
+        return new NextResponse("Local resource file not found", { status: 404 });
+      }
+      fileBuffer = fs.readFileSync(filePath);
+      const originalFilename = path.basename(filePath);
+      extension = originalFilename.split(".").pop()?.toLowerCase() || "pdf";
+      fileContentType = extension === "pdf" ? "application/pdf" : "application/octet-stream";
     }
-
-    const fileContentType = fileResponse.headers.get("content-type") || "application/octet-stream";
-    const arrayBuffer = await fileResponse.arrayBuffer();
-    let fileBuffer = Buffer.from(arrayBuffer);
-
-    const originalFilename = item.fileUrl.split("/").pop()?.split("?")[0] || "document.pdf";
-    const extension = originalFilename.split(".").pop()?.toLowerCase() || "pdf";
 
     // Clean title for filename
     const cleanTitle = item.title.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 50);
@@ -52,7 +70,7 @@ export async function GET(request: NextRequest) {
     if (extension === "pdf") {
       try {
         console.log(`[DOWNLOAD API] Watermarking PDF using pdf-lib for tenant: "${tenantName}"`);
-        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const pdfDoc = await PDFDocument.load(fileBuffer);
         const pages = pdfDoc.getPages();
         const helveticaFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
@@ -113,7 +131,7 @@ export async function GET(request: NextRequest) {
     headers.set("Content-Length", String(fileBuffer.length));
     headers.set("X-Watermarked-By", tenantName);
 
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(new Uint8Array(fileBuffer), {
       status: 200,
       headers,
     });
