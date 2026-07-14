@@ -17391,34 +17391,21 @@
       "updatedAt": "2026-07-14T10:34:52.552Z"
     }
   ],
-  "lesson_progress": [
-    {
-      "id": "b0969d17-a12e-40ad-b761-48be7b53be6d",
-      "studentId": "2ec484aa-52da-442e-ad6a-f5e40958d163",
-      "lessonId": "b67860c0-6373-4fbd-898a-8c954ce398b9",
-      "completed": true,
-      "scormData": {
-        "cmi.core.lesson_status": "completed",
-        "cmi.completion_status": "completed",
-        "cmi.core.score.raw": "100"
-      },
-      "updatedAt": "2026-07-14T11:17:46.562Z"
-    }
-  ],
+  "lesson_progress": [],
   "lessons": [
     {
       "id": "57645e13-33e3-4db9-b3cf-e5325cd7541f",
       "moduleId": "3e879409-8746-4877-83f6-7d63f64ba76b",
       "title": "1.1 Technical Intro & Scope Overview (Video)",
       "content": "Introduction to the core microarchitecture design challenges. This lesson covers key industry requirements, technology nodes (sub-5nm), and advanced logic library characterization. We will explore the theoretical boundaries of physical scaling.",
-      "contentType": "scorm",
+      "contentType": "video",
       "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-      "fileUrl": "",
+      "fileUrl": null,
       "zoomMeetingId": null,
       "zoomPasscode": null,
       "order": 1,
       "createdAt": "2026-07-14T10:34:16.556Z",
-      "updatedAt": "2026-07-14T11:13:57.890Z"
+      "updatedAt": "2026-07-14T10:34:16.556Z"
     },
     {
       "id": "da40824d-1ed1-4f61-869c-88cdfc51aad1",
