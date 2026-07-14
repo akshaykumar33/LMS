@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { approveApplicationAction, rejectApplicationAction, getApplicationDetailsAction } from "../actions/admission-actions";
+import { approveApplicationAction, rejectApplicationAction, getApplicationDetailsAction, updateTenantPaymentSettingsAction } from "../actions/admission-actions";
 import { formatReadableDate } from "@/utils/date-formatter";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { LogOut, Search, Filter, X } from "lucide-react";
@@ -44,6 +44,15 @@ interface AdmissionsDashboardProps {
   logoutHandler: () => Promise<void>;
   userRole?: string;
   tenantSubdomain?: string;
+  initialSettings?: {
+    paymentRequired?: boolean;
+    tuitionFee?: string;
+    gateways?: {
+      stripe: boolean;
+      razorpay: boolean;
+      paypal: boolean;
+    };
+  } | null;
 }
 
 export function AdmissionsDashboard({ 
@@ -52,7 +61,8 @@ export function AdmissionsDashboard({
   primaryColor, 
   logoutHandler, 
   userRole,
-  tenantSubdomain
+  tenantSubdomain,
+  initialSettings
 }: AdmissionsDashboardProps) {
   // States
   const [applications, setApplications] = useState<Application[]>(initialApplications);
@@ -63,6 +73,39 @@ export function AdmissionsDashboard({
   const [actionLoading, setActionLoading] = useState(false);
   const [enrollmentResult, setEnrollmentResult] = useState<any | null>(null);
   const [errorState, setErrorState] = useState<string | null>(null);
+
+  // Tenant payment settings state variables
+  const [settingsPayRequired, setSettingsPayRequired] = useState(initialSettings?.paymentRequired !== false);
+  const [settingsFee, setSettingsFee] = useState(initialSettings?.tuitionFee || "1500.00");
+  const [settingsGateways, setSettingsGateways] = useState(initialSettings?.gateways || { stripe: true, razorpay: true, paypal: true });
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const handleSavePaymentSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaveLoading(true);
+    setSaveSuccess(false);
+    setErrorState(null);
+
+    try {
+      const res = await updateTenantPaymentSettingsAction({
+        tuitionFee: settingsFee,
+        paymentRequired: settingsPayRequired,
+        gateways: settingsGateways,
+      });
+
+      if (res.success) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
+        setErrorState(res.error || "Failed to update payment settings.");
+      }
+    } catch (err: any) {
+      setErrorState(err.message || "An unexpected error occurred.");
+    } finally {
+      setSaveLoading(false);
+    }
+  };
 
   // Stats
   const totalCount = initialApplications.length;
@@ -145,6 +188,27 @@ export function AdmissionsDashboard({
 
   return (
     <div className="space-y-6">
+        {/* Header with Title and Scroll Link */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-extrabold tracking-tight">Admissions Command Center</h1>
+            <p className="text-sm text-muted-foreground">
+              Review and approve applicant submissions, manage student cohorts, and configure payment controls.
+            </p>
+          </div>
+
+          {(userRole === "Owner" || userRole === "Admin" || userRole === "SuperAdmin") && (
+            <button
+              onClick={() => {
+                const el = document.getElementById("payment-settings-panel");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="inline-flex h-9 items-center justify-center rounded-xl bg-card border border-border px-4 text-xs font-bold text-foreground hover:bg-muted/50 cursor-pointer shadow-sm transition-all"
+            >
+              ⚙️ Payment Settings
+            </button>
+          )}
+        </div>
         
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
@@ -161,6 +225,120 @@ export function AdmissionsDashboard({
             </div>
           ))}
         </div>
+
+        {/* Payment Configuration Card */}
+        {(userRole === "Owner" || userRole === "Admin" || userRole === "SuperAdmin") && (
+          <div id="payment-settings-panel" className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-6 shadow-sm border border-border/40 space-y-5">
+            <div className="space-y-1.5 border-b border-border pb-3">
+              <span className="text-[9px] font-black text-primary tracking-widest uppercase" style={{ color: brandColor }}>
+                Domain Administration
+              </span>
+              <h3 className="text-base font-extrabold text-foreground">💳 Domain Payment Configuration</h3>
+              <p className="text-xs text-muted-foreground">
+                Control tuition fees, payment requirements, and active gateway integrations for self-signup admissions.
+              </p>
+            </div>
+
+            {saveSuccess && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl text-xs text-emerald-400 font-semibold flex items-center gap-2 animate-in fade-in">
+                <span>✓</span> Settings updated successfully! Active checkouts will immediately reflect these changes.
+              </div>
+            )}
+
+            {errorState && (
+              <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl text-xs text-rose-450 font-semibold flex items-center gap-2 animate-in fade-in">
+                <span>⚠</span> {errorState}
+              </div>
+            )}
+
+            <form onSubmit={handleSavePaymentSettings} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3.5 border border-border bg-background/25 rounded-xl">
+                  <div className="space-y-0.5">
+                    <label className="text-xs font-bold text-foreground block cursor-pointer" htmlFor="require-payment-toggle">
+                      Require Admission Payment
+                    </label>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Enforce tuition fee checkout for new students during self-signup.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="require-payment-toggle"
+                    checked={settingsPayRequired}
+                    onChange={(e) => setSettingsPayRequired(e.target.checked)}
+                    className="w-4 h-4 accent-primary rounded cursor-pointer"
+                    style={{ '--c': brandColor } as any}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground block">
+                    Program Tuition Fee ($ USD)
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="1500.00"
+                    value={settingsFee}
+                    onChange={(e) => setSettingsFee(e.target.value)}
+                    disabled={!settingsPayRequired}
+                    className="h-10 text-xs bg-transparent border-border"
+                  />
+                  <p className="text-[10px] text-muted-foreground font-medium">
+                    This amount is charged dynamically at checkout. Set to 0.00 to disable payment requirement.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-foreground block">
+                    Active Payment Gateways
+                  </label>
+                  <p className="text-[10px] text-muted-foreground block -mt-1.5">
+                    Select which payment channels are visible and enabled for student enrollment.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 gap-2">
+                    {[
+                      { id: "stripe", label: "Stripe Credit Card Processing" },
+                      { id: "razorpay", label: "Razorpay UPI Sandbox" },
+                      { id: "paypal", label: "PayPal Sandbox Wallet" },
+                    ].map((gateway) => (
+                      <div key={gateway.id} className="flex items-center justify-between p-2.5 border border-border/60 bg-background/15 rounded-lg">
+                        <span className="text-xs font-semibold text-muted-foreground">{gateway.label}</span>
+                        <input
+                          type="checkbox"
+                          checked={(settingsGateways as any)[gateway.id]}
+                          disabled={!settingsPayRequired}
+                          onChange={(e) => setSettingsGateways({
+                            ...settingsGateways,
+                            [gateway.id]: e.target.checked
+                          })}
+                          className="w-3.5 h-3.5 accent-primary rounded cursor-pointer"
+                          style={{ '--c': brandColor } as any}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="submit"
+                    disabled={saveLoading || (userRole as string) === "Guest"}
+                    className="h-10 px-6 font-bold text-white shadow-md rounded-xl transition-all cursor-pointer"
+                    style={{ backgroundColor: brandColor }}
+                  >
+                    {saveLoading ? "Saving Settings..." : (userRole as string) === "Guest" ? "Read Only" : "Save Configuration"}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Filters and Controls */}
         <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-4 flex flex-col md:flex-row gap-4 justify-between items-center shadow-sm">
@@ -428,7 +606,7 @@ export function AdmissionsDashboard({
                     type="button"
                     variant="outline"
                     onClick={handleReject}
-                    disabled={actionLoading || userRole === "Guest"}
+                    disabled={actionLoading || (userRole as string) === "Guest"}
                     className="h-10 text-xs font-bold border-red-500/30 text-red-400 hover:bg-red-950/20"
                   >
                     Reject Candidate
@@ -436,11 +614,11 @@ export function AdmissionsDashboard({
                   <Button
                     type="button"
                     onClick={handleApprove}
-                    disabled={actionLoading || userRole === "Guest"}
+                    disabled={actionLoading || (userRole as string) === "Guest"}
                     className="h-10 text-xs font-bold shadow-md"
                     style={{ backgroundColor: brandColor, color: "#fff" }}
                   >
-                    {actionLoading ? "Processing..." : userRole === "Guest" ? "Read Only" : "Approve & Enroll"}
+                    {actionLoading ? "Processing..." : (userRole as string) === "Guest" ? "Read Only" : "Approve & Enroll"}
                   </Button>
                 </div>
               )}

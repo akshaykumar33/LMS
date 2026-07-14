@@ -8,7 +8,7 @@ import { createStripePaymentIntent } from "../services/stripe-service";
 import { AdmissionRepository } from "../repository/admission-repository";
 import { admissionApplicationSchema, paymentSubmitSchema, documentUploadSchema } from "../schemas/admission-schemas";
 import { db } from "@/db/db";
-import { batches } from "@/db/schema";
+import { batches, tenants } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { establishSessionAction } from "@/features/auth/actions/auth-actions";
@@ -301,8 +301,11 @@ export async function createStripePaymentIntentAction(applicationId: string) {
       return { success: false, error: "This application is already approved." };
     }
 
-    // Grand Total is $1,500.00 -> 150000 cents
-    const amountInCents = 150000;
+    // Get tuition fee from tenant settings, default to 1500.00
+    const feeStr = (tenant.settings as any)?.tuitionFee || "1500.00";
+    const feeNum = parseFloat(feeStr);
+    const amountInCents = Math.round(feeNum * 100);
+
     const metadata = {
       tenantId: tenant.id,
       applicationId: app.id,
@@ -345,11 +348,14 @@ export async function completePaymentAndEnrollAction(
       return { success: false, error: "This application is already approved." };
     }
 
+    // Get tuition fee from tenant settings, default to 1500.00
+    const feeStr = (tenant.settings as any)?.tuitionFee || "1500.00";
+
     // 2. Record the payment as completed
     await AdmissionRepository.recordPayment(
       tenant.id,
       appId,
-      "1500.00",
+      feeStr,
       paymentMethod,
       transactionId,
       "completed"
@@ -364,7 +370,7 @@ export async function completePaymentAndEnrollAction(
         to: app.email,
         subject: `Payment Confirmed - ${tenant.name}`,
         html: `<p>Hi ${app.firstName},</p>
-               <p>We have successfully verified your tuition sandbox payment of $1,500.00 via ${paymentMethod} (Transaction ID: ${transactionId}).</p>
+               <p>We have successfully verified your tuition sandbox payment of $${feeStr} via ${paymentMethod} (Transaction ID: ${transactionId}).</p>
                <p>Your enrollment is now complete.</p>
                <p>Best regards,<br/>Admissions Team</p>`
       }).catch((err: any) => console.error("Failed to send payment email:", err));
@@ -490,6 +496,70 @@ export async function getPresignedUrlAction(fileName: string, contentType: strin
   } catch (error: any) {
     console.error("Failed to generate presigned upload URL action:", error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Protected Tenant Owner/Admin Action: Update payment settings for their own tenant.
+ */
+export async function updateTenantPaymentSettingsAction(settings: {
+  tuitionFee: string;
+  paymentRequired: boolean;
+  gateways: {
+    stripe: boolean;
+    razorpay: boolean;
+    paypal: boolean;
+  };
+}) {
+  const user = await requireAuth(["Owner", "Admin"]);
+  verifyWriteAccess(user);
+
+  try {
+    const tenantId = user.tenantId;
+    if (!tenantId) {
+      return { success: false, error: "No tenant context associated with this user." };
+    }
+
+    // 1. Fetch current tenant
+    const tenant = await db.query.tenants.findFirst({
+      where: eq(tenants.id, tenantId),
+    });
+
+    if (!tenant) {
+      return { success: false, error: "Tenant not found." };
+    }
+
+    // 2. Merge settings
+    const currentSettings = tenant.settings || {
+      features: { enableLibrary: true, enablePlacement: true, enableProctoring: true, enableCertificates: true },
+      gateways: { stripe: true, razorpay: true, paypal: true },
+      restrictions: { maxUsers: 500, maxCourses: 100, allowSelfSignup: true }
+    };
+
+    const newSettings = {
+      ...currentSettings,
+      paymentRequired: settings.paymentRequired,
+      tuitionFee: settings.tuitionFee,
+      gateways: {
+        ...currentSettings.gateways,
+        ...settings.gateways,
+      }
+    };
+
+    // 3. Update in database
+    await db.update(tenants)
+      .set({
+        settings: newSettings as any,
+        updatedAt: new Date(),
+      })
+      .where(eq(tenants.id, tenantId));
+
+    revalidatePath("/admin/admissions");
+    revalidatePath("/checkout");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to update tenant payment settings:", error);
+    return { success: false, error: error.message || "Failed to save settings." };
   }
 }
 

@@ -37,13 +37,38 @@ interface ApplicationDetails {
 interface CheckoutConsoleProps {
   application: ApplicationDetails;
   primaryColor?: string;
+  tuitionFee?: string;
+  paymentRequired?: boolean;
+  enabledGateways?: {
+    stripe?: boolean;
+    razorpay?: boolean;
+    paypal?: boolean;
+  } | null;
 }
 
-export function CheckoutConsole({ application, primaryColor }: CheckoutConsoleProps) {
+export function CheckoutConsole({ 
+  application, 
+  primaryColor, 
+  tuitionFee = "1500.00", 
+  paymentRequired = true,
+  enabledGateways
+}: CheckoutConsoleProps) {
   const router = useRouter();
   const brandColor = primaryColor || "#0ea5e9";
 
-  const [activeGateway, setActiveGateway] = useState<"stripe" | "razorpay" | "paypal">("stripe");
+  const showStripe = enabledGateways?.stripe !== false;
+  const showRazorpay = enabledGateways?.razorpay !== false;
+  const showPaypal = enabledGateways?.paypal !== false;
+
+  // Determine initial active gateway
+  const getInitialGateway = () => {
+    if (showStripe) return "stripe";
+    if (showRazorpay) return "razorpay";
+    if (showPaypal) return "paypal";
+    return "stripe";
+  };
+
+  const [activeGateway, setActiveGateway] = useState<"stripe" | "razorpay" | "paypal">(getInitialGateway());
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState("");
   const [success, setSuccess] = useState(false);
@@ -65,8 +90,23 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
   const [authorizingPaypal, setAuthorizingPaypal] = useState(false);
   const [paypalStep, setPaypalStep] = useState("");
 
-  // Load Stripe client configuration from backend
+  // Sync active gateway if active options change
   useEffect(() => {
+    if (activeGateway === "stripe" && !showStripe) {
+      if (showRazorpay) setActiveGateway("razorpay");
+      else if (showPaypal) setActiveGateway("paypal");
+    } else if (activeGateway === "razorpay" && !showRazorpay) {
+      if (showStripe) setActiveGateway("stripe");
+      else if (showPaypal) setActiveGateway("paypal");
+    } else if (activeGateway === "paypal" && !showPaypal) {
+      if (showStripe) setActiveGateway("stripe");
+      else if (showRazorpay) setActiveGateway("razorpay");
+    }
+  }, [showStripe, showRazorpay, showPaypal, activeGateway]);
+
+  // Load Stripe client configuration from backend (only if payment is required and Stripe is enabled)
+  useEffect(() => {
+    if (!paymentRequired || !showStripe) return;
     async function initStripe() {
       try {
         const res = await createStripePaymentIntentAction(application.id);
@@ -82,7 +122,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
       }
     }
     initStripe();
-  }, [application.id]);
+  }, [application.id, paymentRequired, showStripe]);
 
   useEffect(() => {
     if (activeGateway === "razorpay" && timeLeft > 0) {
@@ -177,7 +217,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
     const steps = [
       `Initiating secure Sandbox ${activeGateway.toUpperCase()} transaction...`,
       "Verifying credentials against mock payment gateway...",
-      "Authorizing enrollment transaction value of $1,500.00...",
+      `Authorizing enrollment transaction value of $${parseFloat(tuitionFee).toFixed(2)}...`,
       "Enrolling student account & initializing workspace cookies...",
     ];
 
@@ -202,6 +242,42 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
       }
     } catch (err: any) {
       setError(err.message || "An unexpected network error occurred.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFreeBypass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const steps = [
+      "Initializing student profile registration...",
+      "Configuring domain enrollment context...",
+      "Activating workspace cookies...",
+      "Enrollment processed successfully!"
+    ];
+
+    for (let i = 0; i < steps.length; i++) {
+      setLoadingStep(steps[i]!);
+      await new Promise((r) => setTimeout(r, 650));
+    }
+
+    try {
+      const result = await completePaymentAndEnrollAction(
+        application.id,
+        "free",
+        "free_bypass"
+      );
+
+      if (result.success) {
+        setSuccess(true);
+      } else {
+        setError(result.error || "Enrollment bypass failed. Please retry.");
+      }
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
@@ -268,277 +344,291 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
       {/* Checkout Form */}
       <Card className="flex-1 border-border/60 shadow-2xl bg-card/60 backdrop-blur-md overflow-hidden">
         <div className="h-full flex flex-col justify-between p-6 sm:p-8 space-y-6">
-          <div className="space-y-6">
-            <div className="border-b border-border pb-4 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select Payment Method</span>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveGateway("stripe")}
-                  className={`h-11 rounded-xl border flex flex-col sm:flex-row items-center justify-center gap-1.5 font-bold transition-all cursor-pointer text-[10px] sm:text-xs ${
-                    activeGateway === "stripe"
-                      ? "bg-slate-800 border-slate-700 text-white shadow-lg shadow-black/20"
-                      : "bg-transparent border-border/40 hover:bg-slate-800/40 text-slate-400"
-                  }`}
-                >
-                  <CreditCard className="w-4 h-4" style={activeGateway === "stripe" ? { color: brandColor } : undefined} />
-                  <span>Stripe Card</span>
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setActiveGateway("razorpay")}
-                  className={`h-11 rounded-xl border flex flex-col sm:flex-row items-center justify-center gap-1.5 font-bold transition-all cursor-pointer text-[10px] sm:text-xs ${
-                    activeGateway === "razorpay"
-                      ? "bg-slate-800 border-slate-700 text-white shadow-lg shadow-black/20"
-                      : "bg-transparent border-border/40 hover:bg-slate-800/40 text-slate-400"
-                  }`}
-                >
-                  <QrCode className="w-4 h-4" style={activeGateway === "razorpay" ? { color: brandColor } : undefined} />
-                  <span>Razorpay UPI</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveGateway("paypal")}
-                  className={`h-11 rounded-xl border flex flex-col sm:flex-row items-center justify-center gap-1.5 font-bold transition-all cursor-pointer text-[10px] sm:text-xs ${
-                    activeGateway === "paypal"
-                      ? "bg-slate-800 border-slate-700 text-white shadow-lg shadow-black/20"
-                      : "bg-transparent border-border/40 hover:bg-slate-800/40 text-slate-400"
-                  }`}
-                >
-                  <Wallet className="w-4 h-4" style={activeGateway === "paypal" ? { color: brandColor } : undefined} />
-                  <span>PayPal</span>
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <div className="bg-rose-500/10 border border-rose-500/20 p-3.5 rounded-lg text-xs text-rose-450 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                {error}
-              </div>
-            )}
-
-            {/* STRIPE CARD VIEW */}
-            {activeGateway === "stripe" && (
-              <div className="space-y-5 animate-in fade-in duration-200">
-                {stripePromise && clientSecret ? (
-                  <Elements stripe={stripePromise} options={{ clientSecret }}>
-                    <StripePaymentForm 
-                      brandColor={brandColor}
-                      clientSecret={clientSecret}
-                      application={application}
-                      onSuccess={() => setSuccess(true)}
-                      onError={(err) => setError(err)}
-                      loading={loading}
-                      setLoading={setLoading}
-                      setLoadingStep={setLoadingStep}
-                    />
-                  </Elements>
-                ) : (
-                  <div className="flex flex-col items-center justify-center p-12 space-y-3">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                    <span className="text-[10px] text-slate-400 font-mono">Initializing secure Stripe Elements...</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* RAZORPAY UPI & BANKING VIEW */}
-            {activeGateway === "razorpay" && (
-              <form onSubmit={handlePayment} className="space-y-5 animate-in fade-in duration-200">
-                <div className="bg-slate-950/40 border border-border p-4 rounded-xl flex items-center justify-between text-white">
-                  <div className="space-y-0.5">
-                    <span className="text-[8px] font-bold text-sky-400 uppercase tracking-widest">Razorpay Sandbox</span>
-                    <h4 className="text-xs font-bold font-mono">UPI Payment Gateway</h4>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[8px] text-slate-500 block">Session Expires</span>
-                    <span className="text-xs font-mono font-black text-rose-400">{formatTime(timeLeft)}</span>
-                  </div>
+          {!paymentRequired ? (
+            <form onSubmit={handleFreeBypass} className="space-y-6 flex-1 flex flex-col justify-center py-6">
+              <div className="space-y-3 text-center">
+                <div className="mx-auto w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <ShieldCheck className="w-6 h-6" />
                 </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-black text-white uppercase tracking-wider">Tuition Sponsored / Free</h3>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto leading-normal">
+                    Your institution domain does not require enrollment payments at this time. You can complete your enrollment for free immediately.
+                  </p>
+                </div>
+              </div>
 
-                <div className="flex flex-col sm:flex-row items-center gap-5 bg-slate-950/20 border border-border/80 p-5 rounded-2xl">
-                  {/* QR Code graphic */}
-                  <div className="w-28 h-28 bg-white p-1 rounded-xl flex items-center justify-center shrink-0 shadow-lg relative overflow-hidden">
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`upi://pay?pa=enrollment@intel.lms.com&pn=${encodeURIComponent("Intel Semiconductor Academy")}&am=1500&cu=USD`)}`} 
-                      alt="UPI Payment QR Code" 
-                      className="w-full h-full object-contain"
-                    />
-                    <div className="absolute inset-x-0 h-0.5 bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,1)] animate-laser pointer-events-none"></div>
+              {error && (
+                <div className="bg-rose-500/10 border border-rose-500/20 p-3.5 rounded-lg text-xs text-rose-450 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full h-11 text-xs font-bold text-white shadow-lg cursor-pointer transition-all hover:opacity-95"
+                style={{ backgroundColor: brandColor }}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <span>Processing self-enrollment...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Complete Enrollment & Setup Account</span>
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              <div className="border-b border-border pb-4 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select Payment Method</span>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  {showStripe && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveGateway("stripe")}
+                      className={`h-11 rounded-xl border flex flex-col sm:flex-row items-center justify-center gap-1.5 font-bold transition-all cursor-pointer text-[10px] sm:text-xs ${
+                        activeGateway === "stripe"
+                          ? "bg-slate-800 border-slate-700 text-white shadow-lg shadow-black/20"
+                          : "bg-transparent border-border/40 hover:bg-slate-800/40 text-slate-400"
+                      }`}
+                    >
+                      <CreditCard className="w-4 h-4" style={activeGateway === "stripe" ? { color: brandColor } : undefined} />
+                      <span>Stripe Card</span>
+                    </button>
+                  )}
+                  
+                  {showRazorpay && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveGateway("razorpay")}
+                      className={`h-11 rounded-xl border flex flex-col sm:flex-row items-center justify-center gap-1.5 font-bold transition-all cursor-pointer text-[10px] sm:text-xs ${
+                        activeGateway === "razorpay"
+                          ? "bg-slate-800 border-slate-700 text-white shadow-lg shadow-black/20"
+                          : "bg-transparent border-border/40 hover:bg-slate-800/40 text-slate-400"
+                      }`}
+                    >
+                      <QrCode className="w-4 h-4" style={activeGateway === "razorpay" ? { color: brandColor } : undefined} />
+                      <span>Razorpay UPI</span>
+                    </button>
+                  )}
+
+                  {showPaypal && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveGateway("paypal")}
+                      className={`h-11 rounded-xl border flex flex-col sm:flex-row items-center justify-center gap-1.5 font-bold transition-all cursor-pointer text-[10px] sm:text-xs ${
+                        activeGateway === "paypal"
+                          ? "bg-slate-800 border-slate-700 text-white shadow-lg shadow-black/20"
+                          : "bg-transparent border-border/40 hover:bg-slate-800/40 text-slate-400"
+                      }`}
+                    >
+                      <Wallet className="w-4 h-4" style={activeGateway === "paypal" ? { color: brandColor } : undefined} />
+                      <span>PayPal</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-rose-500/10 border border-rose-500/20 p-3.5 rounded-lg text-xs text-rose-450 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              {/* STRIPE CARD VIEW */}
+              {activeGateway === "stripe" && showStripe && (
+                <div className="space-y-5 animate-in fade-in duration-200">
+                  {stripePromise && clientSecret ? (
+                    <Elements stripe={stripePromise} options={{ clientSecret }}>
+                      <StripePaymentForm 
+                        brandColor={brandColor}
+                        clientSecret={clientSecret}
+                        application={application}
+                        onSuccess={() => setSuccess(true)}
+                        onError={(err) => setError(err)}
+                        loading={loading}
+                        setLoading={setLoading}
+                        setLoadingStep={setLoadingStep}
+                      />
+                    </Elements>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-12 space-y-3">
+                      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                      <span className="text-[10px] text-slate-400 font-mono">Initializing secure Stripe Elements...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* RAZORPAY UPI & BANKING VIEW */}
+              {activeGateway === "razorpay" && showRazorpay && (
+                <form onSubmit={handlePayment} className="space-y-5 animate-in fade-in duration-200">
+                  <div className="bg-slate-950/40 border border-border p-4 rounded-xl flex items-center justify-between text-white">
+                    <div className="space-y-0.5">
+                      <span className="text-[8px] font-bold text-sky-400 uppercase tracking-widest">Razorpay Sandbox</span>
+                      <h4 className="text-xs font-bold font-mono">UPI Payment Gateway</h4>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[8px] text-slate-500 block">Session Expires</span>
+                      <span className="text-xs font-mono font-black text-rose-400">{formatTime(timeLeft)}</span>
+                    </div>
                   </div>
 
-                  <div className="space-y-3 flex-1 text-center sm:text-left">
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-bold text-white">Scan QR Code or Enter UPI ID</p>
-                      <p className="text-[10px] text-slate-500 leading-normal">
-                        Scan using any Sandbox UPI App (BHIM, PhonePe, Google Pay, Paytm) to complete.
-                      </p>
-                    </div>
-
-                    <div className="space-y-1.5 text-left">
-                      <Label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">UPI ID / VPA</Label>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-slate-400 text-xs font-bold">Virtual Payment Address (VPA)</Label>
                       <Input
                         type="text"
+                        placeholder="success@razorpay"
                         value={upiId}
                         onChange={(e) => setUpiId(e.target.value)}
-                        className="h-9 text-xs bg-slate-900 border border-slate-600 text-white"
-                        placeholder="username@okaxis"
+                        className="bg-slate-950 border-border text-white text-xs h-10"
                       />
+                      <span className="text-[9px] text-slate-500 block font-mono">Accepts sandbox VPA formats like user@upi, success@razorpay.</span>
                     </div>
-                  </div>
-                </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">Or Pay via Net Banking</Label>
-                  <select
-                    value={selectedBank}
-                    onChange={(e) => setSelectedBank(e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-border bg-slate-900 text-xs text-white focus:border-sky-500"
-                  >
-                    <option value="sbi">State Bank of India (SBI)</option>
-                    <option value="hdfc">HDFC Bank Ltd</option>
-                    <option value="icici">ICICI Bank</option>
-                    <option value="axis">Axis Bank</option>
-                  </select>
-                </div>
-
-                <div className="pt-4 border-t border-border flex items-center justify-end">
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full h-11 text-xs font-bold text-white hover:opacity-90 shadow-lg disabled:opacity-50"
-                    style={{ backgroundColor: brandColor }}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        <span>Processing secure Sandbox authorization...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShieldCheck className="w-4 h-4 mr-2" />
-                        <span>Pay $1,500.00 via Razorpay</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </form>
-            )}
-
-            {/* PAYPAL CHECKOUT VIEW */}
-            {activeGateway === "paypal" && (
-              <form onSubmit={handlePayment} className="space-y-5 animate-in fade-in duration-200">
-                <div className="bg-[#002f86]/10 border border-[#002f86]/20 p-4 rounded-xl flex items-center justify-between text-white">
-                  <div className="space-y-0.5">
-                    <span className="text-[8px] font-black text-[#0079C1] uppercase tracking-widest">PayPal Sandbox</span>
-                    <h4 className="text-xs font-bold font-mono text-white">Express Payment Authorization</h4>
-                  </div>
-                  <Badge variant="outline" className="bg-[#0079C1]/10 text-[#0079C1] border-[#0079C1]/20 font-bold text-[9px]">
-                    SECURED
-                  </Badge>
-                </div>
-
-                {authorizingPaypal ? (
-                  <div className="bg-slate-900/60 border border-border p-6 rounded-2xl flex flex-col items-center justify-center text-center space-y-4 animate-in fade-in duration-200">
-                    <Loader2 className="w-7 h-7 text-[#0079C1] animate-spin" />
-                    <div className="space-y-1">
-                      <p className="text-xs font-bold text-white">Authorizing Sandbox Account</p>
-                      <p className="text-[10px] text-slate-400 font-mono">{paypalStep}</p>
+                    <div className="space-y-2">
+                      <Label className="text-slate-400 text-xs font-bold">Or Select Bank Account</Label>
+                      <select
+                        value={selectedBank}
+                        onChange={(e) => setSelectedBank(e.target.value)}
+                        className="w-full bg-slate-950 border border-border rounded-xl text-white text-xs p-3 focus:outline-none"
+                      >
+                        <option value="sbi">State Bank of India (SBI)</option>
+                        <option value="hdfc">HDFC Bank</option>
+                        <option value="icici">ICICI Bank</option>
+                        <option value="axis">Axis Bank</option>
+                      </select>
                     </div>
+
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full h-11 text-xs font-bold text-white shadow-lg cursor-pointer transition-all hover:opacity-95"
+                      style={{ backgroundColor: brandColor }}
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          <span>Processing secure transaction...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="w-4 h-4 mr-2" />
+                          <span>Pay ${parseFloat(tuitionFee).toFixed(2)} via UPI / Netbanking</span>
+                        </>
+                      )}
+                    </Button>
                   </div>
-                ) : !paypalAuthorized ? (
-                  <div className="bg-slate-950/20 border border-border p-5 rounded-2xl space-y-3.5">
+                </form>
+              )}
+
+              {/* PAYPAL VIEW */}
+              {activeGateway === "paypal" && showPaypal && (
+                <form onSubmit={handlePayment} className="space-y-5 animate-in fade-in duration-200">
+                  <div className="bg-slate-950/40 border border-border p-4 rounded-xl flex items-center justify-between text-white">
                     <div className="space-y-0.5">
-                      <h4 className="text-xs font-bold text-white">Sign In to Sandbox PayPal Account</h4>
-                      <p className="text-[10px] text-slate-400 leading-normal">
-                        Authorize sandbox access using mock credentials.
-                      </p>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">PayPal Email</Label>
-                        <Input
-                          type="email"
-                          value={paypalEmail}
-                          onChange={(e) => setPaypalEmail(e.target.value)}
-                          className="h-9 text-xs bg-slate-900 text-white placeholder:text-slate-400 border border-slate-700"
-                          placeholder="sandbox-buyer@paypal.com"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">Password</Label>
-                        <Input
-                          type="password"
-                          value={paypalPassword}
-                          onChange={(e) => setPaypalPassword(e.target.value)}
-                          className="h-9 text-xs bg-slate-900 text-white placeholder:text-slate-400 border border-slate-700"
-                          placeholder="••••••••"
-                        />
-                      </div>
-
-                      <Button
-                        type="button"
-                        onClick={handleAuthorizePaypal}
-                        className="w-full h-9 text-xs bg-[#0079C1] hover:bg-[#005ea6] text-white font-bold"
-                      >
-                        Log In to Sandbox PayPal Account
-                      </Button>
+                      <span className="text-[8px] font-bold text-[#FFC439] uppercase tracking-widest">PayPal Sandbox</span>
+                      <h4 className="text-xs font-bold font-mono">Express Checkout Wallet</h4>
                     </div>
                   </div>
-                ) : (
-                  <div className="bg-emerald-500/5 border border-emerald-500/20 p-5 rounded-2xl space-y-3 animate-in zoom-in-95 duration-150">
-                    <div className="flex justify-between items-start border-b border-border/40 pb-2">
-                      <div className="space-y-0.5">
-                        <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wide">✓ Account Connected</span>
-                        <p className="text-xs font-mono font-bold text-slate-800">{paypalEmail}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setPaypalAuthorized(false)}
-                        className="text-[9px] text-slate-600 hover:text-slate-800 hover:underline"
-                      >
-                        Change account
-                      </button>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-600">Sandbox Balance</span>
-                      <strong className="text-slate-900">$24,980.00 USD</strong>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-600">Authorized Amount</span>
-                      <strong className="text-slate-900">$1,500.00 USD</strong>
-                    </div>
-                  </div>
-                )}
 
-                <div className="pt-4 border-t border-border flex items-center justify-end">
-                  <Button
-                    type="submit"
-                    disabled={loading || !paypalAuthorized}
-                    className="w-full h-11 text-xs font-bold text-white hover:opacity-90 shadow-lg disabled:opacity-50"
-                    style={{ backgroundColor: brandColor }}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        <span>Processing secure Sandbox authorization...</span>
-                      </>
+                  <div className="space-y-4">
+                    {!paypalAuthorized ? (
+                      <div className="space-y-4 animate-in fade-in duration-200">
+                        <div className="p-4 bg-[#003087]/10 border border-[#003087]/30 rounded-xl space-y-3.5">
+                          <h4 className="text-xs font-bold font-mono text-white">Express Payment Authorization</h4>
+                          
+                          {paypalStep && (
+                            <div className="text-[10px] text-sky-400 font-mono min-h-[16px] animate-pulse">
+                              {paypalStep}
+                            </div>
+                          )}
+
+                          <div className="space-y-2">
+                            <Label className="text-slate-400 text-[10px] uppercase font-black">Sandbox Email Address</Label>
+                            <Input
+                              type="email"
+                              value={paypalEmail}
+                              onChange={(e) => setPaypalEmail(e.target.value)}
+                              className="bg-slate-950 border-border text-white text-xs h-9"
+                              placeholder="sandbox-buyer@example.com"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-slate-400 text-[10px] uppercase font-black">Password</Label>
+                            <Input
+                              type="password"
+                              value={paypalPassword}
+                              onChange={(e) => setPaypalPassword(e.target.value)}
+                              className="bg-slate-950 border-border text-white text-xs h-9"
+                              placeholder="••••••••"
+                            />
+                          </div>
+
+                          <Button
+                            type="button"
+                            onClick={handleAuthorizePaypal}
+                            className="w-full h-9 text-xs bg-[#0079C1] hover:bg-[#005ea6] text-white font-bold"
+                          >
+                            Log In to Sandbox PayPal Account
+                          </Button>
+                        </div>
+                      </div>
                     ) : (
-                      <>
-                        <ShieldCheck className="w-4 h-4 mr-2" />
-                        <span>Pay $1,500.00 via PayPal</span>
-                      </>
+                      <div className="bg-emerald-500/5 border border-emerald-500/20 p-5 rounded-2xl space-y-3 animate-in zoom-in-95 duration-150">
+                        <div className="flex justify-between items-start border-b border-border/40 pb-2">
+                          <div className="space-y-0.5">
+                            <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wide">✓ Account Connected</span>
+                            <p className="text-xs font-mono font-bold text-slate-800">{paypalEmail}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPaypalAuthorized(false)}
+                            className="text-[9px] text-slate-600 hover:text-slate-800 hover:underline"
+                          >
+                            Change account
+                          </button>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-600">Sandbox Balance</span>
+                          <strong className="text-slate-900">$24,980.00 USD</strong>
+                        </div>
+
+                        <Button
+                          type="submit"
+                          disabled={loading}
+                          className="w-full h-11 text-xs font-bold text-white shadow-lg cursor-pointer transition-all hover:opacity-95"
+                          style={{ backgroundColor: brandColor }}
+                        >
+                          {loading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                              <span>Processing secure Sandbox authorization...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="w-4 h-4 mr-2" />
+                              <span>Pay ${parseFloat(tuitionFee).toFixed(2)} via PayPal</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     )}
-                  </Button>
-                </div>
-              </form>
-            )}
-          </div>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
         </div>
       </Card>
 
@@ -564,15 +654,15 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
           <div className="space-y-3">
             <div className="flex items-center justify-between text-slate-400 text-[11px]">
               <span>Tuition fees</span>
-              <span className="font-mono text-white">$1,450.00</span>
+              <span className="font-mono text-white">${(paymentRequired ? parseFloat(tuitionFee) - (parseFloat(tuitionFee) > 50 ? 50 : 0) : 0).toFixed(2)}</span>
             </div>
             <div className="flex items-center justify-between text-slate-400 text-[11px]">
               <span>Infrastructure tax</span>
-              <span className="font-mono text-white">$50.00</span>
+              <span className="font-mono text-white">${(paymentRequired ? (parseFloat(tuitionFee) > 50 ? 50 : 0) : 0).toFixed(2)}</span>
             </div>
             <div className="border-t border-dashed border-border/85 pt-3 flex items-center justify-between text-xs font-bold text-white">
               <span className="uppercase tracking-wide text-slate-350">Grand Total</span>
-              <span className="text-base font-mono text-emerald-400 font-black">$1,500.00</span>
+              <span className="text-base font-mono text-emerald-400 font-black">${(paymentRequired ? parseFloat(tuitionFee) : 0).toFixed(2)}</span>
             </div>
           </div>
         </div>

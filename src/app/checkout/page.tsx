@@ -75,6 +75,9 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
             }
           }}
           primaryColor={primaryColor}
+          tuitionFee={tenant.settings?.tuitionFee || "1500.00"}
+          paymentRequired={tenant.settings?.paymentRequired !== false}
+          enabledGateways={tenant.settings?.gateways}
         />
         
         <a 

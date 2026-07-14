@@ -77,6 +77,7 @@ export default async function AdminAdmissionsPage() {
         logoutHandler={handleLogout}
         userRole={user.role}
         tenantSubdomain={tenant.subdomain}
+        initialSettings={tenant.settings as any}
       />
     </DashboardLayout>
   );

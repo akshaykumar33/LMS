@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { StudentProfileModal } from "./StudentProfileModal";
 import { ScheduleClassForm } from "./ScheduleClassForm";
 import { FacultyQuickConfigForm } from "./FacultyQuickConfigForm";
@@ -42,6 +43,7 @@ export function FacultyDashboardClient({
   projectSubmissions = [],
   userRole
 }: FacultyDashboardClientProps) {
+  const searchParams = useSearchParams();
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -62,14 +64,11 @@ export function FacultyDashboardClient({
   }, [projectSubmissions]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get("tab");
-      if (tabParam && ["overview", "roster", "schedule", "curriculum", "submissions", "proctoring"].includes(tabParam)) {
-        setActiveTab(tabParam);
-      }
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["overview", "roster", "schedule", "curriculum", "submissions", "proctoring"].includes(tabParam)) {
+      setActiveTab(tabParam);
     }
-  }, []);
+  }, [searchParams]);
 
   const [proctorAttempts, setProctorAttempts] = useState([
     { id: "pr-101", studentName: "Linus Torvalds", quizTitle: "Semiconductor Module 1 Quiz", status: "flagged", infractionCount: 3, lastUpdated: "2026-07-14T10:12:00Z", events: [
@@ -129,11 +128,13 @@ export function FacultyDashboardClient({
 
   // Filter roster students based on search query
   const filteredRoster = roster.filter(s => {
-    const fullName = `${s.firstName} ${s.lastName || ""}`.toLowerCase();
+    const fullName = `${s.firstName || ""} ${s.lastName || ""}`.toLowerCase();
     const query = rosterSearch.toLowerCase();
+    const rollNumber = (s.rollNumber || "").toLowerCase();
+    const email = (s.email || "").toLowerCase();
     return fullName.includes(query) || 
-      s.rollNumber.toLowerCase().includes(query) || 
-      s.email.toLowerCase().includes(query);
+      rollNumber.includes(query) || 
+      email.includes(query);
   });
 
   // Filter attempts based on search query

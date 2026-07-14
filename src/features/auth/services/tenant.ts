@@ -35,6 +35,8 @@ export interface TenantContext {
       maxCourses?: number;
       allowSelfSignup?: boolean;
     };
+    tuitionFee?: string;
+    paymentRequired?: boolean;
   } | null;
 }
 

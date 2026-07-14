@@ -1833,9 +1833,9 @@
         "graduationYear": 2023,
         "experienceMonths": 0
       },
-      "status": "pending",
+      "status": "approved",
       "createdAt": "2026-07-06T15:27:34.417Z",
-      "updatedAt": "2026-07-07T15:27:34.426Z",
+      "updatedAt": "2026-07-14T21:32:54.509Z",
       "deletedAt": null,
       "createdBy": null,
       "updatedBy": null
@@ -43563,6 +43563,16 @@
       "type": "info",
       "isRead": false,
       "createdAt": "2026-07-07T15:27:41.321Z"
+    },
+    {
+      "id": "93e83816-ab65-4a33-be55-ffa3ec5be12e",
+      "tenantId": "4491103f-37e0-44bd-9458-acde5af99a18",
+      "userId": "8d3e576a-d881-4a55-9c11-c2fc476b7a25",
+      "title": "Welcome to the Center of Excellence!",
+      "message": "Your admission application has been approved and your student account is active. Welcome aboard!",
+      "type": "success",
+      "isRead": false,
+      "createdAt": "2026-07-14T21:32:54.749Z"
     }
   ],
   "permissions": [
@@ -63484,6 +63494,17 @@
       "resumeUrl": null,
       "createdAt": "2026-07-14T19:38:49.371Z",
       "updatedAt": "2026-07-14T19:38:49.371Z"
+    },
+    {
+      "id": "980bd3f3-8b5b-4a43-813a-08cd827191bd",
+      "tenantId": "4491103f-37e0-44bd-9458-acde5af99a18",
+      "userId": "8d3e576a-d881-4a55-9c11-c2fc476b7a25",
+      "batchId": "d038c20d-2629-4b48-b448-fc6db026b6ce",
+      "rollNumber": "ME-AMD-26-0027",
+      "admissionNumber": "ADM-AMD-0027",
+      "resumeUrl": null,
+      "createdAt": "2026-07-14T21:32:54.616Z",
+      "updatedAt": "2026-07-14T21:32:54.616Z"
     }
   ],
   "tenants": [
@@ -63576,7 +63597,7 @@
       },
       "status": "active",
       "createdAt": "2026-07-10T09:29:45.404Z",
-      "updatedAt": "2026-07-10T09:29:45.404Z",
+      "updatedAt": "2026-07-14T21:33:13.975Z",
       "deletedAt": null,
       "parentTenantId": "96652527-1198-4bbb-8bc4-30781efaed17",
       "settings": {
@@ -63595,7 +63616,9 @@
           "maxUsers": 500,
           "maxCourses": 100,
           "allowSelfSignup": true
-        }
+        },
+        "paymentRequired": true,
+        "tuitionFee": "1200.00"
       }
     },
     {
@@ -67159,6 +67182,22 @@
       "status": "active",
       "createdAt": "2026-07-14T19:38:49.309Z",
       "updatedAt": "2026-07-14T19:38:49.309Z",
+      "deletedAt": null,
+      "createdBy": null,
+      "updatedBy": null
+    },
+    {
+      "id": "8d3e576a-d881-4a55-9c11-c2fc476b7a25",
+      "tenantId": "4491103f-37e0-44bd-9458-acde5af99a18",
+      "email": "ryan.nelson.39@student.amd.com",
+      "passwordHash": "$2b$10$JXspDChpYhFjPrbIbAKzA.4dMuEX3kogEMzMEXAy7xEdzmnTW97Ne",
+      "firstName": "Ryan",
+      "lastName": "Nelson",
+      "role": "Student",
+      "customRoleId": "299e0851-15ac-4a1d-b83c-36a28ff39229",
+      "status": "active",
+      "createdAt": "2026-07-14T21:32:54.563Z",
+      "updatedAt": "2026-07-14T21:32:54.563Z",
       "deletedAt": null,
       "createdBy": null,
       "updatedBy": null
