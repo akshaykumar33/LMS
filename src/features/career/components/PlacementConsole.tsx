@@ -270,7 +270,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   <div className="absolute -top-12 -right-12 w-24 h-24 rounded-full blur-3xl bg-primary/5 pointer-events-none" />
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                     <div className="space-y-1">
-                      <h2 className="text-base font-extrabold text-white leading-tight">{selectedJob.title}</h2>
+                    <h2 className="text-base font-extrabold text-foreground leading-tight">{selectedJob.title}</h2>
                       <p className="text-[11px] font-semibold text-muted-foreground">
                         {selectedJob.company} <span className="text-border">|</span> <span className="font-normal text-muted-foreground">{selectedJob.location}</span>
                       </p>
@@ -306,18 +306,18 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                     </div>
                   </div>
 
-                  <p className="text-slate-300 leading-relaxed text-[11px] font-medium">{selectedJob.description}</p>
+                  <p className="text-muted-foreground leading-relaxed text-[11px] font-medium">{selectedJob.description}</p>
                   
                   <div className="space-y-1.5 bg-muted/15 p-4 rounded-xl border border-border/40">
                     <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground block">Candidate Requirements</span>
-                    <p className="text-slate-200 font-medium leading-relaxed text-[11px]">{selectedJob.requirements}</p>
+                    <p className="text-foreground/90 font-medium leading-relaxed text-[11px]">{selectedJob.requirements}</p>
                   </div>
                 </div>
 
                 {/* Applicants Section */}
                 <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-6 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-3">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-white">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-foreground">
                       Applications ({selectedApplicants.length})
                     </h3>
 
@@ -372,7 +372,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                                     <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 text-primary flex items-center justify-center font-bold text-[9px]">
                                       {initials}
                                     </div>
-                                    <span className="font-extrabold text-slate-200 text-[11px]">{app.firstName} {app.lastName}</span>
+                                    <span className="font-extrabold text-foreground text-[11px]">{app.firstName} {app.lastName}</span>
                                   </div>
                                 </td>
                                 <td className="p-3.5 font-mono text-[11px] text-muted-foreground">{app.rollNumber}</td>
@@ -401,10 +401,10 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                                         disabled={userRole === "Guest"}
                                         onValueChange={(val) => handleStatusUpdate(app.applicationId, val)}
                                       >
-                                        <SelectTrigger className="h-7 w-auto text-[10px] bg-transparent border-border rounded-lg text-slate-200 font-bold px-2">
+                                        <SelectTrigger className="h-7 w-auto text-[10px] bg-transparent border-border rounded-lg text-foreground font-bold px-2">
                                           <SelectValue />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                        <SelectContent className="bg-popover border-border text-popover-foreground">
                                           <SelectItem value="applied" className="text-xs">Applied</SelectItem>
                                           <SelectItem value="interviewing" className="text-xs">Interviewing</SelectItem>
                                           <SelectItem value="offered" className="text-xs">Offer Released</SelectItem>
@@ -440,7 +440,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
         <form onSubmit={handleCreateJob}>
           <Card className="border-border max-w-xl shadow-sm">
             <CardContent className="p-6 space-y-4">
-              <h3 className="text-sm font-extrabold text-white mb-2">➕ Post a New Opportunity</h3>
+              <h3 className="text-sm font-extrabold text-foreground mb-2">➕ Post a New Opportunity</h3>
 
               {formMsg && (
                 <div className={`p-3.5 rounded-lg text-xs font-semibold ${formMsg.type === "success" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
@@ -504,7 +504,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-white resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
+                  className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
                   required
                 />
               </div>
@@ -516,7 +516,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   value={requirements}
                   onChange={(e) => setRequirements(e.target.value)}
                   rows={3}
-                  className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-white resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
+                  className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
                   required
                 />
               </div>
@@ -537,9 +537,9 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <form
             onSubmit={handleUpdateJob}
-            className="bg-slate-950 border border-border p-6 rounded-2xl max-w-lg w-full space-y-4 text-foreground shadow-2xl"
+            className="bg-card border border-border p-6 rounded-2xl max-w-lg w-full space-y-4 text-foreground shadow-2xl"
           >
-            <h3 className="text-sm font-bold text-white mb-2">💼 Edit Job Posting</h3>
+            <h3 className="text-sm font-bold text-foreground mb-2">💼 Edit Job Posting</h3>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -549,7 +549,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   required
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="h-10 text-xs text-white"
+                  className="h-10 text-xs text-foreground"
                 />
               </div>
               <div className="space-y-2">
@@ -559,7 +559,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   required
                   value={editCompany}
                   onChange={(e) => setEditCompany(e.target.value)}
-                  className="h-10 text-xs text-white"
+                  className="h-10 text-xs text-foreground"
                 />
               </div>
             </div>
@@ -572,7 +572,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   required
                   value={editLocation}
                   onChange={(e) => setEditLocation(e.target.value)}
-                  className="h-10 text-xs text-white"
+                  className="h-10 text-xs text-foreground"
                 />
               </div>
               <div className="space-y-2">
@@ -581,7 +581,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   type="text"
                   value={editSalary}
                   onChange={(e) => setEditSalary(e.target.value)}
-                  className="h-10 text-xs text-white"
+                  className="h-10 text-xs text-foreground"
                 />
               </div>
             </div>
@@ -593,7 +593,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                 rows={4}
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
-                className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-white resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
+                className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
               />
             </div>
 
@@ -604,7 +604,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                 rows={3}
                 value={editRequirements}
                 onChange={(e) => setEditRequirements(e.target.value)}
-                className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-white resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
+                className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
               />
             </div>
 

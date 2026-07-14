@@ -1,3 +1,29 @@
+import * as fs from "fs";
+import * as path from "path";
+
+function loadEnv() {
+  const envPath = path.resolve(process.cwd(), ".env");
+  if (fs.existsSync(envPath)) {
+    const env = fs.readFileSync(envPath, "utf-8");
+    for (const line of env.split("\n")) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let val = match[2] || "";
+        if (val.startsWith('"') && val.endsWith('"')) {
+          val = val.substring(1, val.length - 1);
+        } else if (val.startsWith("'") && val.endsWith("'")) {
+          val = val.substring(1, val.length - 1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  }
+}
+loadEnv();
+
 import { db } from "./db";
 import * as schema from "./schema";
 import bcrypt from "bcryptjs";
@@ -608,26 +634,26 @@ You must submit:
     const libraryAssets = [
       {
         tenantId: tenant.id,
-        title: "CMOS VLSI Design: A Circuits and Systems Perspective (4th Edition)",
+        title: "CMOS VLSI Design Lecture Handbook",
         author: "Neil Weste & David Harris",
-        description: "The classic reference textbook covering CMOS circuit design, VLSI layouts, layout rules, layout constraints, timing analysis, and hardware modeling.",
-        fileUrl: "https://www.rose-hulman.edu/~herring/ece300/Weste&Harris_4th.pdf",
+        description: "The reference guide covering CMOS transistor design, VLSI layouts, cell library configurations, and timing optimizations.",
+        fileUrl: "https://inst.eecs.berkeley.edu/~ee241/sp06/lectures/weste.pdf",
         category: "book",
       },
       {
         tenantId: tenant.id,
-        title: "FinFETs and Other Multi-Gate Transistors",
+        title: "FinFET Device Physics and Chapter 1 Modeling",
         author: "J.P. Colinge",
-        description: "An advanced reference detailing 3D multi-gate transistors, sub-threshold leakage controls, electrostatic gate tuning, and nanotechnology process limits.",
-        fileUrl: "https://link.springer.com/book/10.1007/978-0-387-71751-7",
+        description: "An advanced research chapter detailing 3D multi-gate structure controls, sub-threshold leakage, and electrostatic gate tuning.",
+        fileUrl: "https://www.eetimes.com/wp-content/uploads/media/1179720/finfet_book_ch1.pdf",
         category: "book",
       },
       {
         tenantId: tenant.id,
-        title: "EUV Lithography Systems & Technical Manual",
-        author: "Intel Lithography Center of Excellence",
-        description: "Cleanroom processes, tin plasma light sources, reflective mirror alignment, high-NA optical calculations, and defect mitigation procedures.",
-        fileUrl: "https://www.intel.com/content/www/us/en/newsroom/resources/euvi-technology.html",
+        title: "ASML EUV Lithography Corporate Tech Specification Sheet",
+        author: "ASML Lithography Operations Group",
+        description: "ASML EUV machine parameters, NA calculations, tin plasma source setup, reflective mirror geometry, and cleanroom air constraints.",
+        fileUrl: "https://www.asml.com/-/media/asml/files/investors/shareholder-information/asml_fact_sheet_2023.pdf",
         category: "manual",
       },
       {
@@ -635,12 +661,12 @@ You must submit:
         title: "Sub-3nm Gate-All-Around (GAA) Transistor Performance Study",
         author: "Dr. Grace Hopper, Steve Mentor",
         description: "A research publication investigating structural parasitics, device channel lengths, and timing performance comparing FinFET vs GAA nanosheets.",
-        fileUrl: "https://arxiv.org/abs/2103.11192",
+        fileUrl: "https://arxiv.org/pdf/2103.11192.pdf",
         category: "research_paper",
       },
       {
         tenantId: tenant.id,
-        title: "VLSI Layout Design & DRC Verification Sheet",
+        title: "VLSI Layout Design & DRC Verification Worksheet",
         author: "Prof. Anantha Chandrakasan",
         description: "Hands-on worksheet detailing design rule checks (DRC), layout spacing constraints, metal layer routing practices, and parasitics extraction exercises.",
         fileUrl: "https://www.ece.ucsb.edu/~canyon/ece124a/drc_rules_lab.pdf",
@@ -648,11 +674,19 @@ You must submit:
       },
       {
         tenantId: tenant.id,
-        title: "EUV Lithography Resolution & NA Practice Problems",
-        author: "ASML Lithography Operations Team",
-        description: "Practice calculations for numerical aperture (NA), resolution bounds, depth of focus (DoF), and tin plasma light reflectivity calculations.",
-        fileUrl: "https://www.asml.com/-/media/asml/files/technology/euv-lithography-equations-handout.pdf",
+        title: "Transistor Parasitics Excel Spreadsheet Template",
+        author: "TSMC Operations team",
+        description: "Excel model grid to calculate source/drain capacitance, gate oxide charge limits, and propagation delay factors.",
+        fileUrl: "https://file-examples.com/wp-content/uploads/2017/02/file_example_XLS_10.xls",
         category: "worksheet",
+      },
+      {
+        tenantId: tenant.id,
+        title: "Semiconductor Cleanroom Protocol Briefing (Audio)",
+        author: "Prof. Max Planck",
+        description: "An audio podcast overview of contamination controls, cleanroom gowning steps, HEPA filter air flows, and photoresist exposure safety protocols.",
+        fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        category: "manual",
       }
     ];
     await db.insert(schema.digitalLibrary).values(libraryAssets);
@@ -686,11 +720,11 @@ You must submit:
         order: 2,
       }).returning();
 
-      // Module 1 Lessons
+      // Module 1 Lessons (with ALL multimedia types seeded)
       const mod1Lessons = [
         {
           moduleId: mod1.id,
-          title: "1.1 Technical Intro & Scope Overview",
+          title: "1.1 Technical Intro & Scope Overview (Video)",
           content: `Introduction to the core microarchitecture design challenges. This lesson covers key industry requirements, technology nodes (sub-5nm), and advanced logic library characterization. We will explore the theoretical boundaries of physical scaling.`,
           contentType: "video",
           videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
@@ -698,14 +732,14 @@ You must submit:
         },
         {
           moduleId: mod1.id,
-          title: "1.2 Theoretical Physics & Substrate Chemistry",
+          title: "1.2 Theoretical Physics & Substrate Chemistry (Text)",
           content: `Detailed documentation on silicon wafer crystal structures, epitaxial growth techniques, and dopant diffusion models. This write-up outlines the chemical equations governing high-K metal gates (HKMG) and shallow trench isolation (STI) boundaries.`,
           contentType: "text",
           order: 2,
         },
         {
           moduleId: mod1.id,
-          title: "1.3 Live Seminar: Advanced Physical Modeling",
+          title: "1.3 Live Seminar: Advanced Physical Modeling (Live Class)",
           content: `Real-time interactive seminar covering multi-gate architectures (FinFETs, GAA nanosheets). The session includes a live whiteboard demonstration on gate pitch scaling and parasitics mitigation.`,
           contentType: "live_class",
           zoomMeetingId: "482 9182 3912",
@@ -714,11 +748,35 @@ You must submit:
         },
         {
           moduleId: mod1.id,
-          title: "1.4 Timing Analysis & Static Slack Calculation",
+          title: "1.4 Timing Analysis & Static Slack Calculation (PDF Document)",
           content: `Deep technical lecture on setup and hold constraints. Learn about timing paths, clock jitter, skew budgets, and how cell delay is calculated using Non-Linear Delay Models (NLDM) and Composite Current Source (CCS) models.`,
           contentType: "text",
-          fileUrl: "https://www.analog.com/media/en/training-seminars/tutorials/MT-001.pdf",
+          fileUrl: "https://www.ece.ucsb.edu/~canyon/ece124a/drc_rules_lab.pdf",
           order: 4,
+        },
+        {
+          moduleId: mod1.id,
+          title: "1.5 Cleanroom Protocol Podcast Briefing (Audio Lecture)",
+          content: `An audio podcast overview of contamination controls, cleanroom gowning steps, HEPA filter air flows, and photoresist exposure safety protocols.`,
+          contentType: "audio",
+          videoUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+          order: 5,
+        },
+        {
+          moduleId: mod1.id,
+          title: "1.6 DRC Parametric Sizing Sheet (Interactive Excel)",
+          content: `Interactive physical verification sizing table. Adjust the transistor channel parameters in the grid cells to test Design Rule Check (DRC) threshold tolerances.`,
+          contentType: "excel",
+          fileUrl: "https://file-examples.com/wp-content/uploads/2017/02/file_example_XLS_10.xls",
+          order: 6,
+        },
+        {
+          moduleId: mod1.id,
+          title: "1.7 Interactive SCORM Package (Interactive Lesson)",
+          content: `This is a simulated SCORM course module. Interacting with the content records student score metrics automatically.`,
+          contentType: "scorm",
+          fileUrl: "https://scorm.com/wp-content/assets/toy-store/ToyStoreScorm12.zip",
+          order: 7,
         }
       ];
 

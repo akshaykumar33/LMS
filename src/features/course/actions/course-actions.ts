@@ -423,11 +423,120 @@ export async function createCourseAction(formData: { name: string; code: string;
   }
 }
 
-export async function askAiAction(lessonId: string, query: string) {
+export async function askAiAction(lessonId: string, query: string, botType: "tutor" | "book" | "score" = "tutor") {
   try {
     const user = await requireAuth();
     if (!user) {
       return { success: false, error: "UNAUTHORIZED" };
+    }
+
+    if (botType === "book") {
+      const items = await db.query.digitalLibrary.findMany({
+        where: eq(schema.digitalLibrary.tenantId, user.tenantId),
+      });
+
+      const normalizedQuery = query.toLowerCase();
+      const matched = items.filter(item => 
+        item.title.toLowerCase().includes(normalizedQuery) ||
+        (item.author && item.author.toLowerCase().includes(normalizedQuery)) ||
+        (item.description && item.description.toLowerCase().includes(normalizedQuery)) ||
+        item.category.toLowerCase().includes(normalizedQuery)
+      );
+
+      if (matched.length === 0) {
+        return {
+          success: true,
+          data: {
+            text: `📚 **Book Bot Librarian**: I searched the digital library catalog for "${query}" but found no matching titles.
+
+Here are some general resources available in your tenant library:
+${items.slice(0, 3).map(item => `- **${item.title}** by ${item.author || "Unknown"} (${item.category}) [Download Link](${item.fileUrl})`).join("\n")}
+
+Try searching for terms like "CMOS", "FinFET", "EUV", or "Lithography".`
+          }
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          text: `📚 **Book Bot Librarian**: I found ${matched.length} matching resources in the digital library matching your query "${query}":
+
+${matched.map(item => `• **${item.title}**
+  *Author*: ${item.author || "Unknown"} | *Category*: ${item.category}
+  *Overview*: ${item.description || "No description provided."}
+  🔗 [Access Resource Document](${item.fileUrl})`).join("\n\n")}
+
+Let me know if you would like me to explain any of these references or summarize their contents!`
+        }
+      };
+    }
+
+    if (botType === "score") {
+      const student = await db.query.students.findFirst({
+        where: eq(schema.students.userId, user.userId),
+        with: {
+          batch: true,
+        }
+      });
+
+      if (!student) {
+        return {
+          success: true,
+          data: {
+            text: `🎯 **Score Bot**: I could not retrieve a student score profile for your user role (${user.role}). Score Bot analytics are only active for enrolled student profiles.`
+          }
+        };
+      }
+
+      const attempts = await db.query.quizAttempts.findMany({
+        where: eq(schema.quizAttempts.studentId, student.id),
+      });
+
+      const progress = await db.query.lessonProgress.findMany({
+        where: eq(schema.lessonProgress.studentId, student.id),
+      });
+
+      const totalLessons = 6;
+      const completedCount = progress.filter(p => p.completed).length;
+      const progressPercent = Math.round((completedCount / totalLessons) * 100);
+
+      const totalQuizzes = attempts.length;
+      const passedQuizzes = attempts.filter(a => a.passed).length;
+      const averageScore = totalQuizzes > 0 
+        ? Math.round(attempts.reduce((sum, a) => sum + a.score, 0) / totalQuizzes) 
+        : 0;
+
+      const totalInfractions = attempts.reduce((sum, a) => sum + (a.infractionCount || 0), 0);
+      const isFlagged = attempts.some(a => a.isFlaggedForAudit);
+
+      let recommendation = "Keep moving through your study modules! You are doing great.";
+      if (averageScore > 0 && averageScore < 70) {
+        recommendation = "Your average quiz score is below 70%. We recommend using the AI Tutor Bot to review the Timing Analysis & Static Slack lessons.";
+      } else if (completedCount < 3) {
+        recommendation = "You have completed less than 3 lessons. Focus on finishing Module 1 lessons and taking the foundations assessment.";
+      } else if (totalInfractions > 1) {
+        recommendation = "Warning: Multiple proctoring infractions detected during your assessments. Please ensure your camera remains aligned to avoid flags.";
+      }
+
+      const scoreReport = `🎯 **Score Bot Report Card**
+--------------------------------------------------
+👤 **Student**: ${user.firstName} ${user.lastName || ""}
+🎫 **Roll Number**: ${student.rollNumber}
+📈 **Roadmap Progress**: ${completedCount}/${totalLessons} lessons completed (${progressPercent}%)
+📝 **Quizzes Attempted**: ${totalQuizzes} | Passed: ${passedQuizzes}
+📊 **Average Quiz Score**: ${averageScore}%
+🛡️ **Proctor Integrity Status**: ${totalInfractions} warnings (${isFlagged ? "⚠️ FLAG AUDIT" : "✅ CLEAR"})
+
+💡 **AI Coach Recommendation**:
+${recommendation}`;
+
+      return {
+        success: true,
+        data: {
+          text: scoreReport
+        }
+      };
     }
 
     const lesson = await db.query.lessons.findFirst({

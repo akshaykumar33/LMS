@@ -154,6 +154,7 @@ export function WorkspaceClient({
   const [penWidth, setPenWidth] = useState(3);
   
   // AI Chat state
+  const [activeBot, setActiveBot] = useState<"tutor" | "book" | "score">("tutor");
   const [aiQuery, setAiQuery] = useState("");
   const [aiMessages, setAiMessages] = useState<Array<{ sender: "user" | "ai"; text: string; rag?: any[] }>>([
     { sender: "ai", text: "Hello! I am your AI Semiconductor Assistant. Ask me anything about today's lesson, or use the shortcuts below to summarize or quiz yourself." }
@@ -162,6 +163,24 @@ export function WorkspaceClient({
   const [aiLoading, setAiLoading] = useState(false);
   const [flashcards, setFlashcards] = useState<Array<{ q: string; a: string; showAnswer?: boolean }>>([]);
   const [customQuiz, setCustomQuiz] = useState<Array<{ q: string; opts: string[]; answer: number; selected?: number }>>([]);
+
+  useEffect(() => {
+    if (activeBot === "tutor") {
+      setAiMessages([
+        { sender: "ai", text: "Hello! I am your AI Semiconductor Assistant. Ask me anything about today's lesson, or use the shortcuts below to summarize or quiz yourself." }
+      ]);
+    } else if (activeBot === "book") {
+      setAiMessages([
+        { sender: "ai", text: "Hello! I am your AI Book Bot Librarian. I can search through our digital library textbooks, manuals, and worksheets. Try typing 'CMOS' or 'EUV' or 'transistor' to find reference links." }
+      ]);
+    } else if (activeBot === "score") {
+      setAiMessages([
+        { sender: "ai", text: "Hello! I am your AI Score Bot Coach. I can analyze your roadmap progress, average quiz score grades, and proctoring integrity record. Click 'Analyze Score' below to pull your progress audit report card!" }
+      ]);
+    }
+    setFlashcards([]);
+    setCustomQuiz([]);
+  }, [activeBot]);
 
   // Chat & Polls state
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; user: string; text: string; time: string; rx?: string }>>([
@@ -462,7 +481,7 @@ export function WorkspaceClient({
     setAiLoading(true);
 
     try {
-      const res = await askAiAction(activeLesson.id, queryText);
+      const res = await askAiAction(activeLesson.id, queryText, activeBot);
       if (res.success && res.data) {
         const payload = res.data;
         
@@ -699,6 +718,98 @@ export function WorkspaceClient({
                       }
                     }}
                   />
+                </div>
+              )}
+
+              {activeLesson.contentType === "audio" && activeLesson.videoUrl && (
+                <div className="py-6 px-8 text-center bg-gradient-to-tr from-card to-background space-y-4 border-b border-border">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 text-primary text-xl flex items-center justify-center mx-auto">
+                    🎧
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black bg-primary/10 border border-primary/20 px-2 py-0.5 rounded text-primary uppercase tracking-widest">
+                      Audio Lecture Podcast
+                    </span>
+                    <h3 className="text-sm font-extrabold text-foreground">{activeLesson.title}</h3>
+                  </div>
+                  <div className="max-w-md mx-auto">
+                    <audio 
+                      src={activeLesson.videoUrl} 
+                      controls 
+                      className="w-full"
+                    />
+                  </div>
+                  {/* Waveform graphic visualization */}
+                  <div className="flex justify-center items-end gap-1 h-8 max-w-[200px] mx-auto select-none">
+                    <span className="w-1 bg-primary/40 rounded-full h-4 animate-bounce" style={{ animationDelay: '0.1s' }} />
+                    <span className="w-1 bg-primary/60 rounded-full h-7 animate-bounce" style={{ animationDelay: '0.3s' }} />
+                    <span className="w-1 bg-primary rounded-full h-5 animate-bounce" style={{ animationDelay: '0.5s' }} />
+                    <span className="w-1 bg-primary/70 rounded-full h-8 animate-bounce" style={{ animationDelay: '0.2s' }} />
+                    <span className="w-1 bg-primary/50 rounded-full h-4 animate-bounce" style={{ animationDelay: '0.4s' }} />
+                  </div>
+                </div>
+              )}
+
+              {(activeLesson.contentType === "excel" || activeLesson.contentType === "sheets") && (
+                <div className="p-4 bg-card/60 border-b border-border flex flex-col items-stretch space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[9px] font-black bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
+                        Interactive Spreadsheet Workspace
+                      </span>
+                      <h3 className="text-xs font-black text-foreground mt-1">{activeLesson.title}</h3>
+                    </div>
+                    {activeLesson.fileUrl && (
+                      <a 
+                        href={activeLesson.fileUrl} 
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[9px] font-black uppercase text-primary tracking-wider hover:underline flex items-center gap-1"
+                        style={{ color: primaryColor }}
+                      >
+                        📂 Open Excel Sheet
+                      </a>
+                    )}
+                  </div>
+                  
+                  {/* Spreadsheet Grid Component */}
+                  <div className="border border-border rounded-xl overflow-hidden bg-background">
+                    <table className="w-full text-left border-collapse text-[10px]">
+                      <thead>
+                        <tr className="bg-muted/30 text-muted-foreground border-b border-border font-bold">
+                          <th className="p-2 border-r border-border text-center w-8 bg-muted/10"></th>
+                          <th className="p-2 border-r border-border w-24">Parameter</th>
+                          <th className="p-2 border-r border-border w-16">Target</th>
+                          <th className="p-2 border-r border-border w-16">Value</th>
+                          <th className="p-2 border-r border-border w-16">Tolerance</th>
+                          <th className="p-2">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { id: 1, param: "Fin Width (W_fin)", target: "8nm", val: "7.92nm", tol: "±0.1nm", status: "PASS" },
+                          { id: 2, param: "Gate Length (L_g)", target: "14nm", val: "14.05nm", tol: "±0.2nm", status: "PASS" },
+                          { id: 3, param: "EOT (Oxide Thickness)", target: "0.9nm", val: "0.89nm", tol: "±0.05nm", status: "PASS" },
+                          { id: 4, param: "Threshold Voltage (V_th)", target: "0.28V", val: "0.274V", tol: "±0.02V", status: "PASS" },
+                        ].map((row) => (
+                          <tr key={row.id} className="border-b border-border hover:bg-muted/10">
+                            <td className="p-2 border-r border-border text-center font-bold text-muted-foreground bg-muted/10">{row.id}</td>
+                            <td className="p-2 border-r border-border font-extrabold text-foreground">{row.param}</td>
+                            <td className="p-2 border-r border-border text-muted-foreground font-semibold">{row.target}</td>
+                            <td className="p-2 border-r border-border font-mono">
+                              <input 
+                                type="text"
+                                defaultValue={row.val}
+                                className="w-full bg-transparent focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 border-none text-foreground font-mono"
+                              />
+                            </td>
+                            <td className="p-2 border-r border-border text-muted-foreground">{row.tol}</td>
+                            <td className="p-2 font-black text-emerald-400">{row.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -1147,8 +1258,45 @@ export function WorkspaceClient({
         >
           <div className="p-4 border-b border-border/80 flex items-center justify-between shrink-0">
             <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-primary" /> AI Tutor Assistant
+              <Sparkles className="w-3.5 h-3.5 text-primary" /> AI Assistant Console
             </span>
+          </div>
+
+          {/* Bot Tabs Selector */}
+          <div className="flex border-b border-border bg-muted/20 shrink-0">
+            <button
+              onClick={() => setActiveBot("tutor")}
+              className={`flex-1 py-2 text-[9px] font-black uppercase tracking-wider text-center border-b-2 transition-all ${
+                activeBot === "tutor"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+              style={activeBot === "tutor" ? { borderColor: primaryColor, color: primaryColor } : undefined}
+            >
+              🤖 Tutor
+            </button>
+            <button
+              onClick={() => setActiveBot("book")}
+              className={`flex-1 py-2 text-[9px] font-black uppercase tracking-wider text-center border-b-2 transition-all ${
+                activeBot === "book"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+              style={activeBot === "book" ? { borderColor: primaryColor, color: primaryColor } : undefined}
+            >
+              📚 Book
+            </button>
+            <button
+              onClick={() => setActiveBot("score")}
+              className={`flex-1 py-2 text-[9px] font-black uppercase tracking-wider text-center border-b-2 transition-all ${
+                activeBot === "score"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+              style={activeBot === "score" ? { borderColor: primaryColor, color: primaryColor } : undefined}
+            >
+              🎯 Score
+            </button>
           </div>
           
           {/* Chat output */}
@@ -1272,7 +1420,13 @@ export function WorkspaceClient({
             {aiLoading && (
               <div className="flex items-center justify-center p-3 text-muted-foreground text-xs gap-2">
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Analyzing lesson transcript...</span>
+                <span>
+                  {activeBot === "tutor" 
+                    ? "Analyzing lesson transcript..." 
+                    : activeBot === "book" 
+                      ? "Searching digital library catalog..." 
+                      : "Calculating score analytics report..."}
+                </span>
               </div>
             )}
           </div>
@@ -1280,26 +1434,64 @@ export function WorkspaceClient({
           {/* AI Action Shortcuts */}
           <div className="p-3 bg-secondary/15 border-t border-border space-y-2 shrink-0">
             <span className="text-[8px] font-black uppercase text-muted-foreground tracking-wider block mb-1">Quick Tools</span>
-            <div className="grid grid-cols-3 gap-1.5">
-              <button 
-                onClick={() => askAI("Summarize Lesson")}
-                className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
-              >
-                Summary
-              </button>
-              <button 
-                onClick={() => askAI("Generate Flashcards")}
-                className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
-              >
-                Flashcards
-              </button>
-              <button 
-                onClick={() => askAI("Quiz me")}
-                className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
-              >
-                Quiz Me
-              </button>
-            </div>
+            
+            {activeBot === "tutor" && (
+              <div className="grid grid-cols-3 gap-1.5">
+                <button 
+                  onClick={() => askAI("Summarize Lesson")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
+                >
+                  Summary
+                </button>
+                <button 
+                  onClick={() => askAI("Generate Flashcards")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
+                >
+                  Flashcards
+                </button>
+                <button 
+                  onClick={() => askAI("Quiz me")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
+                >
+                  Quiz Me
+                </button>
+              </div>
+            )}
+
+            {activeBot === "book" && (
+              <div className="grid grid-cols-3 gap-1.5">
+                <button 
+                  onClick={() => askAI("CMOS VLSI")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
+                >
+                  CMOS Books
+                </button>
+                <button 
+                  onClick={() => askAI("Lithography")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
+                >
+                  Lithography
+                </button>
+                <button 
+                  onClick={() => askAI("FinFET")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
+                >
+                  FinFET Docs
+                </button>
+              </div>
+            )}
+
+            {activeBot === "score" && (
+              <div className="flex gap-1.5">
+                <button 
+                  onClick={() => askAI("Show my score report card")}
+                  className="flex-1 py-1.5 text-[9px] font-black uppercase tracking-wider border border-border bg-card hover:bg-secondary rounded-lg text-center text-primary"
+                  style={{ color: primaryColor }}
+                >
+                  📊 Run Performance Score Audit
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Input */}
@@ -1312,7 +1504,13 @@ export function WorkspaceClient({
           >
             <input
               type="text"
-              placeholder="Ask about this lesson..."
+              placeholder={
+                activeBot === "tutor" 
+                  ? "Ask about this lesson..." 
+                  : activeBot === "book" 
+                    ? "Search books, authors, categories..." 
+                    : "Ask score bot coach..."
+              }
               value={aiQuery}
               onChange={(e) => setAiQuery(e.target.value)}
               className="flex-1 bg-secondary/20 border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground focus:outline-none"
