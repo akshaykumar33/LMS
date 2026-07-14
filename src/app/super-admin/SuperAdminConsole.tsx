@@ -74,6 +74,12 @@ interface SuperAdminConsoleProps {
 
 export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsoleProps) {
   const [tenantsList, setTenantsList] = useState<Tenant[]>(initialTenants);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -348,13 +354,13 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
     return (
       <div className={`space-y-4 ${depth > 0 ? "ml-8 border-l border-border/80 pl-6 mt-3 relative" : ""}`}>
         {children.map(t => {
-          const isLocal = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
-          const isVercel = typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app");
+          const isLocal = mounted && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
+          const isVercel = mounted && window.location.hostname.endsWith(".vercel.app");
           const portalUrl = isLocal
             ? `http://${t.subdomain}.localhost:3000`
             : isVercel
             ? `/?tenant=${t.subdomain}`
-            : `https://${t.subdomain}.${typeof window !== "undefined" ? window.location.host : ""}`;
+            : `https://${t.subdomain}.${mounted ? window.location.host : ""}`;
 
           return (
             <div key={t.id} className="relative group">
@@ -562,13 +568,13 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                     ) : (
                       filteredTenants.map((t) => {
                         const isParent = false;
-                        const isLocal = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
-                        const isVercel = typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app");
+                        const isLocal = mounted && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
+                        const isVercel = mounted && window.location.hostname.endsWith(".vercel.app");
                         const portalUrl = isLocal
                           ? `http://${t.subdomain}.localhost:3000`
                           : isVercel
                           ? `/?tenant=${t.subdomain}`
-                          : `https://${t.subdomain}.${typeof window !== "undefined" ? window.location.host : ""}`;
+                          : `https://${t.subdomain}.${mounted ? window.location.host : ""}`;
 
                         return (
                           <tr key={t.id} className="hover:bg-muted/5 transition-colors">

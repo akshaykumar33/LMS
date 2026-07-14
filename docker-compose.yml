@@ -6,9 +6,9 @@ services:
     image: postgres:15-alpine
     container_name: coe_postgres
     environment:
-      POSTGRES_DB: lms_db
-      POSTGRES_USER: coe_admin
-      POSTGRES_PASSWORD: SecretPassword123
+      POSTGRES_DB: lms_coe_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
     ports:
       - "5433:5432"
     volumes:
@@ -23,7 +23,7 @@ services:
       dockerfile: Dockerfile
     container_name: coe_app
     environment:
-      - DATABASE_URL=postgresql://coe_admin:SecretPassword123@postgres:5432/lms_db
+      - DATABASE_URL=postgresql://postgres:postgres123@127.0.0.1:5432/lms_coe_db
       - USE_JSON_DB=false
       - NODE_ENV=production
       - PORT=3000
