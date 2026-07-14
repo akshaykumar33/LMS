@@ -9,7 +9,7 @@ interface BrandLogoProps {
 }
 
 export function BrandLogo({ subdomain, className = "h-8 w-auto", href, iconOnly = false }: BrandLogoProps) {
-  const normSubdomain = subdomain.toLowerCase();
+  const normSubdomain = subdomain.toLowerCase() === "vti" ? "vt" : subdomain.toLowerCase();
 
   const renderLogo = () => {
     if (normSubdomain === "wysbryx" || normSubdomain === "localhost" || normSubdomain === "") {
@@ -17,9 +17,8 @@ export function BrandLogo({ subdomain, className = "h-8 w-auto", href, iconOnly 
         <div className={`flex items-center gap-1.5 font-sans ${className}`}>
           <svg className="w-6 h-6 shrink-0 animate-pulse" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="2" y="2" width="28" height="28" rx="7" fill="#f97316" />
-            <path d="M9 22L16 8L23 22" stroke="#FFFFFF" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M13 16.5H19" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
-            <circle cx="16" cy="15" r="1.5" fill="#FFFFFF" />
+            <path d="M7 11L11.5 22L16 14L20.5 22L25 11" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="16" cy="11" r="1.5" fill="#FFFFFF" />
           </svg>
           {!iconOnly && (
             <span className="text-xs font-extrabold text-foreground uppercase tracking-wider">

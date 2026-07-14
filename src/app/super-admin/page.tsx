@@ -22,16 +22,19 @@ export default async function SuperAdminPage() {
   );
 
 
-  const tenant = await db.query.tenants.findFirst({
+  const userTenant = await db.query.tenants.findFirst({
     where: eq(tenants.id, dbUser?.tenantId || ""),
   });
 
+  const activeTenantCtx = await getTenantContext();
+  const tenant = activeTenantCtx || userTenant;
+
   // If user is an Owner, only allow access if their tenant has child sub-tenants
-  if (user.role === "Owner" && tenant) {
+  if (user.role === "Owner" && userTenant) {
     const childTenants = await db.query.tenants.findMany({
       where: and(
         eq(tenants.status, "active"),
-        eq(tenants.parentTenantId, tenant.id)
+        eq(tenants.parentTenantId, userTenant.id)
       ),
     });
     if (childTenants.length === 0) {
