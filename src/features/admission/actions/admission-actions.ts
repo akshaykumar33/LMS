@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getTenantContext } from "@/features/auth/services/tenant";
 import { requireAuth, verifyWriteAccess } from "@/features/auth/services/session";
 import { AdmissionService } from "../services/admission-service";
+import { createStripePaymentIntent } from "../services/stripe-service";
 import { AdmissionRepository } from "../repository/admission-repository";
 import { admissionApplicationSchema, paymentSubmitSchema, documentUploadSchema } from "../schemas/admission-schemas";
 import { db } from "@/db/db";
@@ -42,6 +43,21 @@ export async function submitAdmissionApplicationAction(formData: any) {
     fs.appendFileSync(logFile, `[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication\n`);
     const app = await AdmissionService.submitApplication(tenant.id, parsed.data);
     fs.appendFileSync(logFile, `[ADMISSION ACTION] submitApplication success: ${app.id}\n`);
+
+    try {
+      const { sendTenantEmail } = require("@/features/notification/services/mail-service");
+      sendTenantEmail(tenant.id, {
+        to: parsed.data.email,
+        subject: `Application Received - ${tenant.name}`,
+        html: `<p>Hi ${parsed.data.firstName},</p>
+               <p>Thank you for submitting your admission application to ${tenant.name}.</p>
+               <p>We are reviewing your application and will get back to you shortly.</p>
+               <p>Best regards,<br/>Admissions Team</p>`
+      }).catch((err: any) => console.error("Failed to send submission email:", err));
+    } catch (e) {
+      console.error("Failed to trigger submission email dispatch:", e);
+    }
+
     return { success: true, applicationId: app.id };
   } catch (error: any) {
     fs.appendFileSync(logFile, `[ADMISSION ACTION] CATCH ERROR: ${error.message || error}\nStack: ${error.stack}\n`);
@@ -157,6 +173,20 @@ export async function approveApplicationAction(applicationId: string) {
       console.error("Failed to trigger approval notification:", e);
     }
 
+    try {
+      const { sendTenantEmail } = require("@/features/notification/services/mail-service");
+      sendTenantEmail(user.tenantId, {
+        to: result.user.email,
+        subject: `Application Approved - Welcome to ${user.tenantId}`,
+        html: `<p>Hi ${result.user.firstName},</p>
+               <p>Congratulations! Your admission application has been approved.</p>
+               <p>You can now log in and access your portal to get started.</p>
+               <p>Best regards,<br/>Admissions Team</p>`
+      }).catch((err: any) => console.error("Failed to send approval email:", err));
+    } catch (e) {
+      console.error("Failed to trigger approval email dispatch:", e);
+    }
+
     revalidatePath("/admin/admissions");
     revalidatePath("/dashboard");
     return { success: true, ...result };
@@ -253,6 +283,45 @@ export async function registerStudentAction(formData: any) {
 import * as schema from "@/db/schema";
 
 /**
+ * Public Action: Generate Stripe Payment Intent for student application fee.
+ */
+export async function createStripePaymentIntentAction(applicationId: string) {
+  const tenant = await getTenantContext();
+  if (!tenant) {
+    return { success: false, error: "No tenant context resolved." };
+  }
+
+  try {
+    const app = await AdmissionRepository.findById(tenant.id, applicationId);
+    if (!app) {
+      return { success: false, error: "Application not found." };
+    }
+
+    if (app.status === "approved") {
+      return { success: false, error: "This application is already approved." };
+    }
+
+    // Grand Total is $1,500.00 -> 150000 cents
+    const amountInCents = 150000;
+    const metadata = {
+      tenantId: tenant.id,
+      applicationId: app.id,
+      email: app.email,
+    };
+
+    const intent = await createStripePaymentIntent(tenant.id, amountInCents, metadata);
+    return {
+      success: true,
+      clientSecret: intent.clientSecret,
+      publishableKey: intent.publishableKey,
+    };
+  } catch (error: any) {
+    console.error("Failed to create Stripe payment intent:", error);
+    return { success: false, error: error.message || "Failed to initialize payment." };
+  }
+}
+
+/**
  * Public Action: Process checkout payment completion, record payment, and mark application as paid.
  */
 export async function completePaymentAndEnrollAction(
@@ -288,6 +357,20 @@ export async function completePaymentAndEnrollAction(
 
     // 3. Update application status to "paid"
     await AdmissionRepository.updateApplicationStatus(tenant.id, appId, "paid");
+
+    try {
+      const { sendTenantEmail } = require("@/features/notification/services/mail-service");
+      sendTenantEmail(tenant.id, {
+        to: app.email,
+        subject: `Payment Confirmed - ${tenant.name}`,
+        html: `<p>Hi ${app.firstName},</p>
+               <p>We have successfully verified your tuition sandbox payment of $1,500.00 via ${paymentMethod} (Transaction ID: ${transactionId}).</p>
+               <p>Your enrollment is now complete.</p>
+               <p>Best regards,<br/>Admissions Team</p>`
+      }).catch((err: any) => console.error("Failed to send payment email:", err));
+    } catch (e) {
+      console.error("Failed to trigger payment success email dispatch:", e);
+    }
 
     return { success: true };
   } catch (error: any) {
@@ -385,3 +468,28 @@ export async function completeSignupAndEnrollAction(appId: string, password: any
     return { success: false, error: error.message || "Failed to complete signup." };
   }
 }
+
+/**
+ * Public Action: Generate S3 presigned upload URL for document upload.
+ */
+export async function getPresignedUrlAction(fileName: string, contentType: string) {
+  const tenant = await getTenantContext();
+  if (!tenant) {
+    return { success: false, error: "No tenant context resolved." };
+  }
+
+  try {
+    const { generatePresignedUploadUrl } = require("../services/s3-service");
+    const result = await generatePresignedUploadUrl(tenant.id, fileName, contentType);
+
+    if (!result) {
+      return { success: false, error: "Failed to generate presigned URL." };
+    }
+
+    return { success: true, ...result };
+  } catch (error: any) {
+    console.error("Failed to generate presigned upload URL action:", error);
+    return { success: false, error: error.message };
+  }
+}
+

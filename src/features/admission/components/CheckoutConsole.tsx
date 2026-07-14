@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { completePaymentAndEnrollAction } from "../actions/admission-actions";
+import { completePaymentAndEnrollAction, createStripePaymentIntentAction } from "../actions/admission-actions";
 import confetti from "canvas-confetti";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { 
   CreditCard, 
   QrCode, 
@@ -12,20 +14,14 @@ import {
   CheckCircle2, 
   ArrowRight, 
   AlertCircle,
-  Smartphone,
-  ChevronRight,
-  TrendingUp,
-  Sparkles,
-  Lock,
   Wallet,
   Barcode
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 
 interface ApplicationDetails {
   id: string;
@@ -53,11 +49,9 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Stripe Card form fields
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
-  const [cardName, setCardName] = useState(`${application.firstName} ${application.lastName}`);
+  // Stripe dynamic initialization
+  const [stripePromise, setStripePromise] = useState<any>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   // Razorpay UPI & Netbanking form fields
   const [upiId, setUpiId] = useState("");
@@ -70,6 +64,25 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
   const [paypalAuthorized, setPaypalAuthorized] = useState(false);
   const [authorizingPaypal, setAuthorizingPaypal] = useState(false);
   const [paypalStep, setPaypalStep] = useState("");
+
+  // Load Stripe client configuration from backend
+  useEffect(() => {
+    async function initStripe() {
+      try {
+        const res = await createStripePaymentIntentAction(application.id);
+        if (res.success && res.clientSecret && res.publishableKey) {
+          setClientSecret(res.clientSecret);
+          setStripePromise(loadStripe(res.publishableKey));
+        } else if (res.error) {
+          setError(res.error);
+        }
+      } catch (err: any) {
+        console.error("Failed to load Stripe config:", err);
+        setError("Could not initialize Stripe gateway configuration.");
+      }
+    }
+    initStripe();
+  }, [application.id]);
 
   useEffect(() => {
     if (activeGateway === "razorpay" && timeLeft > 0) {
@@ -114,41 +127,6 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  const getCardBrand = (num: string) => {
-    const cleanNum = num.replace(/\D/g, "");
-    if (cleanNum.startsWith("4")) return "visa";
-    if (cleanNum.startsWith("5")) return "mastercard";
-    return "generic";
-  };
-
-  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, "");
-    const formatted = value.match(/.{1,4}/g)?.join(" ") || "";
-    setCardNumber(formatted.substring(0, 19));
-  };
-
-  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, "");
-    if (value.length > 2) {
-      value = `${value.substring(0, 2)}/${value.substring(2, 4)}`;
-    }
-    setExpiry(value.substring(0, 5));
-  };
-
-  const handleCvvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, "");
-    setCvv(value.substring(0, 4));
-  };
-
-  // Helper to validate input states for border colors
-  const getInputValidationClass = (value: string, minLength: number, maxLength: number) => {
-    if (value.length === 0) return "border-border/40 focus:border-sky-500 focus:ring-sky-500";
-    if (value.length >= minLength && value.length <= maxLength) {
-      return "border-emerald-500/80 focus:border-emerald-500 focus:ring-emerald-500 bg-emerald-500/5";
-    }
-    return "border-rose-500/80 focus:border-rose-500 focus:ring-rose-500 bg-rose-500/5";
-  };
-
   const handleAuthorizePaypal = async () => {
     if (!paypalEmail.includes("@")) {
       setError("Please enter a valid PayPal account email.");
@@ -182,21 +160,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
     e.preventDefault();
     setError(null);
 
-    // Validate active gateway form values
-    if (activeGateway === "stripe") {
-      if (cardNumber.replace(/\s/g, "").length < 16) {
-        setError("Please enter a valid 16-digit card number.");
-        return;
-      }
-      if (expiry.length < 5) {
-        setError("Please enter a valid expiry date (MM/YY).");
-        return;
-      }
-      if (cvv.length < 3) {
-        setError("Please enter a valid CVV code.");
-        return;
-      }
-    } else if (activeGateway === "razorpay") {
+    if (activeGateway === "razorpay") {
       if (upiId && !upiId.includes("@")) {
         setError("Please enter a valid UPI ID (e.g. user@bank).");
         return;
@@ -223,7 +187,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
     }
 
     try {
-      const mockTxn = `${activeGateway === "stripe" ? "ch" : activeGateway === "razorpay" ? "pay" : "pay_pal"}_${Math.random().toString(36).substring(2, 12).toUpperCase()}`;
+      const mockTxn = `${activeGateway === "razorpay" ? "pay" : "pay_pal"}_${Math.random().toString(36).substring(2, 12).toUpperCase()}`;
       
       const result = await completePaymentAndEnrollAction(
         application.id,
@@ -259,7 +223,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
           <div className="space-y-2">
             <h2 className="text-2xl font-extrabold text-white">Payment Confirmed!</h2>
             <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-              Your enrollment processing fee was paid successfully via Sandbox <strong>{activeGateway.toUpperCase()}</strong>.
+              Your enrollment processing fee was paid successfully.
             </p>
           </div>
 
@@ -281,7 +245,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
           </div>
 
           <div className="p-3 bg-secondary/35 border border-border rounded-xl text-[10px] text-slate-400 max-w-md mx-auto leading-relaxed">
-            🚀 <strong>Payment Confirmed:</strong> Your tuition fee sandbox payment has been recorded. Please proceed to set up your account password.
+            🚀 <strong>Payment Confirmed:</strong> Your tuition fee payment has been recorded. Please proceed to set up your account password.
           </div>
 
           <button
@@ -302,8 +266,8 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
     <div className="w-full max-w-4xl flex flex-col md:flex-row items-stretch gap-6 relative z-10 text-xs">
       
       {/* Checkout Form */}
-      <Card className="flex-1 border-border/60 shadow-2xl bg-card/60 backdrop-blur-md">
-        <form onSubmit={handlePayment} className="h-full flex flex-col justify-between p-6 sm:p-8 space-y-6">
+      <Card className="flex-1 border-border/60 shadow-2xl bg-card/60 backdrop-blur-md overflow-hidden">
+        <div className="h-full flex flex-col justify-between p-6 sm:p-8 space-y-6">
           <div className="space-y-6">
             <div className="border-b border-border pb-4 space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select Payment Method</span>
@@ -359,99 +323,31 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
             {/* STRIPE CARD VIEW */}
             {activeGateway === "stripe" && (
               <div className="space-y-5 animate-in fade-in duration-200">
-                {/* Visual Credit Card */}
-                <div className="relative h-44 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border border-white/10 p-5 shadow-2xl flex flex-col justify-between overflow-hidden">
-                  <div className="absolute inset-0 bg-radial-gradient from-white/5 to-transparent pointer-events-none"></div>
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="w-10 h-7 rounded bg-amber-500/10 border border-amber-500/30 relative overflow-hidden flex items-center justify-center">
-                      <div className="absolute inset-x-2 inset-y-1.5 border border-amber-500/20"></div>
-                    </div>
-                    {getCardBrand(cardNumber) === "visa" && (
-                      <span className="text-base font-black italic text-sky-400">VISA</span>
-                    )}
-                    {getCardBrand(cardNumber) === "mastercard" && (
-                      <span className="text-base font-black italic text-orange-400">MASTERCARD</span>
-                    )}
-                    {getCardBrand(cardNumber) === "generic" && (
-                      <span className="text-[9px] font-mono font-bold tracking-widest text-slate-500">STRIPE SECURE</span>
-                    )}
-                  </div>
-
-                  <div className="text-base font-mono tracking-[0.18em] text-white/95 my-3 relative z-10">
-                    {cardNumber || "•••• •••• •••• ••••"}
-                  </div>
-
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="space-y-0.5">
-                      <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Card Holder</span>
-                      <p className="text-[10px] font-mono text-white uppercase truncate max-w-[200px]">{cardName || "Cardholder Name"}</p>
-                    </div>
-                    <div className="space-y-0.5 text-right">
-                      <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Expires</span>
-                      <p className="text-[10px] font-mono text-white">{expiry || "MM/YY"}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Form fields */}
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cardholder Name</Label>
-                    <Input
-                      type="text"
-                      value={cardName}
-                      onChange={(e) => setCardName(e.target.value)}
-                      className={`h-10 text-xs bg-slate-900 border ${getInputValidationClass(cardName, 3, 50)}`}
-                      placeholder="John Doe"
+                {stripePromise && clientSecret ? (
+                  <Elements stripe={stripePromise} options={{ clientSecret }}>
+                    <StripePaymentForm 
+                      brandColor={brandColor}
+                      clientSecret={clientSecret}
+                      application={application}
+                      onSuccess={() => setSuccess(true)}
+                      onError={(err) => setError(err)}
+                      loading={loading}
+                      setLoading={setLoading}
+                      setLoadingStep={setLoadingStep}
                     />
+                  </Elements>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-12 space-y-3">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                    <span className="text-[10px] text-slate-400 font-mono">Initializing secure Stripe Elements...</span>
                   </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Card Number</Label>
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        value={cardNumber}
-                        onChange={handleCardNumberChange}
-                        className={`h-10 text-xs font-mono pr-12 bg-slate-900 border ${getInputValidationClass(cardNumber, 19, 19)}`}
-                        placeholder="4000 1234 5678 9010"
-                      />
-                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
-                        {getCardBrand(cardNumber) === "visa" && <span className="text-[9px] font-bold text-sky-400 uppercase font-mono">Visa</span>}
-                        {getCardBrand(cardNumber) === "mastercard" && <span className="text-[9px] font-bold text-orange-400 uppercase font-mono">MCard</span>}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Expiration Date</Label>
-                      <Input
-                        type="text"
-                        value={expiry}
-                        onChange={handleExpiryChange}
-                        className={`h-10 text-xs font-mono bg-slate-900 border ${getInputValidationClass(expiry, 5, 5)}`}
-                        placeholder="MM/YY"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">CVV / CVC</Label>
-                      <Input
-                        type="password"
-                        value={cvv}
-                        onChange={handleCvvChange}
-                        className={`h-10 text-xs font-mono bg-slate-900 border ${getInputValidationClass(cvv, 3, 4)}`}
-                        placeholder="•••"
-                      />
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             )}
 
             {/* RAZORPAY UPI & BANKING VIEW */}
             {activeGateway === "razorpay" && (
-              <div className="space-y-5 animate-in fade-in duration-200">
+              <form onSubmit={handlePayment} className="space-y-5 animate-in fade-in duration-200">
                 <div className="bg-slate-950/40 border border-border p-4 rounded-xl flex items-center justify-between text-white">
                   <div className="space-y-0.5">
                     <span className="text-[8px] font-bold text-sky-400 uppercase tracking-widest">Razorpay Sandbox</span>
@@ -471,7 +367,6 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                       alt="UPI Payment QR Code" 
                       className="w-full h-full object-contain"
                     />
-                    {/* scanning laser */}
                     <div className="absolute inset-x-0 h-0.5 bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,1)] animate-laser pointer-events-none"></div>
                   </div>
 
@@ -509,12 +404,33 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                     <option value="axis">Axis Bank</option>
                   </select>
                 </div>
-              </div>
+
+                <div className="pt-4 border-t border-border flex items-center justify-end">
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full h-11 text-xs font-bold text-white hover:opacity-90 shadow-lg disabled:opacity-50"
+                    style={{ backgroundColor: brandColor }}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        <span>Processing secure Sandbox authorization...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4 mr-2" />
+                        <span>Pay $1,500.00 via Razorpay</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
             )}
 
             {/* PAYPAL CHECKOUT VIEW */}
             {activeGateway === "paypal" && (
-              <div className="space-y-5 animate-in fade-in duration-200">
+              <form onSubmit={handlePayment} className="space-y-5 animate-in fade-in duration-200">
                 <div className="bg-[#002f86]/10 border border-[#002f86]/20 p-4 rounded-xl flex items-center justify-between text-white">
                   <div className="space-y-0.5">
                     <span className="text-[8px] font-black text-[#0079C1] uppercase tracking-widest">PayPal Sandbox</span>
@@ -599,39 +515,35 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                     </div>
                   </div>
                 )}
-              </div>
+
+                <div className="pt-4 border-t border-border flex items-center justify-end">
+                  <Button
+                    type="submit"
+                    disabled={loading || !paypalAuthorized}
+                    className="w-full h-11 text-xs font-bold text-white hover:opacity-90 shadow-lg disabled:opacity-50"
+                    style={{ backgroundColor: brandColor }}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        <span>Processing secure Sandbox authorization...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4 mr-2" />
+                        <span>Pay $1,500.00 via PayPal</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
             )}
           </div>
-
-          {/* Action Footer */}
-          <div className="pt-4 border-t border-border flex items-center justify-end">
-            <Button
-              type="submit"
-              disabled={loading || (activeGateway === "paypal" && !paypalAuthorized)}
-              className="w-full h-11 text-xs font-bold text-white hover:opacity-90 shadow-lg disabled:opacity-50"
-              style={{ backgroundColor: brandColor }}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  <span>Processing secure Sandbox authorization...</span>
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="w-4 h-4 mr-2" />
-                  <span>
-                    Pay $1,500.00 via {activeGateway === "stripe" ? "Stripe" : activeGateway === "razorpay" ? "Razorpay" : "PayPal"}
-                  </span>
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
+        </div>
       </Card>
 
       {/* Sidebar Summary - Redesigned as a Premium Digital Receipt */}
       <div className="w-full md:w-80 bg-slate-900/90 border border-dashed border-border/80 backdrop-blur-md rounded-2xl p-6 flex flex-col justify-between space-y-6 shadow-2xl relative overflow-hidden">
-        {/* Receipt scalloped texture effect top/bottom via design details */}
         <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-b from-white/5 to-transparent"></div>
         
         <div className="space-y-6 relative z-10">
@@ -717,5 +629,134 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
         }
       `}</style>
     </div>
+  );
+}
+
+interface StripePaymentFormProps {
+  brandColor: string;
+  clientSecret: string;
+  application: any;
+  onSuccess: () => void;
+  onError: (err: string) => void;
+  loading: boolean;
+  setLoading: (l: boolean) => void;
+  setLoadingStep: (s: string) => void;
+}
+
+function StripePaymentForm({
+  brandColor,
+  clientSecret,
+  application,
+  onSuccess,
+  onError,
+  loading,
+  setLoading,
+  setLoadingStep
+}: StripePaymentFormProps) {
+  const stripe = useStripe();
+  const elements = useElements();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+
+    setLoading(true);
+    setLoadingStep("Connecting to Stripe Secure Gateway...");
+    await new Promise((r) => setTimeout(r, 600));
+
+    setLoadingStep("Authorizing checkout transaction...");
+    
+    try {
+      const cardElement = elements.getElement(CardElement);
+      if (!cardElement) {
+        throw new Error("Card Element not initialized.");
+      }
+
+      const result = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: cardElement,
+          billing_details: {
+            name: `${application.firstName} ${application.lastName}`,
+            email: application.email,
+          },
+        },
+      });
+
+      if (result.error) {
+        onError(result.error.message || "Card verification failed.");
+        setLoading(false);
+      } else if (result.paymentIntent && result.paymentIntent.status === "succeeded") {
+        setLoadingStep("Enrolling student account & initializing workspace cookies...");
+        await new Promise((r) => setTimeout(r, 800));
+
+        const actionRes = await completePaymentAndEnrollAction(
+          application.id,
+          "stripe",
+          result.paymentIntent.id
+        );
+
+        if (actionRes.success) {
+          onSuccess();
+        } else {
+          onError(actionRes.error || "Enrollment process failed. Please contact support.");
+        }
+        setLoading(false);
+      }
+    } catch (err: any) {
+      onError(err.message || "An unexpected card error occurred.");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-4 animate-in fade-in duration-200">
+        <div className="p-4 bg-slate-900/60 border border-white/5 rounded-xl">
+          <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+            Secure Card Credentials (Stripe Hosted Elements)
+          </Label>
+          <div className="p-3 bg-slate-950 border border-border/80 rounded-lg">
+            <CardElement
+              options={{
+                style: {
+                  base: {
+                    color: "#ffffff",
+                    fontSize: "12px",
+                    fontFamily: "monospace, Courier, monospace",
+                    "::placeholder": {
+                      color: "#94a3b8",
+                    },
+                  },
+                  invalid: {
+                    color: "#f87171",
+                  },
+                },
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-4 border-t border-border flex items-center justify-end">
+        <Button
+          type="submit"
+          disabled={loading || !stripe}
+          className="w-full h-11 text-xs font-bold text-white hover:opacity-90 shadow-lg disabled:opacity-50"
+          style={{ backgroundColor: brandColor }}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              <span>Processing secure Stripe transaction...</span>
+            </>
+          ) : (
+            <>
+              <ShieldCheck className="w-4 h-4 mr-2" />
+              <span>Pay $1,500.00 via Stripe Elements</span>
+            </>
+          )}
+        </Button>
+      </div>
+    </form>
   );
 }

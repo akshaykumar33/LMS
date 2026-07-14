@@ -3,7 +3,7 @@
 import { requireAuth, verifyWriteAccess } from "@/features/auth/services/session";
 import { QuizRepository, SubmittedAnswer } from "../repository/quiz-repository";
 import { db } from "@/db/db";
-import { students } from "@/db/schema";
+import { students, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function getQuizDetailsAction(quizId: string) {
@@ -24,7 +24,7 @@ export async function getQuizDetailsAction(quizId: string) {
   }
 }
 
-export async function submitQuizAttemptAction(quizId: string, answers: SubmittedAnswer[]) {
+export async function submitQuizAttemptAction(quizId: string, answers: SubmittedAnswer[], infractionCount?: number) {
   try {
     const user = await requireAuth();
     if (!user) {
@@ -46,7 +46,8 @@ export async function submitQuizAttemptAction(quizId: string, answers: Submitted
       user.tenantId,
       student.id,
       quizId,
-      answers
+      answers,
+      infractionCount
     );
 
     try {
@@ -60,6 +61,42 @@ export async function submitQuizAttemptAction(quizId: string, answers: Submitted
       );
     } catch (e) {
       console.error("Failed to trigger quiz notification:", e);
+    }
+
+    try {
+      const { sendXapiStatement } = require("@/features/analytics/services/xapi-service");
+      const [studentProfile] = await db
+        .select({
+          firstName: users.firstName,
+          lastName: users.lastName,
+        })
+        .from(students)
+        .innerJoin(users, eq(students.userId, users.id))
+        .where(eq(students.id, student.id));
+
+      const fullName = studentProfile
+        ? `${studentProfile.firstName} ${studentProfile.lastName}`
+        : user.email;
+
+      const { headers } = require("next/headers");
+      const headersList = await headers();
+      const host = headersList.get("host") || "wysbryx.com";
+      const proto = headersList.get("x-forwarded-proto") || "https";
+      const baseUrl = `${proto}://${host}`;
+
+      await sendXapiStatement(user.tenantId, {
+        actorEmail: user.email,
+        actorName: fullName,
+        verbId: "http://adlnet.gov/expapi/verbs/answered",
+        verbDisplay: "answered",
+        activityId: `${baseUrl}/activities/quizzes/${quizId}`,
+        activityName: result.quizTitle || "Quiz",
+        resultScoreRaw: result.score,
+        resultSuccess: result.passed,
+        resultCompletion: true,
+      });
+    } catch (e) {
+      console.error("Failed to send xAPI statement for quiz:", e);
     }
 
     return { success: true, data: result };

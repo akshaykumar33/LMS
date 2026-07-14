@@ -4,7 +4,7 @@ import { requireAuth, verifyWriteAccess } from "@/features/auth/services/session
 import { CourseRepository } from "../repository/course-repository";
 import { db } from "@/db/db";
 import * as schema from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getCourseDetailsAction(courseId: string) {
@@ -153,15 +153,35 @@ export async function updateLessonAction(
       return { success: false, error: "Lesson not found or unauthorized." };
     }
 
+    let zoomMeetingId = formData.zoomMeetingId || lesson.zoomMeetingId;
+    let zoomPasscode = formData.zoomPasscode || lesson.zoomPasscode;
+    let videoUrl = formData.videoUrl;
+    const contentType = formData.contentType || lesson.contentType;
+
+    if (contentType === "live_class" && !zoomMeetingId) {
+      try {
+        const { createZoomMeeting } = require("../services/zoom-service");
+        const startTime = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+        const meeting = await createZoomMeeting(user.tenantId, formData.title, startTime, 60);
+        if (meeting) {
+          zoomMeetingId = meeting.meetingId;
+          zoomPasscode = meeting.passcode;
+          videoUrl = meeting.joinUrl;
+        }
+      } catch (zoomError) {
+        console.error("Zoom auto-scheduling failed:", zoomError);
+      }
+    }
+
     await db
       .update(schema.lessons)
       .set({
         title: formData.title,
         content: formData.content, // serves as transcript/notes content
-        videoUrl: formData.videoUrl,
-        contentType: formData.contentType || lesson.contentType,
-        zoomMeetingId: formData.zoomMeetingId || lesson.zoomMeetingId,
-        zoomPasscode: formData.zoomPasscode || lesson.zoomPasscode,
+        videoUrl: videoUrl,
+        contentType: contentType,
+        zoomMeetingId: zoomMeetingId,
+        zoomPasscode: zoomPasscode,
         fileUrl: formData.fileUrl !== undefined ? formData.fileUrl : lesson.fileUrl,
         updatedAt: new Date(),
       })
@@ -259,6 +279,34 @@ export async function toggleLessonCompletionAction(lessonId: string, completed: 
       });
     }
 
+    if (completed) {
+      try {
+        const { sendXapiStatement } = require("@/features/analytics/services/xapi-service");
+        const lessonInfo = await db.query.lessons.findFirst({
+          where: eq(schema.lessons.id, lessonId),
+        });
+        const { headers } = require("next/headers");
+        const headersList = await headers();
+        const host = headersList.get("host") || "wysbryx.com";
+        const proto = headersList.get("x-forwarded-proto") || "https";
+        const baseUrl = `${proto}://${host}`;
+
+        if (lessonInfo) {
+          await sendXapiStatement(user.tenantId, {
+            actorEmail: user.email,
+            actorName: student.fullName || user.email,
+            verbId: "http://adlnet.gov/expapi/verbs/completed",
+            verbDisplay: "completed",
+            activityId: `${baseUrl}/activities/lessons/${lessonId}`,
+            activityName: lessonInfo.title,
+            resultCompletion: true,
+          });
+        }
+      } catch (e) {
+        console.error("Failed to dispatch xAPI statement for lesson:", e);
+      }
+    }
+
     revalidatePath(`/courses/[courseId]`, "page");
     revalidatePath("/dashboard");
     revalidatePath("/progress");
@@ -319,5 +367,94 @@ export async function submitProjectAction(projectId: string, gitRepoUrl: string,
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to submit capstone project." };
+  }
+}
+
+/**
+ * CMS Action: Create a new course under the active tenant context.
+ * Enforces the maxCourses restriction check.
+ */
+export async function createCourseAction(formData: { name: string; code: string; description: string }) {
+  try {
+    const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
+    verifyWriteAccess(user);
+
+    if (!formData.name || !formData.code) {
+      return { success: false, error: "Course name and code are required." };
+    }
+
+    // Check maxCourses restriction
+    const tenant = await db.query.tenants.findFirst({
+      where: eq(schema.tenants.id, user.tenantId),
+    });
+
+    if (tenant) {
+      const maxCourses = (tenant.settings as any)?.restrictions?.maxCourses;
+      if (maxCourses) {
+        const countResult = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(schema.courses)
+          .where(eq(schema.courses.tenantId, user.tenantId));
+        const currentCoursesCount = Number(countResult[0]?.count || 0);
+        if (currentCoursesCount >= Number(maxCourses)) {
+          return {
+            success: false,
+            error: `The maximum course limit (${maxCourses}) for this tenant has been reached. Please upgrade your subscription.`
+          };
+        }
+      }
+    }
+
+    const [newCourse] = await db
+      .insert(schema.courses)
+      .values({
+        tenantId: user.tenantId,
+        name: formData.name,
+        code: formData.code,
+        description: formData.description,
+      })
+      .returning();
+
+    revalidatePath("/admin/courses");
+    revalidatePath("/dashboard");
+    return { success: true, data: newCourse };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to create course." };
+  }
+}
+
+export async function askAiAction(lessonId: string, query: string) {
+  try {
+    const user = await requireAuth();
+    if (!user) {
+      return { success: false, error: "UNAUTHORIZED" };
+    }
+
+    const lesson = await db.query.lessons.findFirst({
+      where: eq(schema.lessons.id, lessonId),
+      with: {
+        module: {
+          with: {
+            course: true,
+          },
+        },
+      },
+    });
+
+    if (!lesson || lesson.module.course.tenantId !== user.tenantId) {
+      return { success: false, error: "Lesson context not found or unauthorized." };
+    }
+
+    const { getAiCompletionForTenant } = await import("../services/ai-service");
+    const result = await getAiCompletionForTenant(
+      user.tenantId,
+      lesson.title,
+      lesson.content || "",
+      query
+    );
+
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to query AI Assistant." };
   }
 }

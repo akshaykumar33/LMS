@@ -63144,11 +63144,11 @@
         "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/6/60/Virginia_Tech_Gobblers_logo.svg",
         "primaryColor": "#861F41",
         "secondaryColor": "#E87722",
-        "companyName": "Virginia Tech parent"
+        "companyName": "Virginia Tech"
       },
       "status": "active",
       "createdAt": "2026-07-10T09:29:45.402Z",
-      "updatedAt": "2026-07-10T09:29:45.403Z",
+      "updatedAt": "2026-07-13T12:54:51.786Z",
       "deletedAt": null,
       "parentTenantId": "a65a45e8-dcde-45ae-8619-b8c37cb0e503",
       "settings": {
@@ -63167,6 +63167,9 @@
           "maxUsers": 500,
           "maxCourses": 100,
           "allowSelfSignup": true
+        },
+        "database": {
+          "dbUrl": ""
         }
       }
     },
@@ -63400,7 +63403,7 @@
       },
       "status": "active",
       "createdAt": "2026-07-10T09:29:45.404Z",
-      "updatedAt": "2026-07-10T09:29:45.404Z",
+      "updatedAt": "2026-07-13T12:56:45.129Z",
       "deletedAt": null,
       "parentTenantId": "019915ce-3b05-4db3-a1c0-365f772f4e11",
       "settings": {
@@ -63419,6 +63422,9 @@
           "maxUsers": 500,
           "maxCourses": 100,
           "allowSelfSignup": true
+        },
+        "database": {
+          "dbUrl": ""
         }
       }
     },

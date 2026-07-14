@@ -23,6 +23,26 @@ interface LoginFormProps {
   chainLength?: number;
 }
 
+const getSubdomainUrl = (sub: string) => {
+  if (typeof window === "undefined") return "#";
+  const host = window.location.host;
+  const protocol = window.location.protocol;
+  
+  if (host.includes("localhost")) {
+    const port = host.split(":")[1] || "3000";
+    return `${protocol}//${sub}.localhost:${port}/login`;
+  }
+  
+  const parts = host.split(".");
+  if (parts.length > 2) {
+    parts[0] = sub;
+    return `${protocol}//${parts.join(".")}/login`;
+  } else {
+    return `${protocol}//${sub}.${host}/login`;
+  }
+};
+
+
 const iconMap: Record<string, React.ComponentType<any>> = {
   GraduationCap,
   Briefcase,
@@ -461,9 +481,9 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
               {isParent && (
                 <div className="p-3 bg-slate-900/50 border border-slate-700/40 rounded-xl text-[10px] text-slate-500 leading-relaxed font-mono">
                   <span className="text-amber-400">INFO</span> Academy roles are domain-isolated. Visit{" "}
-                  <a href="http://intel.localhost:3000/login" className="text-sky-400 underline hover:text-sky-300">intel</a>,{" "}
-                  <a href="http://amd.localhost:3000/login" className="text-sky-400 underline hover:text-sky-300">amd</a>, or{" "}
-                  <a href="http://tsmc.localhost:3000/login" className="text-sky-400 underline hover:text-sky-300">tsmc</a> subdomains.
+                  <a href={getSubdomainUrl("intel")} className="text-sky-400 underline hover:text-sky-300">intel</a>,{" "}
+                  <a href={getSubdomainUrl("amd")} className="text-sky-400 underline hover:text-sky-300">amd</a>, or{" "}
+                  <a href={getSubdomainUrl("tsmc")} className="text-sky-400 underline hover:text-sky-300">tsmc</a> subdomains.
                 </div>
               )}
             </div>

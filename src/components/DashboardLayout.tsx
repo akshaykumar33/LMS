@@ -20,7 +20,8 @@ import {
   Layers,
   GraduationCap,
   Calendar,
-  Sparkles
+  Sparkles,
+  LayoutGrid
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
@@ -45,6 +46,15 @@ interface DashboardLayoutProps {
     subdomain: string;
     parentTenantId?: string | null;
     isPlacementEnabled?: boolean;
+    status?: string;
+    settings?: {
+      features?: {
+        enableLibrary?: boolean;
+        enablePlacement?: boolean;
+        enableProctoring?: boolean;
+        enableCertificates?: boolean;
+      };
+    } | null;
     branding?: {
       logoUrl?: string;
       primaryColor?: string;
@@ -74,6 +84,13 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
   const [xp, setXp] = useState(450);
   const [level, setLevel] = useState(3);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Enforce Tenant Suspension Check
+  useEffect(() => {
+    if (tenant.status === "suspended" && user.role !== "SuperAdmin") {
+      router.replace("/suspended");
+    }
+  }, [tenant.status, user.role, router]);
 
   useEffect(() => {
     if (user.role === "Student" && typeof window !== "undefined") {
@@ -122,7 +139,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
   // isParentOrg is passed from server components that query child tenants
   // Falls back to checking parentTenantId for backward compatibility
   const isOnParentDomain = isParentOrg ?? !tenant.parentTenantId;
-  const logoHref = "/";
+  const logoHref = "/dashboard";
 
   // Dynamic Categorized Navigation groups based on user role
   const getNavigationGroups = () => {
@@ -131,7 +148,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
         {
           title: "Learning Hub",
           items: [
-            {name: "Dashboard", href: "/dashboard", icon: Home},
+            {name: "Dashboard", href: "/dashboard", icon: LayoutGrid},
             {name: "Active Courses", href: "/courses", icon: BookOpen},
             {name: "Digital Library", href: "/library", icon: Sparkles},
             {name: "Progress & Analytics", href: "/progress", icon: BarChart3},
@@ -198,8 +215,8 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
         );
       }
 
-      // Hide System Tenants only if we are at intel level and user is Intel Owner
-      const showSystemTenants = !(isIntelLevel && isIntelOwner);
+      // Hide System Tenants on tenant subdomains or if we are at intel level
+      const showSystemTenants = (tenant.subdomain === "wysbryx" || tenant.subdomain === "");
       if (showSystemTenants) {
         groups.push({
           title: "System Administration",
@@ -272,7 +289,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
         {
           title: "Sandbox Overview",
           items: [
-            { name: "Student Console", href: "/dashboard", icon: Home },
+            { name: "Student Console", href: "/dashboard", icon: LayoutGrid },
             { name: "Digital Library", href: "/library", icon: Sparkles },
             { name: "Elective Catalog", href: "/courses", icon: BookOpen },
           ]
@@ -303,14 +320,14 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
       {
         title: "Platform Console",
         items: [
-          { name: "Dashboard", href: "/dashboard", icon: Home }
+          { name: "Dashboard", href: "/dashboard", icon: LayoutGrid }
         ]
       }
     ];
   };
 
   const rawGroups = getNavigationGroups();
-  const navigationGroups = tenant.isPlacementEnabled !== false
+  let filteredGroups = tenant.isPlacementEnabled !== false
     ? rawGroups
     : rawGroups
         .map(group => ({
@@ -326,7 +343,20 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
           !group.title.toLowerCase().includes("recruiting")
         );
 
+  // Filter out library if enableLibrary feature flag is false
+  const enableLibrary = tenant.settings?.features?.enableLibrary !== false;
+  if (!enableLibrary) {
+    filteredGroups = filteredGroups
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => !item.name.toLowerCase().includes("library"))
+      }))
+      .filter(group => group.items.length > 0);
+  }
+
+  const navigationGroups = filteredGroups;
   const navigationItems = navigationGroups.flatMap(group => group.items);
+  const showSidebar = navigationItems.length > 0;
 
   // Helper to format breadcrumbs
   const getBreadcrumbs = () => {
@@ -371,144 +401,164 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
       />
 
       {/* Floating Desktop Sidebar */}
-      <aside 
-        className={`fixed top-4 bottom-4 left-4 z-40 hidden md:flex flex-col bg-card/65 backdrop-blur-xl border border-border rounded-2xl transition-all duration-300 shadow-2xl ${
-          isSidebarCollapsed ? "w-20" : "w-64"
-        }`}
-      >
-        {/* Sidebar Header */}
-        <div className="p-5 flex items-center justify-between border-b border-border/50">
-          <div className="flex items-center gap-3 overflow-hidden">
-            {!isSidebarCollapsed && (
-              <div className="flex items-center gap-2 truncate">
-                <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={logoHref} />
-                <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground opacity-75">
-                  Platform
-                </span>
-              </div>
-            )}
-            {isSidebarCollapsed && (
-              <BrandLogo subdomain={tenant.subdomain} iconOnly href={logoHref} />
-            )}
-          </div>
-          <button 
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="p-1 rounded-lg border border-border bg-background hover:bg-secondary text-muted-foreground hover:text-foreground hidden md:block"
-          >
-            {isSidebarCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-
-        {/* Sidebar Nav Items */}
-        <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto">
-          {navigationGroups.map((group, gIdx) => (
-            <div key={gIdx} className="space-y-1.5">
+      {showSidebar && (
+        <aside 
+          className={`fixed top-4 bottom-4 left-4 z-40 hidden md:flex flex-col bg-card/65 backdrop-blur-xl border border-border rounded-2xl transition-all duration-300 shadow-2xl ${
+            isSidebarCollapsed ? "w-20" : "w-64"
+          }`}
+        >
+          {/* Sidebar Header */}
+          <div className="p-5 flex items-center justify-between border-b border-border/50">
+            <div className="flex items-center gap-3 overflow-hidden">
               {!isSidebarCollapsed && (
-                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 px-3 block mb-1">
-                  {group.title}
-                </span>
-              )}
-              <div className="space-y-1">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href || (item.href !== "/dashboard" && item.href !== "/faculty" && pathname.startsWith(item.href));
-
-                  return (
-                    <a
-                      key={item.name}
-                      href={item.href}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative group overflow-hidden ${
-                        isActive 
-                          ? "text-primary bg-primary/10 border-l-2 border-primary animate-in fade-in" 
-                          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                      }`}
-                      style={isActive ? { 
-                        borderLeftColor: primaryColor, 
-                        color: primaryColor,
-                        backgroundColor: primaryColor.startsWith("#") ? `${primaryColor}1a` : undefined
-                      } : undefined}
-                    >
-                      <Icon className="w-4 h-4 shrink-0" />
-                      {!isSidebarCollapsed && <span className="truncate">{item.name}</span>}
-                      {isSidebarCollapsed && (
-                        <div className="absolute left-16 bg-popover text-popover-foreground text-[10px] font-bold px-2 py-1 rounded border border-border opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-md">
-                          {item.name}
-                        </div>
-                      )}
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
-
-        {/* User Profile Slot at Bottom */}
-        <div className="p-4 border-t border-border/50 bg-secondary/20 rounded-b-2xl">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-primary/70 flex items-center justify-center text-white font-bold text-sm shadow-md shrink-0">
-              {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-            </div>
-            
-            {!isSidebarCollapsed && (
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 justify-between">
-                  <p className="text-xs font-extrabold text-foreground truncate">
-                    {user.firstName}
-                  </p>
-                  <span className={`text-[8px] font-black border px-1.5 py-0.5 rounded shrink-0 ${getRoleBadgeColor()}`}>
-                    {user.role}
+                <div className="flex items-center gap-2 truncate">
+                  <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={logoHref} />
+                  <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground opacity-75">
+                    Platform
                   </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+              )}
+              {isSidebarCollapsed && (
+                <BrandLogo subdomain={tenant.subdomain} iconOnly href={logoHref} />
+              )}
+            </div>
+            <button 
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="p-1 rounded-lg border border-border bg-background hover:bg-secondary text-muted-foreground hover:text-foreground hidden md:block"
+            >
+              {isSidebarCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+
+          {/* Sidebar Nav Items */}
+          <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto">
+            {navigationGroups.map((group, gIdx) => (
+              <div key={gIdx} className="space-y-1.5">
+                {!isSidebarCollapsed && (
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 px-3 block mb-1">
+                    {group.title}
+                  </span>
+                )}
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = pathname === item.href || (item.href !== "/dashboard" && item.href !== "/faculty" && pathname.startsWith(item.href));
+
+                    return (
+                      <a
+                        key={item.name}
+                        href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative group overflow-hidden ${
+                          isActive 
+                            ? "text-primary bg-primary/10 border-l-2 border-primary animate-in fade-in" 
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        }`}
+                        style={isActive ? { 
+                          borderLeftColor: primaryColor, 
+                          color: primaryColor,
+                          backgroundColor: primaryColor.startsWith("#") ? `${primaryColor}1a` : undefined
+                        } : undefined}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        {!isSidebarCollapsed && <span className="truncate">{item.name}</span>}
+                        {isSidebarCollapsed && (
+                          <div className="absolute left-16 bg-popover text-popover-foreground text-[10px] font-bold px-2 py-1 rounded border border-border opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-md">
+                            {item.name}
+                          </div>
+                        )}
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+
+          {/* User Profile Slot at Bottom */}
+          <div className="p-4 border-t border-border/50 bg-secondary/20 rounded-b-2xl">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-primary/70 flex items-center justify-center text-white font-bold text-sm shadow-md shrink-0">
+                {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+              </div>
+              
+              {!isSidebarCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 justify-between">
+                    <p className="text-xs font-extrabold text-foreground truncate">
+                      {user.firstName}
+                    </p>
+                    <span className={`text-[8px] font-black border px-1.5 py-0.5 rounded shrink-0 ${getRoleBadgeColor()}`}>
+                      {user.role}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+                </div>
+              )}
+            </div>
+
+            {!isSidebarCollapsed && (
+              <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
+                <span className="truncate max-w-[130px] font-medium">
+                  {user.role === "Student" ? (studentProfile?.batch?.name || "No cohort") : tenant.name}
+                </span>
+                <form onSubmit={handleLogout}>
+                  <button 
+                    type="submit" 
+                    className="flex items-center gap-1 font-bold text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {isSidebarCollapsed && (
+              <div className="mt-3 flex justify-center">
+                <form onSubmit={handleLogout}>
+                  <button 
+                    type="submit" 
+                    className="p-1 rounded bg-background hover:bg-destructive/15 text-muted-foreground hover:text-destructive cursor-pointer border border-border"
+                    title="Sign Out"
+                  >
+                    <LogOut className="w-3 h-3" />
+                  </button>
+                </form>
               </div>
             )}
           </div>
+        </aside>
+      )}
 
-          {!isSidebarCollapsed && (
-            <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
-              <span className="truncate max-w-[130px] font-medium">
-                {user.role === "Student" ? (studentProfile?.batch?.name || "No cohort") : tenant.name}
-              </span>
+      {/* Mobile Header */}
+      <header className="fixed top-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 z-40 md:hidden">
+        <div className="flex items-center gap-3">
+          {showSidebar && (
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+          )}
+          <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={logoHref} />
+        </div>
+        <div className="flex items-center gap-2">
+          {!showSidebar && (
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-primary to-primary/70 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+              </div>
               <form onSubmit={handleLogout}>
                 <button 
                   type="submit" 
-                  className="flex items-center gap-1 font-bold text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg border border-border hover:bg-destructive/10 text-muted-foreground hover:text-destructive cursor-pointer transition-colors"
+                  title="Sign Out"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
               </form>
             </div>
           )}
-
-          {isSidebarCollapsed && (
-            <div className="mt-3 flex justify-center">
-              <form onSubmit={handleLogout}>
-                <button 
-                  type="submit" 
-                  className="p-1 rounded bg-background hover:bg-destructive/15 text-muted-foreground hover:text-destructive cursor-pointer border border-border"
-                  title="Sign Out"
-                >
-                  <LogOut className="w-3 h-3" />
-                </button>
-              </form>
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* Mobile Header */}
-      <header className="fixed top-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 z-40 md:hidden">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground"
-          >
-            <Menu className="w-4 h-4" />
-          </button>
-          <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={logoHref} />
-        </div>
-        <div className="flex items-center gap-2">
           {user.role === "Student" && (
             <div className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/10 border border-amber-500/25 rounded-lg text-amber-500 text-xs font-black">
               <Flame className="w-3.5 h-3.5 text-amber-500 fill-amber-500 animate-pulse" />
@@ -520,7 +570,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
       </header>
 
       {/* Mobile Drawer Menu */}
-      {isMobileMenuOpen && (
+      {isMobileMenuOpen && showSidebar && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div 
             className="fixed inset-0 bg-background/80 backdrop-blur-sm"
@@ -597,8 +647,12 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
 
       {/* Main Contents Frame */}
       <div 
-        className={`flex-1 flex flex-col min-w-0 md:pl-4 transition-all duration-300 ${
-          isSidebarCollapsed ? "md:ml-24" : "md:ml-68"
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+          !showSidebar 
+            ? "md:ml-0 md:pl-0" 
+            : isSidebarCollapsed 
+              ? "md:ml-24 md:pl-4" 
+              : "md:ml-68 md:pl-4"
         }`}
       >
         {/* Top Header */}
@@ -665,10 +719,32 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
               </div>
             )}
 
-            {/* Theme & Notifications */}
+            {/* Theme & Notifications & User controls when sidebar is hidden */}
             <div className="flex items-center gap-3 border-l border-border pl-5">
               <ThemeSwitcher />
               <NotificationBell />
+              {!showSidebar && (
+                <div className="flex items-center gap-3 border-l border-border pl-3 ml-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-primary to-primary/70 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                      {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs font-extrabold text-foreground leading-none">{user.firstName}</p>
+                      <p className="text-[10px] text-muted-foreground">{user.role}</p>
+                    </div>
+                  </div>
+                  <form onSubmit={handleLogout}>
+                    <button 
+                      type="submit" 
+                      className="p-2 rounded-xl border border-border hover:bg-destructive/10 text-muted-foreground hover:text-destructive cursor-pointer transition-colors"
+                      title="Sign Out"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                    </button>
+                  </form>
+                </div>
+              )}
             </div>
           </div>
         </header>

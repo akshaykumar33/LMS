@@ -75,12 +75,48 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
     setStep(step - 1);
   };
 
-  const handleMockUpload = () => {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     setError(null);
-    setFormData({
-      ...formData,
-      fileUrl: `https://dummy-bucket.s3.amazonaws.com/admissions/docs/mock_upload_${Date.now()}.pdf`,
-    });
+    setUploading(true);
+
+    try {
+      const { getPresignedUrlAction } = await import("../actions/admission-actions");
+      const res = await getPresignedUrlAction(file.name, file.type);
+
+      if (!res.success || !res.uploadUrl || !res.fileUrl) {
+        throw new Error(res.error || "Failed to generate presigned upload URL.");
+      }
+
+      if (res.uploadUrl.startsWith("/")) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      } else {
+        const uploadRes = await fetch(res.uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type,
+          },
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error(`S3 upload failed: ${uploadRes.statusText}`);
+        }
+      }
+
+      setFormData({
+        ...formData,
+        fileUrl: res.fileUrl,
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to upload document to S3.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -207,96 +243,95 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Email Address *</Label>
-              <Input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="h-10 text-xs"
-                placeholder="john.doe@example.com"
-                required
-              />
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Email Address *</Label>
+                <Input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="h-10 text-xs"
+                  placeholder="john.doe@example.com"
+                  required
+                />
+              </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Phone Number *</Label>
                 <Input
-                  type="text"
+                  type="tel"
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
                   className="h-10 text-xs"
-                  placeholder="+91 9876543210"
+                  placeholder="+1 (555) 123-4567"
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date of Birth *</Label>
-                <Input
-                  type="date"
-                  name="dateOfBirth"
-                  value={formData.dateOfBirth}
-                  onChange={handleChange}
-                  className="h-10 text-xs dark:[color-scheme:dark]"
-                  required
-                />
-              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date of Birth *</Label>
+              <Input
+                type="date"
+                name="dateOfBirth"
+                value={formData.dateOfBirth}
+                onChange={handleChange}
+                className="h-10 text-xs"
+                required
+              />
             </div>
           </div>
         )}
 
-        {/* Step 2: Academic History */}
+        {/* Step 2: Academic Details */}
         {step === 2 && (
           <div className="space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground border-b border-border pb-2">2. Cohort & Academic History</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground border-b border-border pb-2">2. Academic Background</h3>
             
             <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Target Cohort / Batch *</Label>
-              <Select value={formData.batchId} onValueChange={(val) => setFormData({ ...formData, batchId: val })}>
-                <SelectTrigger className="w-full h-10 text-xs bg-transparent border border-input">
-                  <SelectValue placeholder="Select a batch" />
-                </SelectTrigger>
-                <SelectContent>
-                  {batches.map((b) => (
-                    <SelectItem key={b.id} value={b.id} className="text-xs">
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Select Academic Cohort Batch *</Label>
+              <select
+                name="batchId"
+                value={formData.batchId}
+                onChange={handleChange}
+                className="w-full h-10 px-3 rounded-lg border border-border bg-slate-900 text-xs text-white focus:border-sky-500"
+              >
+                {batches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Highest Academic Degree *</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Highest Degree Obtained *</Label>
                 <Input
                   type="text"
                   name="highestDegree"
                   value={formData.highestDegree}
                   onChange={handleChange}
                   className="h-10 text-xs"
-                  placeholder="B.Tech (Electronics & Comm)"
+                  placeholder="B.Tech in Electronics"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">University / College *</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Institution Name *</Label>
                 <Input
                   type="text"
                   name="institution"
                   value={formData.institution}
                   onChange={handleChange}
                   className="h-10 text-xs"
-                  placeholder="IIT Madras"
+                  placeholder="MIT"
                   required
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">GPA / Percentage *</Label>
                 <Input
@@ -341,7 +376,6 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
             <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground border-b border-border pb-2">3. Transcript Upload (S3 Sandbox)</h3>
             
             <div className="space-y-4 p-6 border-2 border-dashed border-border bg-background/30 rounded-2xl flex flex-col items-center justify-center text-center">
-              <Upload className="w-8 h-8 text-muted-foreground" />
               <div className="space-y-1">
                 <p className="text-xs font-bold text-foreground">
                   {formData.documentName}
@@ -351,23 +385,38 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
                 </p>
               </div>
 
-              {formData.fileUrl ? (
-                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-2.5 rounded-lg text-[10px] w-full flex items-center justify-between">
-                  <span className="truncate max-w-[200px] font-mono">{formData.fileUrl}</span>
-                  <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[9px]">
-                    ✓ Ready
-                  </Badge>
+              {uploading ? (
+                <div className="flex flex-col items-center gap-2 p-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  <span className="text-[10px] text-muted-foreground font-mono">Uploading securely to S3...</span>
+                </div>
+              ) : formData.fileUrl ? (
+                <div className="space-y-3 w-full">
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-2.5 rounded-lg text-[10px] w-full flex items-center justify-between">
+                    <span className="truncate max-w-[200px] font-mono">{formData.fileUrl}</span>
+                    <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[9px]">
+                      ✓ Uploaded
+                    </Badge>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setFormData({ ...formData, fileUrl: "" })}
+                    className="text-[9px] text-slate-400 hover:text-white underline block mx-auto cursor-pointer"
+                  >
+                    Clear and upload another file
+                  </button>
                 </div>
               ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleMockUpload}
-                  className="text-[10px] font-bold"
-                >
-                  <Upload className="w-3.5 h-3.5 mr-1.5" /> Upload Mock Transcript
-                </Button>
+                <label className="flex flex-col items-center gap-2 cursor-pointer border border-dashed border-border/80 hover:border-slate-500 p-6 rounded-xl transition-all w-full">
+                  <Upload className="w-5 h-5 text-muted-foreground" />
+                  <span className="text-[10px] font-bold text-muted-foreground">Choose Transcript Document</span>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </label>
               )}
             </div>
           </div>
