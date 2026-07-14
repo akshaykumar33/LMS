@@ -139,6 +139,7 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
         primaryColor={tenant.branding?.primaryColor}
         user={userData}
         enableProctoring={!!(tenant.settings as any)?.features?.enableProctoring}
+        enableAi={(tenant.settings as any)?.ai?.enableAi !== false}
       />
     </DashboardLayout>
   );

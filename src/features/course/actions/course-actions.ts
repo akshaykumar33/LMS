@@ -445,6 +445,13 @@ export async function askAiAction(lessonId: string, query: string) {
       return { success: false, error: "Lesson context not found or unauthorized." };
     }
 
+    const tenant = await db.query.tenants.findFirst({
+      where: eq(schema.tenants.id, user.tenantId),
+    });
+    if (tenant && (tenant.settings as any)?.ai?.enableAi === false) {
+      return { success: false, error: "AI assistant is disabled by the administrator." };
+    }
+
     const { getAiCompletionForTenant } = await import("../services/ai-service");
     const result = await getAiCompletionForTenant(
       user.tenantId,
@@ -456,5 +463,91 @@ export async function askAiAction(lessonId: string, query: string) {
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to query AI Assistant." };
+  }
+}
+
+export async function saveVideoProgressAction(lessonId: string, currentSeconds: number, duration: number) {
+  try {
+    const user = await requireAuth(["Student"]);
+    verifyWriteAccess(user);
+    const student = await db.query.students.findFirst({
+      where: eq(schema.students.userId, user.userId),
+    });
+
+    if (!student) {
+      return { success: false, error: "Student profile not found." };
+    }
+
+    const percentage = Math.round((currentSeconds / duration) * 100);
+
+    // Check if progress entry already exists
+    const existing = await db.query.lessonProgress.findFirst({
+      where: and(
+        eq(schema.lessonProgress.studentId, student.id),
+        eq(schema.lessonProgress.lessonId, lessonId)
+      ),
+    });
+
+    const videoProgressData = {
+      videoProgress: {
+        currentSeconds,
+        duration,
+        percentage,
+      }
+    };
+
+    if (existing) {
+      // Merge existing scormData
+      const prevData = (existing.scormData as any) || {};
+      await db
+        .update(schema.lessonProgress)
+        .set({
+          scormData: {
+            ...prevData,
+            ...videoProgressData,
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.lessonProgress.id, existing.id));
+    } else {
+      await db.insert(schema.lessonProgress).values({
+        studentId: student.id,
+        lessonId,
+        completed: false,
+        scormData: videoProgressData,
+        updatedAt: new Date(),
+      });
+    }
+
+    return { success: true, percentage };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to update video progress." };
+  }
+}
+
+export async function getVideoProgressAction(lessonId: string) {
+  try {
+    const user = await requireAuth(["Student"]);
+    const student = await db.query.students.findFirst({
+      where: eq(schema.students.userId, user.userId),
+    });
+    if (!student) return { success: false, error: "Not found" };
+
+    const progress = await db.query.lessonProgress.findFirst({
+      where: and(
+        eq(schema.lessonProgress.studentId, student.id),
+        eq(schema.lessonProgress.lessonId, lessonId)
+      ),
+    });
+
+    if (progress && progress.scormData) {
+      const data = progress.scormData as any;
+      if (data.videoProgress) {
+        return { success: true, currentSeconds: data.videoProgress.currentSeconds || 0 };
+      }
+    }
+    return { success: true, currentSeconds: 0 };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 }

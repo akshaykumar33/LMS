@@ -16,7 +16,8 @@ import {
   BookOpen, 
   CheckCircle2, 
   ArrowUpRight, 
-  Sparkles 
+  Sparkles,
+  ShieldAlert 
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -64,11 +65,27 @@ export function FacultyDashboardClient({
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam && ["overview", "roster", "schedule", "curriculum", "submissions"].includes(tabParam)) {
+      if (tabParam && ["overview", "roster", "schedule", "curriculum", "submissions", "proctoring"].includes(tabParam)) {
         setActiveTab(tabParam);
       }
     }
   }, []);
+
+  const [proctorAttempts, setProctorAttempts] = useState([
+    { id: "pr-101", studentName: "Linus Torvalds", quizTitle: "Semiconductor Module 1 Quiz", status: "flagged", infractionCount: 3, lastUpdated: "2026-07-14T10:12:00Z", events: [
+      { type: "Tab Switch", time: "10:14:02 AM", desc: "User switched focus out of browser tab for 12 seconds." },
+      { type: "Fullscreen Exit", time: "10:15:20 AM", desc: "User left full-screen exam mode." },
+      { type: "Face Detection Alert", time: "10:16:45 AM", desc: "No face detected in webcam feed." }
+    ]},
+    { id: "pr-102", studentName: "Ada Lovelace", quizTitle: "VLSI Circuit Layout Evaluation", status: "cleared", infractionCount: 0, lastUpdated: "2026-07-14T09:45:00Z", events: [
+      { type: "Exam Started", time: "09:40:00 AM", desc: "Initial verification verified learner credentials successfully." }
+    ]},
+    { id: "pr-103", studentName: "Gordon Moore", quizTitle: "Lithography Diffraction Quiz", status: "flagged", infractionCount: 1, lastUpdated: "2026-07-14T11:05:00Z", events: [
+      { type: "Tab Switch", time: "11:07:35 AM", desc: "User switched focus out of browser tab for 5 seconds." }
+    ]}
+  ]);
+  const [selectedProctorAttempt, setSelectedProctorAttempt] = useState<any | null>(null);
+  const [proctorSearchTerm, setProctorSearchTerm] = useState("");
 
   const handleGradeSubmission = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,6 +175,7 @@ export function FacultyDashboardClient({
           { id: "overview", label: "Overview", icon: Trophy },
           { id: "roster", label: "Cohort Roster", icon: Users },
           { id: "submissions", label: "Capstone Projects", icon: Trophy },
+          { id: "proctoring", label: "Web Proctoring Audits", icon: ShieldAlert },
           { id: "schedule", label: "Live Classrooms", icon: Video },
           { id: "curriculum", label: "Curriculum Config", icon: Layers }
         ].map((tab) => {
@@ -624,6 +642,99 @@ export function FacultyDashboardClient({
           </div>
         )}
 
+        {/* WEB PROCTORING AUDITS TAB */}
+        {activeTab === "proctoring" && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-3">
+                <div className="space-y-0.5">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-foreground flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-primary" style={{ color: primaryColor }} /> Real-time Proctoring Audit Center
+                  </h3>
+                  <p className="text-[10px] text-muted-foreground">Monitor tab focus events, browser escapes, and web proctor infractions.</p>
+                </div>
+                
+                <div className="relative w-full sm:w-64">
+                  <span className="absolute left-3 top-2.5 text-muted-foreground/60">
+                    <Search className="w-4 h-4" />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Filter by trainee name..."
+                    value={proctorSearchTerm}
+                    onChange={(e) => setProctorSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-secondary/25 border border-border rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/50"
+                  />
+                </div>
+              </div>
+
+              {proctorAttempts.filter(p => p.studentName.toLowerCase().includes(proctorSearchTerm.toLowerCase())).length > 0 ? (
+                <div className="overflow-x-auto border border-border/40 rounded-xl bg-muted/5">
+                  <table className="w-full border-collapse text-left text-xs font-semibold">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/15 text-[10px] font-black text-muted-foreground uppercase tracking-wider">
+                        <th className="p-3 px-4">Trainee Learner</th>
+                        <th className="p-3 px-4">Target Assessment</th>
+                        <th className="p-3 px-4 text-center">Status</th>
+                        <th className="p-3 px-4 text-center">Infractions Count</th>
+                        <th className="p-3 px-4">Last Verified Timestamp</th>
+                        <th className="p-3 px-4 text-right">Audit Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/30 text-foreground">
+                      {proctorAttempts
+                        .filter(p => p.studentName.toLowerCase().includes(proctorSearchTerm.toLowerCase()))
+                        .map((attempt) => (
+                          <tr key={attempt.id} className="hover:bg-muted/5 transition-colors">
+                            <td className="py-3 px-4 font-extrabold flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center shrink-0" style={{ color: primaryColor, backgroundColor: `${primaryColor}15` }}>
+                                {attempt.studentName.split(" ").map(n => n[0]).join("")}
+                              </div>
+                              <span className="truncate">{attempt.studentName}</span>
+                            </td>
+                            <td className="py-3 px-4 text-muted-foreground font-medium">
+                              {attempt.quizTitle}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {attempt.status === "flagged" ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-500 border border-rose-500/25">
+                                  ⚠️ Flagged
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/25">
+                                  ✓ Cleared
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center font-mono font-black text-foreground">
+                              {attempt.infractionCount}
+                            </td>
+                            <td className="py-3 px-4 text-muted-foreground font-mono text-[10.5px]">
+                              {new Date(attempt.lastUpdated).toLocaleString()}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                onClick={() => setSelectedProctorAttempt(attempt)}
+                                className="text-[9px] font-black uppercase tracking-wider bg-primary/10 hover:bg-primary text-primary hover:text-white px-3 py-1.5 rounded-lg border border-primary/20 transition-all cursor-pointer"
+                                style={{ borderColor: primaryColor }}
+                              >
+                                Review Feed
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground text-xs font-semibold">
+                  No matching proctor sessions found.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* Evaluation Modal */}
@@ -727,6 +838,141 @@ export function FacultyDashboardClient({
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Selected Proctor Session Audit Drawer */}
+      {selectedProctorAttempt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-3xl bg-card border border-border/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col sexy-border-glow">
+            <div className="p-5 border-b border-border/50 flex items-center justify-between bg-primary/5">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-primary" style={{ color: primaryColor }} />
+                <h4 className="text-xs font-black uppercase tracking-widest text-foreground">
+                  Webcam & System Audit: {selectedProctorAttempt.studentName}
+                </h4>
+              </div>
+              <button 
+                onClick={() => setSelectedProctorAttempt(null)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/15 transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto max-h-[75vh]">
+              {/* Left panel: Simulated Web Camera Silhouette feed */}
+              <div className="space-y-4">
+                <div className="border-b border-border/40 pb-2">
+                  <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block">Live Camera Outline Snapshot</span>
+                  <span className="text-[10px] text-muted-foreground">Artificial Intelligence face boundary verification tracking feed</span>
+                </div>
+
+                <div className="relative aspect-video bg-slate-950 rounded-2xl border border-border overflow-hidden flex flex-col items-center justify-center">
+                  {/* SVG Face outline placeholder simulator */}
+                  <svg className="w-3/4 h-3/4 text-emerald-500/20" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="1">
+                    {/* Bounding box */}
+                    <rect x="15" y="10" width="70" height="80" strokeDasharray="3 3" className={selectedProctorAttempt.status === "flagged" ? "stroke-rose-500" : "stroke-emerald-500"} />
+                    
+                    {/* Face contour */}
+                    <path d="M 50,20 C 35,20 30,35 30,55 C 30,75 40,85 50,85 C 60,85 70,75 70,55 C 70,35 65,20 50,20 Z" />
+                    
+                    {/* Eyes & Landmarks */}
+                    <circle cx="42" cy="45" r="2" fill="currentColor" />
+                    <circle cx="58" cy="45" r="2" fill="currentColor" />
+                    <path d="M 45,55 Q 50,58 55,55" />
+                    <path d="M 47,68 Q 50,71 53,68" strokeWidth="2" className={selectedProctorAttempt.status === "flagged" ? "stroke-rose-500" : "stroke-emerald-500"} />
+                    
+                    {/* Grid tracker overlay */}
+                    <line x1="50" y1="10" x2="50" y2="90" stroke="currentColor" strokeWidth="0.5" strokeDasharray="1 4" />
+                    <line x1="15" y1="50" x2="85" y2="50" stroke="currentColor" strokeWidth="0.5" strokeDasharray="1 4" />
+                  </svg>
+
+                  {/* Infraction Warning message */}
+                  {selectedProctorAttempt.status === "flagged" ? (
+                    <div className="absolute top-3 left-3 right-3 bg-rose-500/90 text-white p-2 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center justify-between">
+                      <span>⚠️ INFRACTION DETECTED: GAZE DEVIATION</span>
+                      <span className="font-mono bg-rose-700 px-1.5 py-0.5 rounded">FLAGGED</span>
+                    </div>
+                  ) : (
+                    <div className="absolute top-3 left-3 right-3 bg-emerald-500/90 text-white p-2 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center justify-between">
+                      <span>✓ LEARNER IDENTITY VERIFIED</span>
+                      <span className="font-mono bg-emerald-700 px-1.5 py-0.5 rounded">SECURE</span>
+                    </div>
+                  )}
+
+                  <div className="absolute bottom-3 right-3 text-[9px] font-mono text-muted-foreground/80 bg-black/60 px-2 py-0.5 rounded">
+                    fps: 30 | latency: 4ms
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 font-mono text-[9px] text-center">
+                  <div className="bg-secondary/20 p-2 border border-border/40 rounded-xl">
+                    <span className="text-muted-foreground block uppercase">Pose Variance</span>
+                    <strong className={selectedProctorAttempt.status === "flagged" ? "text-rose-450" : "text-emerald-450"}>
+                      {selectedProctorAttempt.status === "flagged" ? "High (42%)" : "Low (4%)"}
+                    </strong>
+                  </div>
+                  <div className="bg-secondary/20 p-2 border border-border/40 rounded-xl">
+                    <span className="text-muted-foreground block uppercase">Gaze Focus</span>
+                    <strong className={selectedProctorAttempt.status === "flagged" ? "text-rose-450" : "text-emerald-450"}>
+                      {selectedProctorAttempt.status === "flagged" ? "Deviation" : "Centered"}
+                    </strong>
+                  </div>
+                  <div className="bg-secondary/20 p-2 border border-border/40 rounded-xl">
+                    <span className="text-muted-foreground block uppercase">Face Landmarks</span>
+                    <strong className="text-emerald-450">68 detected</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right panel: Timeline of actions */}
+              <div className="space-y-4">
+                <div className="border-b border-border/40 pb-2">
+                  <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block">Verbal & Event Logs</span>
+                  <span className="text-[10px] text-muted-foreground">Session chronological actions</span>
+                </div>
+
+                <div className="space-y-3 overflow-y-auto max-h-56 scrollbar-thin pr-1">
+                  {selectedProctorAttempt.events.map((evt: any, idx: number) => (
+                    <div key={idx} className="p-3 bg-secondary/15 border border-border/40 rounded-xl space-y-1">
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-extrabold text-foreground flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${evt.type.toLowerCase().includes("alert") || evt.type.toLowerCase().includes("switch") || evt.type.toLowerCase().includes("exit") ? "bg-rose-500" : "bg-emerald-500"}`} />
+                          {evt.type}
+                        </span>
+                        <span className="text-muted-foreground font-mono">{evt.time}</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground leading-normal font-medium">{evt.desc}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-4 border-t border-border flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProctorAttempts(prev => prev.map(p => p.id === selectedProctorAttempt.id ? { ...p, status: "cleared", infractionCount: 0 } : p));
+                      setSelectedProctorAttempt(null);
+                    }}
+                    className="flex-1 py-2 bg-emerald-500 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-95 shadow-md cursor-pointer text-center"
+                  >
+                    Dismiss & Clear Flags
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      alert(`Infraction flags confirmed for ${selectedProctorAttempt.studentName}. A notification has been dispatched to their profile.`);
+                      setSelectedProctorAttempt(null);
+                    }}
+                    className="flex-1 py-2 bg-rose-500 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-95 shadow-md cursor-pointer text-center"
+                  >
+                    Confirm Infraction
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

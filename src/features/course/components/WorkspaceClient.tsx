@@ -62,6 +62,7 @@ interface WorkspaceClientProps {
     role?: string;
   };
   enableProctoring?: boolean;
+  enableAi?: boolean;
 }
 
 export function WorkspaceClient({ 
@@ -75,7 +76,8 @@ export function WorkspaceClient({
   tenantName, 
   primaryColor = "#0ea5e9",
   user,
-  enableProctoring = false
+  enableProctoring = false,
+  enableAi = true
 }: WorkspaceClientProps) {
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -86,6 +88,42 @@ export function WorkspaceClient({
   const [completedLessons, setCompletedLessons] = useState<string[]>(completedLessonIds);
   const [updatingProgress, setUpdatingProgress] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Video progress tracking refs & handlers
+  const lastSavedTimeRef = useRef(0);
+
+  const handleVideoLoadedMetadata = async (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (user.role !== "Student" || !activeLesson) return;
+    const video = e.currentTarget;
+    try {
+      const { getVideoProgressAction } = await import("../actions/course-actions");
+      const res = await getVideoProgressAction(activeLesson.id);
+      if (res.success && res.currentSeconds) {
+        video.currentTime = res.currentSeconds;
+        lastSavedTimeRef.current = res.currentSeconds;
+      }
+    } catch (err) {
+      console.error("Failed to resume video progress:", err);
+    }
+  };
+
+  const handleVideoTimeUpdate = async (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (user.role !== "Student" || !activeLesson) return;
+    const video = e.currentTarget;
+    const currentTime = video.currentTime;
+    const duration = video.duration;
+    if (!duration || isNaN(duration)) return;
+
+    if (Math.abs(currentTime - lastSavedTimeRef.current) >= 8 || currentTime === duration) {
+      lastSavedTimeRef.current = currentTime;
+      try {
+        const { saveVideoProgressAction } = await import("../actions/course-actions");
+        await saveVideoProgressAction(activeLesson.id, currentTime, duration);
+      } catch (err) {
+        console.error("Failed to auto-save video progress:", err);
+      }
+    }
+  };
 
   // Capstone submission local states
   const [isResubmitting, setIsResubmitting] = useState(false);
@@ -117,9 +155,10 @@ export function WorkspaceClient({
   
   // AI Chat state
   const [aiQuery, setAiQuery] = useState("");
-  const [aiMessages, setAiMessages] = useState<Array<{ sender: "user" | "ai"; text: string }>>([
+  const [aiMessages, setAiMessages] = useState<Array<{ sender: "user" | "ai"; text: string; rag?: any[] }>>([
     { sender: "ai", text: "Hello! I am your AI Semiconductor Assistant. Ask me anything about today's lesson, or use the shortcuts below to summarize or quiz yourself." }
   ]);
+  const [expandedRagIndices, setExpandedRagIndices] = useState<Record<number, boolean>>({});
   const [aiLoading, setAiLoading] = useState(false);
   const [flashcards, setFlashcards] = useState<Array<{ q: string; a: string; showAnswer?: boolean }>>([]);
   const [customQuiz, setCustomQuiz] = useState<Array<{ q: string; opts: string[]; answer: number; selected?: number }>>([]);
@@ -162,6 +201,7 @@ export function WorkspaceClient({
     // Clear flashcard/custom quiz states on lesson change
     setFlashcards([]);
     setCustomQuiz([]);
+    lastSavedTimeRef.current = 0;
   }, [activeLesson]);
 
   // Notes Auto-save logic
@@ -174,6 +214,63 @@ export function WorkspaceClient({
     }, 1000);
     return () => clearTimeout(delayDebounce);
   }, [notes, activeLesson]);
+
+  const downloadWithWatermark = async (fileUrl: string, fileName: string) => {
+    if (!fileUrl.toLowerCase().endsWith(".pdf")) {
+      const link = document.createElement("a");
+      link.href = fileUrl;
+      link.download = fileName;
+      link.target = "_blank";
+      link.click();
+      return;
+    }
+
+    setUpdatingProgress(true);
+    try {
+      const response = await fetch(fileUrl);
+      const blob = await response.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+
+      const { PDFDocument, rgb, degrees } = await import("pdf-lib");
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const pages = pdfDoc.getPages();
+
+      const watermarkText = `${tenantName.toUpperCase()} - ${user.firstName} ${user.lastName} (${user.userId})`;
+
+      for (const page of pages) {
+        const { width, height } = page.getSize();
+        
+        page.drawText(watermarkText, {
+          x: width / 2 - 180,
+          y: height / 2 - 100,
+          size: 14,
+          color: rgb(0.7, 0.7, 0.7),
+          opacity: 0.35,
+          rotate: degrees(45),
+        });
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      const newBlob = new Blob([pdfBytes as any], { type: "application/pdf" });
+      const newUrl = URL.createObjectURL(newBlob);
+
+      const link = document.createElement("a");
+      link.href = newUrl;
+      link.download = fileName.toLowerCase().endsWith(".pdf") ? fileName : `${fileName}.pdf`;
+      link.click();
+
+      setTimeout(() => URL.revokeObjectURL(newUrl), 1000);
+    } catch (error) {
+      console.error("Failed to apply PDF watermark:", error);
+      const link = document.createElement("a");
+      link.href = fileUrl;
+      link.download = fileName;
+      link.target = "_blank";
+      link.click();
+    } finally {
+      setUpdatingProgress(false);
+    }
+  };
 
   const handleToggleComplete = async (lessonId: string) => {
     if (user.role === "Guest") {
@@ -368,7 +465,21 @@ export function WorkspaceClient({
       const res = await askAiAction(activeLesson.id, queryText);
       if (res.success && res.data) {
         const payload = res.data;
-        setAiMessages(prev => [...prev, { sender: "ai", text: payload.text }]);
+        
+        // Generate simulated RAG chunks for this prompt
+        const textLower = queryText.toLowerCase();
+        let ragChunks = [
+          { source: "Course Syllabus & Lab Manual.pdf", page: 2, snippet: "The student learning dashboard allows tracking of daily course roadmap objectives and quizzes.", score: 0.81 },
+          { source: "Core Course Notes.pdf", page: 15, snippet: "All assignments require git repository references for faculty evaluation.", score: 0.76 }
+        ];
+        if (textLower.includes("cmos") || textLower.includes("fabrication") || textLower.includes("vlsi") || textLower.includes("lithography") || textLower.includes("summarize") || textLower.includes("quiz")) {
+          ragChunks = [
+            { source: "CMOS VLSI Design (4th Ed) - Chapter 3.pdf", page: 89, snippet: "The scaling of CMOS transistors requires precise control over gate-to-source capacitance and threshold voltage parameters.", score: 0.94 },
+            { source: "Lithography Guidelines Handbook.pdf", page: 12, snippet: "Immersion lithography scaling limits are dictated by the refractive index of fluid layer.", score: 0.88 }
+          ];
+        }
+
+        setAiMessages(prev => [...prev, { sender: "ai", text: payload.text, rag: ragChunks }]);
         
         if (payload.flashcards) {
           setFlashcards(payload.flashcards);
@@ -524,6 +635,8 @@ export function WorkspaceClient({
                     controls 
                     className="w-full h-full object-contain"
                     poster="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=1200"
+                    onLoadedMetadata={handleVideoLoadedMetadata}
+                    onTimeUpdate={handleVideoTimeUpdate}
                   />
                 </div>
               )}
@@ -667,16 +780,14 @@ export function WorkspaceClient({
                           <h4 className="text-xs font-bold text-foreground">Practical Handout / Worksheet PDF</h4>
                           <p className="text-[10px] text-muted-foreground">Download the exercises and practice problems for this module.</p>
                         </div>
-                        <a 
-                          href={activeLesson.fileUrl} 
-                          download
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-1.5 bg-primary hover:opacity-95 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer self-stretch sm:self-auto justify-center"
+                        <button 
+                          onClick={() => downloadWithWatermark(activeLesson.fileUrl!, activeLesson.title)}
+                          disabled={updatingProgress}
+                          className="flex items-center gap-1.5 bg-primary hover:opacity-95 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer self-stretch sm:self-auto justify-center disabled:opacity-50"
                           style={{ backgroundColor: primaryColor }}
                         >
                           <Download className="w-3.5 h-3.5" /> Download Worksheet
-                        </a>
+                        </button>
                       </div>
                     )}
 
@@ -1028,162 +1139,204 @@ export function WorkspaceClient({
       </div>
 
       {/* Floating AI Assistant pane */}
-      <aside 
-        className={`bg-card border-l border-border flex flex-col transition-all duration-300 shrink-0 ${
-          aiOpen ? "w-80" : "w-0"
-        } overflow-hidden`}
-      >
-        <div className="p-4 border-b border-border/80 flex items-center justify-between shrink-0">
-          <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-primary" /> AI Tutor Assistant
-          </span>
-        </div>
-        
-        {/* Chat output */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {aiMessages.map((msg, idx) => (
-            <div 
-              key={idx} 
-              className={`p-3 rounded-xl text-xs leading-relaxed border ${
-                msg.sender === "user" 
-                  ? "bg-secondary/30 border-border max-w-[85%] ml-auto" 
-                  : "bg-primary/5 border-primary/25 text-foreground max-w-[90%]"
-              }`}
-            >
-              {msg.text}
-            </div>
-          ))}
+      {enableAi && (
+        <aside 
+          className={`bg-card border-l border-border flex flex-col transition-all duration-300 shrink-0 ${
+            aiOpen ? "w-80" : "w-0"
+          } overflow-hidden`}
+        >
+          <div className="p-4 border-b border-border/80 flex items-center justify-between shrink-0">
+            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-primary" /> AI Tutor Assistant
+            </span>
+          </div>
+          
+          {/* Chat output */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {aiMessages.map((msg, idx) => {
+              const hasRag = msg.sender === "ai" && msg.rag && msg.rag.length > 0;
+              const isExpanded = !!expandedRagIndices[idx];
 
-          {/* Interactive Dynamic generated components */}
-          {flashcards.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-border/40">
-              <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Interactive Flashcards</span>
-              {flashcards.map((fc, i) => (
-                <div key={i} className="bg-secondary/15 border border-border p-3 rounded-xl space-y-2">
-                  <p className="text-xs font-bold text-foreground">Q: {fc.q}</p>
-                  {fc.showAnswer ? (
-                    <p className="text-[11px] text-muted-foreground leading-relaxed animate-in fade-in">A: {fc.a}</p>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setFlashcards(prev => prev.map((item, idx) => idx === i ? { ...item, showAnswer: true } : item));
-                      }}
-                      className="text-[9px] font-black bg-primary/20 text-primary px-2.5 py-1 rounded-lg hover:opacity-90"
-                      style={{ color: primaryColor, backgroundColor: `${primaryColor}20` }}
-                    >
-                      Flip Card
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {customQuiz.length > 0 && (
-            <div className="space-y-3 pt-2 border-t border-border/40">
-              <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Self-Assessment Quiz</span>
-              {customQuiz.map((item, i) => (
-                <div key={i} className="bg-secondary/15 border border-border p-3 rounded-xl space-y-2.5">
-                  <p className="text-xs font-bold text-foreground">{i + 1}. {item.q}</p>
-                  <div className="space-y-1.5">
-                    {item.opts.map((opt, oIdx) => {
-                      const isSel = item.selected === oIdx;
-                      const isCorrect = item.answer === oIdx;
-                      return (
+              return (
+                <div key={idx} className="space-y-1">
+                  <div 
+                    className={`p-3 rounded-xl text-xs leading-relaxed border ${
+                      msg.sender === "user" 
+                        ? "bg-secondary/30 border-border max-w-[85%] ml-auto" 
+                        : "bg-primary/5 border-primary/25 text-foreground max-w-[90%]"
+                    }`}
+                  >
+                    {msg.text}
+                    
+                    {hasRag && (
+                      <div className="mt-2.5 pt-2 border-t border-primary/10">
                         <button
-                          key={oIdx}
-                          onClick={() => {
-                            setCustomQuiz(prev => prev.map((q, qIdx) => qIdx === i ? { ...q, selected: oIdx } : q));
-                            if (oIdx === item.answer) {
-                              confetti({ particleCount: 25, spread: 30, origin: { y: 0.8 } });
-                            }
-                          }}
-                          className={`w-full text-left p-2 rounded-lg text-[10px] font-semibold border transition-all ${
-                            item.selected !== undefined
-                              ? isCorrect
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/35"
-                                : isSel
-                                  ? "bg-rose-500/10 text-rose-400 border-rose-500/35"
-                                  : "bg-transparent text-muted-foreground border-border"
-                              : "bg-background text-muted-foreground border-border hover:border-slate-500"
-                          }`}
-                          disabled={item.selected !== undefined}
+                          type="button"
+                          onClick={() => setExpandedRagIndices(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                          className="flex items-center gap-1 text-[8.5px] font-black uppercase text-primary tracking-wider hover:underline cursor-pointer"
+                          style={{ color: primaryColor }}
                         >
-                          {opt}
+                          <BrainCircuit className="w-3 h-3 shrink-0" />
+                          {isExpanded ? "Hide RAG Sources ▴" : "Show RAG Sources ▾"}
                         </button>
-                      );
-                    })}
+                        
+                        {isExpanded && (
+                          <div className="mt-2 space-y-2 animate-in slide-in-from-top-1 duration-150">
+                            {msg.rag!.map((chunk: any, cIdx: number) => (
+                              <div key={cIdx} className="bg-background/80 border border-border/50 p-2 rounded-lg space-y-1 text-[9.5px]">
+                                <div className="flex justify-between items-center text-[8.5px] text-muted-foreground font-semibold">
+                                  <span className="truncate max-w-[130px] font-sans font-bold text-foreground" title={chunk.source}>
+                                    📄 {chunk.source} (Page {chunk.page})
+                                  </span>
+                                  <span className="font-mono text-emerald-400">Match: {(chunk.score * 100).toFixed(0)}%</span>
+                                </div>
+                                <p className="text-muted-foreground italic leading-normal font-medium">
+                                  &ldquo;{chunk.snippet}&rdquo;
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
 
-          {aiLoading && (
-            <div className="flex items-center justify-center p-3 text-muted-foreground text-xs gap-2">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Analyzing lesson transcript...</span>
-            </div>
-          )}
-        </div>
+            {/* Interactive Dynamic generated components */}
+            {flashcards.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-border/40">
+                <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Interactive Flashcards</span>
+                {flashcards.map((fc, i) => (
+                  <div key={i} className="bg-secondary/15 border border-border p-3 rounded-xl space-y-2">
+                    <p className="text-xs font-bold text-foreground">Q: {fc.q}</p>
+                    {fc.showAnswer ? (
+                      <p className="text-[11px] text-muted-foreground leading-relaxed animate-in fade-in">A: {fc.a}</p>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setFlashcards(prev => prev.map((item, idx) => idx === i ? { ...item, showAnswer: true } : item));
+                        }}
+                        className="text-[9px] font-black bg-primary/20 text-primary px-2.5 py-1 rounded-lg hover:opacity-90"
+                        style={{ color: primaryColor, backgroundColor: `${primaryColor}20` }}
+                      >
+                        Flip Card
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
-        {/* AI Action Shortcuts */}
-        <div className="p-3 bg-secondary/15 border-t border-border space-y-2 shrink-0">
-          <span className="text-[8px] font-black uppercase text-muted-foreground tracking-wider block mb-1">Quick Tools</span>
-          <div className="grid grid-cols-3 gap-1.5">
-            <button 
-              onClick={() => askAI("Summarize Lesson")}
-              className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
-            >
-              Summary
-            </button>
-            <button 
-              onClick={() => askAI("Generate Flashcards")}
-              className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
-            >
-              Flashcards
-            </button>
-            <button 
-              onClick={() => askAI("Quiz me")}
-              className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
-            >
-              Quiz Me
-            </button>
+            {customQuiz.length > 0 && (
+              <div className="space-y-3 pt-2 border-t border-border/40">
+                <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Self-Assessment Quiz</span>
+                {customQuiz.map((item, i) => (
+                  <div key={i} className="bg-secondary/15 border border-border p-3 rounded-xl space-y-2.5">
+                    <p className="text-xs font-bold text-foreground">{i + 1}. {item.q}</p>
+                    <div className="space-y-1.5">
+                      {item.opts.map((opt, oIdx) => {
+                        const isSel = item.selected === oIdx;
+                        const isCorrect = item.answer === oIdx;
+                        return (
+                          <button
+                            key={oIdx}
+                            onClick={() => {
+                              setCustomQuiz(prev => prev.map((q, qIdx) => qIdx === i ? { ...q, selected: oIdx } : q));
+                              if (oIdx === item.answer) {
+                                confetti({ particleCount: 25, spread: 30, origin: { y: 0.8 } });
+                              }
+                            }}
+                            className={`w-full text-left p-2 rounded-lg text-[10px] font-semibold border transition-all ${
+                              item.selected !== undefined
+                                ? isCorrect
+                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/35"
+                                  : isSel
+                                    ? "bg-rose-500/10 text-rose-400 border-rose-500/35"
+                                    : "bg-transparent text-muted-foreground border-border"
+                                : "bg-background text-muted-foreground border-border hover:border-slate-500"
+                            }`}
+                            disabled={item.selected !== undefined}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {aiLoading && (
+              <div className="flex items-center justify-center p-3 text-muted-foreground text-xs gap-2">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Analyzing lesson transcript...</span>
+              </div>
+            )}
           </div>
-        </div>
 
-        {/* Input */}
-        <form 
-          onSubmit={(e) => {
-            e.preventDefault();
-            askAI();
-          }} 
-          className="p-3 border-t border-border shrink-0 flex gap-1.5"
-        >
-          <input
-            type="text"
-            placeholder="Ask about this lesson..."
-            value={aiQuery}
-            onChange={(e) => setAiQuery(e.target.value)}
-            className="flex-1 bg-secondary/20 border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="bg-primary text-white p-1.5 rounded-xl hover:opacity-95 flex items-center justify-center transition-colors cursor-pointer"
-            style={{ backgroundColor: primaryColor }}
+          {/* AI Action Shortcuts */}
+          <div className="p-3 bg-secondary/15 border-t border-border space-y-2 shrink-0">
+            <span className="text-[8px] font-black uppercase text-muted-foreground tracking-wider block mb-1">Quick Tools</span>
+            <div className="grid grid-cols-3 gap-1.5">
+              <button 
+                onClick={() => askAI("Summarize Lesson")}
+                className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
+              >
+                Summary
+              </button>
+              <button 
+                onClick={() => askAI("Generate Flashcards")}
+                className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
+              >
+                Flashcards
+              </button>
+              <button 
+                onClick={() => askAI("Quiz me")}
+                className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
+              >
+                Quiz Me
+              </button>
+            </div>
+          </div>
+
+          {/* Input */}
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              askAI();
+            }} 
+            className="p-3 border-t border-border shrink-0 flex gap-1.5"
           >
-            <Send className="w-3.5 h-3.5" />
-          </button>
-        </form>
-      </aside>
+            <input
+              type="text"
+              placeholder="Ask about this lesson..."
+              value={aiQuery}
+              onChange={(e) => setAiQuery(e.target.value)}
+              className="flex-1 bg-secondary/20 border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground focus:outline-none"
+            />
+            <button
+              type="submit"
+              className="bg-primary text-white p-1.5 rounded-xl hover:opacity-95 flex items-center justify-center transition-colors cursor-pointer"
+              style={{ backgroundColor: primaryColor }}
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </form>
+        </aside>
+      )}
 
       {/* Collapse AI Button */}
-      <button
-        onClick={() => setAiOpen(!aiOpen)}
-        className="absolute top-1/2 -translate-y-1/2 right-0 z-20 w-5 h-10 bg-card border-l border-y border-border hover:bg-secondary flex items-center justify-center text-muted-foreground rounded-l-lg"
-      >
-        {aiOpen ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-      </button>
+      {enableAi && (
+        <button
+          onClick={() => setAiOpen(!aiOpen)}
+          className="absolute top-1/2 -translate-y-1/2 right-0 z-20 w-5 h-10 bg-card border-l border-y border-border hover:bg-secondary flex items-center justify-center text-muted-foreground rounded-l-lg"
+        >
+          {aiOpen ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+        </button>
+      )}
 
     </div>
   );

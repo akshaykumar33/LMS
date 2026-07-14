@@ -420,13 +420,6 @@ export default async function Home() {
                   role={sessionUser.role}
                   primaryColor={primaryColor}
                 />
-                <Link
-                  href="/dashboard"
-                  className="inline-flex items-center justify-center rounded-xl text-xs font-black h-8 px-4 text-white hover:opacity-90 transition-all shadow-md shadow-primary/20 cursor-pointer"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  Workspace
-                </Link>
               </div>
             ) : (
               <>
