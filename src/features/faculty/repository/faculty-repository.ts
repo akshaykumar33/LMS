@@ -168,10 +168,64 @@ export class FacultyRepository {
       )
     });
 
+    // Fetch SCORM lesson progress
+    const { lessonProgress, courseProgress } = await import("@/db/schema");
+    const scormProgressRows = await db.query.lessonProgress.findMany({
+      where: eq(lessonProgress.studentId, studentId),
+      with: {
+        lesson: {
+          with: {
+            module: {
+              with: {
+                course: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const scormTelemetry = scormProgressRows
+      .filter((p: any) => p.lesson?.contentType === "scorm")
+      .map((p: any) => {
+        const data = (p.scormData || {}) as Record<string, string>;
+        return {
+          lessonTitle: p.lesson?.title || "Unknown Lesson",
+          courseName: p.lesson?.module?.course?.name || "",
+          completed: p.completed,
+          score: data["cmi.core.score.raw"] || data["cmi.score.raw"] || null,
+          timeSpentSeconds: parseInt(data["_total_time_seconds"] || "0", 10),
+          bookmark: data["cmi.core.lesson_location"] || data["cmi.location"] || null,
+          status: data["cmi.core.lesson_status"] || data["cmi.completion_status"] || "not attempted",
+        };
+      });
+
+    // Fetch course-level SCORM progress
+    const courseProgressRows = await db.query.courseProgress.findMany({
+      where: eq(courseProgress.studentId, studentId),
+      with: {
+        course: true
+      }
+    });
+
+    const courseScormTelemetry = courseProgressRows.map((p: any) => {
+      const data = (p.scormData || {}) as Record<string, string>;
+      return {
+        lessonTitle: "SCORM Course Package",
+        courseName: p.course?.name || "",
+        completed: p.completed,
+        score: data["cmi.core.score.raw"] || data["cmi.score.raw"] || null,
+        timeSpentSeconds: parseInt(data["_total_time_seconds"] || "0", 10),
+        bookmark: data["cmi.core.lesson_location"] || data["cmi.location"] || null,
+        status: data["cmi.core.lesson_status"] || data["cmi.completion_status"] || "not attempted",
+      };
+    });
+
     return {
       student,
       attempts,
-      academicHistory: application?.academicHistory || null
+      academicHistory: application?.academicHistory || null,
+      scormTelemetry: [...scormTelemetry, ...courseScormTelemetry],
     };
   }
 }

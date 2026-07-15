@@ -246,7 +246,7 @@ async function main() {
         status: "active",
         branding: {
           logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/67/TSMC_logo.svg",
-          primaryColor: "#000000",
+          primaryColor: "#E05423",
           secondaryColor: "#E05423",
           companyName: "TSMC Institute",
         },
@@ -273,7 +273,71 @@ async function main() {
     ])
     .returning();
 
-  const seededTenants = [vtTenant, ...subTenants];
+  // Seed Nvidia as a second Tenant-Level organization (Level 2 — sibling of VT under Wysbryx)
+  const [nvidiaTenant] = await db.insert(schema.tenants)
+    .values({
+      name: "Nvidia Corporation",
+      subdomain: "nvidia",
+      customDomain: "nvidia-coe.com",
+      parentTenantId: wysbryxTenant.id,
+      status: "active",
+      branding: {
+        logoUrl: "https://upload.wikimedia.org/wikipedia/sco/2/21/Nvidia_logo.svg",
+        primaryColor: "#76B900",
+        secondaryColor: "#1a1a1a",
+        companyName: "Nvidia Corp",
+      },
+      settings: {
+        features: { enableLibrary: true, enablePlacement: true, enableProctoring: true, enableCertificates: true },
+        gateways: { stripe: true, razorpay: false, paypal: false },
+        restrictions: { maxUsers: 500, maxCourses: 50, allowSelfSignup: false },
+      },
+    })
+    .returning();
+
+  // Seed Nvidia's leaf child sub-tenants (Mellanox & Qualcomm)
+  const nvidiaSubTenants = await db.insert(schema.tenants)
+    .values([
+      {
+        name: "Mellanox Technologies",
+        subdomain: "mellanox",
+        customDomain: "mellanox-academy.com",
+        status: "active",
+        branding: {
+          logoUrl: "https://upload.wikimedia.org/wikipedia/commons/9/93/Mellanox_logo_2019.png",
+          primaryColor: "#00B4D8",
+          secondaryColor: "#023E8A",
+          companyName: "Mellanox Academy",
+        },
+        parentTenantId: nvidiaTenant.id,
+        settings: {
+          features: { enableLibrary: true, enablePlacement: true, enableProctoring: true, enableCertificates: true },
+          gateways: { stripe: true, razorpay: false, paypal: false },
+          restrictions: { maxUsers: 200, maxCourses: 20, allowSelfSignup: false },
+        },
+      },
+      {
+        name: "Qualcomm Institute",
+        subdomain: "qualcomm",
+        customDomain: "qualcomm-institute.com",
+        status: "active",
+        branding: {
+          logoUrl: "https://upload.wikimedia.org/wikipedia/commons/f/fc/Qualcomm-Logo.svg",
+          primaryColor: "#3253DC",
+          secondaryColor: "#1a1a1a",
+          companyName: "Qualcomm Institute",
+        },
+        parentTenantId: nvidiaTenant.id,
+        settings: {
+          features: { enableLibrary: true, enablePlacement: true, enableProctoring: true, enableCertificates: true },
+          gateways: { stripe: true, razorpay: false, paypal: false },
+          restrictions: { maxUsers: 200, maxCourses: 20, allowSelfSignup: false },
+        },
+      },
+    ])
+    .returning();
+
+  const seededTenants = [vtTenant, ...subTenants, nvidiaTenant, ...nvidiaSubTenants];
   // Note: wysbryxTenant already has its SuperAdmin seeded above — it does not go through the per-tenant loop.
 
   // 4. Seed Roles and Role-Permissions per Tenant
@@ -347,21 +411,21 @@ async function main() {
       await db.insert(schema.rolePermissions).values(rolePermValues);
     }
 
-    if (tenant.subdomain === "vt") {
-      // VT is a Tenant-Level org — seed an Owner user instead of SuperAdmin
-      console.log(`👤 Seeding VT Owner User for ${tenant.name}...`);
-      const vtOwnerUser = {
+    if (tenant.subdomain === "vt" || tenant.subdomain === "nvidia") {
+      // VT and Nvidia are Tenant-Level orgs — seed an Owner user
+      console.log(`👤 Seeding Owner User for ${tenant.name}...`);
+      const orgOwnerUser = {
         tenantId: tenant.id,
-        firstName: "VT",
-        lastName: "Owner",
-        email: "owner@vt.lms.com",
+        firstName: tenant.subdomain === "nvidia" ? "Jensen" : "VT",
+        lastName: tenant.subdomain === "nvidia" ? "Huang" : "Owner",
+        email: `owner@${tenant.subdomain}.lms.com`,
         passwordHash,
         role: "Owner",
         customRoleId: roleMap.get("Owner"),
         status: "active",
       };
-      await db.insert(schema.users).values([vtOwnerUser]);
-      // VT also gets standard staff/students below — don't continue
+      await db.insert(schema.users).values([orgOwnerUser]);
+      // Org hubs also get standard staff/students below — don't continue
     }
 
     // 5. Seed Batches per Tenant
@@ -458,9 +522,53 @@ async function main() {
         customRoleId: roleMap.get("Mentor"),
         status: "active",
       },
+      {
+        tenantId: tenant.id,
+        firstName: "Patricia",
+        lastName: "Placement",
+        email: `placement@${tenant.subdomain}.lms.com`,
+        passwordHash,
+        role: "Placement Officer",
+        customRoleId: roleMap.get("Placement Officer"),
+        status: "active",
+      },
+      {
+        tenantId: tenant.id,
+        firstName: "Gordon",
+        lastName: "Guest",
+        email: `guest@${tenant.subdomain}.lms.com`,
+        passwordHash,
+        role: "Guest",
+        customRoleId: roleMap.get("Guest"),
+        status: "active",
+      },
+      {
+        tenantId: tenant.id,
+        firstName: "Stewart",
+        lastName: "Student",
+        email: `student@${tenant.subdomain}.lms.com`,
+        passwordHash,
+        role: "Student",
+        customRoleId: roleMap.get("Student"),
+        status: "active",
+      },
     ];
 
-    await db.insert(schema.users).values(staffUsers);
+    const insertedUsers = await db.insert(schema.users).values(staffUsers).returning();
+
+    // Create a student profile for the default student user
+    const studentUser = insertedUsers.find(u => u.email === `student@${tenant.subdomain}.lms.com`);
+    if (studentUser) {
+      const rollSuffix = Math.floor(1000 + Math.random() * 9000);
+      const year = new Date().getFullYear().toString().substring(2);
+      await db.insert(schema.students).values({
+        tenantId: tenant.id,
+        userId: studentUser.id,
+        batchId: seededBatches[0].id,
+        rollNumber: `ME-${tenant.subdomain.toUpperCase()}-${year}-${rollSuffix}`,
+        admissionNumber: `ADM-${tenant.subdomain.toUpperCase()}-${rollSuffix}`,
+      });
+    }
 
     // 7. Seed Admission Applications, Documents, Payments, and Enrollments
     console.log(`📝 Seeding Admission Applications & Students for ${tenant.name}...`);
@@ -769,14 +877,6 @@ You must submit:
           contentType: "excel",
           fileUrl: "https://file-examples.com/wp-content/uploads/2017/02/file_example_XLS_10.xls",
           order: 6,
-        },
-        {
-          moduleId: mod1.id,
-          title: "1.7 Interactive SCORM Package (Interactive Lesson)",
-          content: `This is a simulated SCORM course module. Interacting with the content records student score metrics automatically.`,
-          contentType: "scorm",
-          fileUrl: "https://scorm.com/wp-content/assets/toy-store/ToyStoreScorm12.zip",
-          order: 7,
         }
       ];
 

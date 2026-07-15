@@ -7,6 +7,7 @@ import { students, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ProfileClient } from "@/features/profile/components/ProfileClient";
+import { AnalyticsRepository } from "@/features/analytics/repository/analytics-repository";
 
 export default async function StudentProfilePage() {
   const tenant = await getTenantContext();
@@ -61,12 +62,15 @@ export default async function StudentProfilePage() {
     role: user.role,
   };
 
+  const gamification = await AnalyticsRepository.getStudentGamification(studentProfile.id);
+
   return (
     <DashboardLayout user={userData} tenant={tenant} studentProfile={studentProfile}>
       <ProfileClient 
         user={userData} 
         tenant={tenant} 
         studentProfile={studentProfile} 
+        gamification={gamification}
       />
     </DashboardLayout>
   );

@@ -30,6 +30,7 @@ interface FacultyDashboardClientProps {
   courses: any[];
   projectSubmissions?: any[];
   userRole?: string;
+  enableProctoring?: boolean;
 }
 
 export function FacultyDashboardClient({
@@ -40,7 +41,8 @@ export function FacultyDashboardClient({
   primaryColor,
   courses,
   projectSubmissions = [],
-  userRole
+  userRole,
+  enableProctoring = false
 }: FacultyDashboardClientProps) {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -65,7 +67,9 @@ export function FacultyDashboardClient({
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam && ["overview", "roster", "schedule", "curriculum", "submissions", "proctoring"].includes(tabParam)) {
+      const validTabs = ["overview", "roster", "schedule", "curriculum", "submissions"];
+      if (enableProctoring) validTabs.push("proctoring");
+      if (tabParam && validTabs.includes(tabParam)) {
         setActiveTab(tabParam);
       }
     }
@@ -171,14 +175,14 @@ export function FacultyDashboardClient({
 
       {/* Modern Glass Tab Controller Navigation */}
       <div className="flex border-b border-border/60 pb-px overflow-x-auto space-x-6 scrollbar-none">
-        {[
+        {([
           { id: "overview", label: "Overview", icon: Trophy },
           { id: "roster", label: "Cohort Roster", icon: Users },
           { id: "submissions", label: "Capstone Projects", icon: Trophy },
-          { id: "proctoring", label: "Web Proctoring Audits", icon: ShieldAlert },
+          ...(enableProctoring ? [{ id: "proctoring", label: "Web Proctoring Audits", icon: ShieldAlert }] : []),
           { id: "schedule", label: "Live Classrooms", icon: Video },
           { id: "curriculum", label: "Curriculum Config", icon: Layers }
-        ].map((tab) => {
+        ] as { id: string; label: string; icon: any }[]).map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
 
@@ -643,7 +647,7 @@ export function FacultyDashboardClient({
         )}
 
         {/* WEB PROCTORING AUDITS TAB */}
-        {activeTab === "proctoring" && (
+        {activeTab === "proctoring" && enableProctoring && (
           <div className="space-y-6 animate-in fade-in duration-200">
             <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-5 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-3">
@@ -780,16 +784,50 @@ export function FacultyDashboardClient({
                 <p className="font-bold text-foreground">{selectedSubmission.project?.title}</p>
               </div>
 
+              {/* Submissions Links */}
+              <div className="p-3 bg-secondary/35 rounded-xl border border-border/80 space-y-2.5">
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground uppercase font-black">Git Repository</span>
+                  {selectedSubmission.gitRepoUrl ? (
+                    <a
+                      href={selectedSubmission.gitRepoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-extrabold flex items-center gap-1 text-[11px]"
+                      style={{ color: primaryColor }}
+                    >
+                      Open Repository <ArrowUpRight className="w-3 h-3" />
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground font-semibold">Not provided</span>
+                  )}
+                </div>
+                {selectedSubmission.documentationUrl && (
+                  <div className="flex justify-between items-center gap-2 pt-2 border-t border-border/30">
+                    <span className="text-[10px] text-muted-foreground uppercase font-black">Project Documentation</span>
+                    <a
+                      href={selectedSubmission.documentationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-extrabold flex items-center gap-1 text-[11px]"
+                      style={{ color: primaryColor }}
+                    >
+                      Open Docs <ArrowUpRight className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] text-muted-foreground uppercase font-bold">Evaluation Status</label>
                   <select
                     value={gradeStatus}
                     onChange={(e: any) => setGradeStatus(e.target.value)}
-                    className="w-full bg-secondary/35 border border-border rounded-lg p-2 text-foreground focus:outline-none"
+                    className="w-full bg-card border border-border rounded-lg p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   >
-                    <option value="approved">Approved / Pass</option>
-                    <option value="failed">Failed / Resubmit</option>
+                    <option value="approved" className="bg-card text-foreground">Approved / Pass</option>
+                    <option value="failed" className="bg-card text-foreground">Failed / Resubmit</option>
                   </select>
                 </div>
 

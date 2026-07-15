@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { 
   Building, 
   Plus, 
@@ -53,6 +54,7 @@ interface Tenant {
       enablePlacement: boolean;
       enableProctoring: boolean;
       enableCertificates: boolean;
+      enableCapstone?: boolean;
     };
     gateways?: {
       stripe: boolean;
@@ -73,14 +75,23 @@ interface SuperAdminConsoleProps {
 }
 
 export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsoleProps) {
+  const searchParams = useSearchParams();
   const [tenantsList, setTenantsList] = useState<Tenant[]>(initialTenants);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Main navigation tabs
-  const [activeMainTab, setActiveMainTab] = useState<"academies" | "permissions">("academies");
+  // Main navigation tabs — synced from ?tab= query param
+  const [activeMainTab, setActiveMainTab] = useState<"academies" | "permissions" | "db_health">("academies");
+
+  // Sync tab from URL query param on mount / navigation
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "permissions") setActiveMainTab("permissions");
+    else if (tab === "health") setActiveMainTab("db_health");
+    else setActiveMainTab("academies");
+  }, [searchParams]);
 
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -184,6 +195,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
   const [enablePlacement, setEnablePlacement] = useState(true);
   const [enableProctoring, setEnableProctoring] = useState(true);
   const [enableCertificates, setEnableCertificates] = useState(true);
+  const [enableCapstone, setEnableCapstone] = useState(true);
   const [stripe, setStripe] = useState(true);
   const [razorpay, setRazorpay] = useState(true);
   const [paypal, setPaypal] = useState(true);
@@ -336,6 +348,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
     setEnablePlacement(s.features?.enablePlacement ?? true);
     setEnableProctoring(s.features?.enableProctoring ?? true);
     setEnableCertificates(s.features?.enableCertificates ?? true);
+    setEnableCapstone(s.features?.enableCapstone ?? true);
     setStripe(s.gateways?.stripe ?? true);
     setRazorpay(s.gateways?.razorpay ?? true);
     setPaypal(s.gateways?.paypal ?? true);
@@ -380,6 +393,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
             enablePlacement,
             enableProctoring,
             enableCertificates,
+            enableCapstone,
           },
           gateways: {
             stripe,
@@ -525,53 +539,57 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
             Register academies, customize theme branding, configure fine-grained module access/gateways, and customize permissions.
           </p>
         </div>
-        <div className="flex gap-3 shrink-0 relative z-10">
-          <button
-            onClick={() => {
-              setIsCreateOpen(true);
-              setErrorMsg(null);
-              setSuccessMsg(null);
-            }}
-            className="flex items-center gap-1.5 h-10 px-5 rounded-xl bg-primary hover:opacity-95 text-xs font-black text-primary-foreground shadow-lg shadow-primary/15 hover:scale-[1.01] active:scale-[0.99] transition-all shrink-0 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> Register Academy Portal
-          </button>
-        </div>
+        {user.role === "SuperAdmin" && (
+          <div className="flex gap-3 shrink-0 relative z-10">
+            <button
+              onClick={() => {
+                setIsCreateOpen(true);
+                setErrorMsg(null);
+                setSuccessMsg(null);
+              }}
+              className="flex items-center gap-1.5 h-10 px-5 rounded-xl bg-primary hover:opacity-95 text-xs font-black text-primary-foreground shadow-lg shadow-primary/15 hover:scale-[1.01] active:scale-[0.99] transition-all shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> Register Academy Portal
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Navigation Switcher */}
-      <div className="flex border-b border-border/40 gap-4 overflow-x-auto scrollbar-none shrink-0 pb-px">
-        <button
-          onClick={() => setActiveMainTab("academies")}
-          className={`pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 px-2 shrink-0 cursor-pointer ${
-            activeMainTab === "academies" 
-              ? "border-primary text-primary" 
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Registered Academies ({tenantsList.length})
-        </button>
-        <button
-          onClick={() => setActiveMainTab("permissions")}
-          className={`pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 px-2 shrink-0 cursor-pointer ${
-            activeMainTab === "permissions" 
-              ? "border-primary text-primary" 
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Global Permission Matrix
-        </button>
-        <button
-          onClick={() => setActiveMainTab("db_health" as any)}
-          className={`pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 px-2 shrink-0 cursor-pointer ${
-            (activeMainTab as any) === "db_health" 
-              ? "border-primary text-primary" 
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Database Health
-        </button>
-      </div>
+      {user.role === "SuperAdmin" && (
+        <div className="flex border-b border-border/40 gap-4 overflow-x-auto scrollbar-none shrink-0 pb-px">
+          <button
+            onClick={() => setActiveMainTab("academies")}
+            className={`pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 px-2 shrink-0 cursor-pointer ${
+              activeMainTab === "academies" 
+                ? "border-primary text-primary" 
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Registered Academies ({tenantsList.length})
+          </button>
+          <button
+            onClick={() => setActiveMainTab("permissions")}
+            className={`pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 px-2 shrink-0 cursor-pointer ${
+              activeMainTab === "permissions" 
+                ? "border-primary text-primary" 
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Global Permission Matrix
+          </button>
+          <button
+            onClick={() => setActiveMainTab("db_health")}
+            className={`pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 px-2 shrink-0 cursor-pointer ${
+              activeMainTab === "db_health" 
+                ? "border-primary text-primary" 
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Database Health
+          </button>
+        </div>
+      )}
 
       {activeMainTab === "academies" ? (
         <>
@@ -857,7 +875,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         </div>
       )}
 
-      {activeMainTab === ("db_health" as any) && (
+      {activeMainTab === "db_health" && (
         <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-6 space-y-6 border border-border shadow-sm">
           <div className="border-b border-border/40 pb-4">
             <h3 className="text-sm font-black text-foreground flex items-center gap-2">
@@ -1571,7 +1589,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                           { id: "lib", label: "Digital Library Module", desc: "Allow students to view course notes and files", state: enableLibrary, set: setEnableLibrary },
                           { id: "plac", label: "Placement Career Hub", desc: "Enable recruiters and jobs console", state: enablePlacement, set: setEnablePlacement },
                           { id: "proct", label: "Proctoring Integrity Engine", desc: "Enable proctored quiz sessions", state: enableProctoring, set: setEnableProctoring },
-                          { id: "cert", label: "Automated Certificates", desc: "Release blockchain credentials on pass", state: enableCertificates, set: setEnableCertificates }
+                          { id: "cert", label: "Automated Certificates", desc: "Release blockchain credentials on pass", state: enableCertificates, set: setEnableCertificates },
+                          { id: "cap", label: "Capstone Projects Module", desc: "Enable capstone projects control on courses", state: enableCapstone, set: setEnableCapstone }
                         ].map(feature => (
                           <div 
                             key={feature.id} 

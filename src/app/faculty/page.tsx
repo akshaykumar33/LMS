@@ -125,6 +125,7 @@ export default async function FacultyPage({ searchParams }: PageProps) {
         courses={coursesWithModules}
         projectSubmissions={projectSubmissionsList}
         userRole={user.role}
+        enableProctoring={!!(tenant.settings as any)?.features?.enableProctoring}
       />
     </DashboardLayout>
   );

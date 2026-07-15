@@ -25,6 +25,7 @@ export const tenants = pgTable("tenants", {
       enablePlacement: boolean;
       enableProctoring: boolean;
       enableCertificates: boolean;
+      enableCapstone?: boolean;
     };
     gateways: {
       stripe: boolean;
@@ -204,6 +205,8 @@ export const courses = pgTable("courses", {
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   syllabus: text("syllabus"),
+  scormEnabled: boolean("scorm_enabled").notNull().default(false),
+  scormPackageUrl: text("scorm_package_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -569,6 +572,25 @@ export const projectSubmissionsRelations = relations(projectSubmissions, ({ one 
   tenant: one(tenants, { fields: [projectSubmissions.tenantId], references: [tenants.id] }),
   project: one(projects, { fields: [projectSubmissions.projectId], references: [projects.id] }),
   student: one(students, { fields: [projectSubmissions.studentId], references: [students.id] }),
+}));
+
+// 27. COURSE PROGRESS TABLE
+export const courseProgress = pgTable("course_progress", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  studentId: uuid("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  courseId: uuid("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
+  completed: boolean("completed").notNull().default(false),
+  scormData: jsonb("scorm_data").$type<any>(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => {
+  return {
+    studentCourseIdx: index("course_progress_student_course_idx").on(table.studentId, table.courseId),
+  };
+});
+
+export const courseProgressRelations = relations(courseProgress, ({ one }) => ({
+  student: one(students, { fields: [courseProgress.studentId], references: [students.id] }),
+  course: one(courses, { fields: [courseProgress.courseId], references: [courses.id] }),
 }));
 
 

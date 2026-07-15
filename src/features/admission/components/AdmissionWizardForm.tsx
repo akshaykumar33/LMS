@@ -294,10 +294,10 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
                 name="batchId"
                 value={formData.batchId}
                 onChange={handleChange}
-                className="w-full h-10 px-3 rounded-lg border border-border bg-slate-900 text-xs text-white focus:border-sky-500"
+                className="w-full h-10 px-3 rounded-lg border border-border bg-card text-foreground text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
               >
                 {batches.map((b) => (
-                  <option key={b.id} value={b.id}>
+                  <option key={b.id} value={b.id} className="bg-card text-foreground">
                     {b.name}
                   </option>
                 ))}

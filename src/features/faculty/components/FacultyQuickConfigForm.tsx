@@ -58,6 +58,7 @@ export function FacultyQuickConfigForm({ courses, primaryColor = "#0ea5e9", user
 
   const videoInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scormInputRef = useRef<HTMLInputElement>(null);
 
   const activeCourse = courses.find((c) => c.id === selectedCourseId);
   const activeModule = activeCourse?.modules.find((m) => m.id === selectedModuleId);
@@ -136,6 +137,41 @@ export function FacultyQuickConfigForm({ courses, primaryColor = "#0ea5e9", user
       setMessage({ type: "success", text: `Uploaded "${file.name}" successfully!` });
     } catch (err: any) {
       setMessage({ type: "error", text: err.message || "Upload failed." });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleScormUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setMessage(null);
+
+    try {
+      const res = await getPresignedUrlAction(file.name, "application/zip");
+      if (!res.success || !res.uploadUrl || !res.fileUrl) {
+        throw new Error(res.error || "Failed to generate upload URL.");
+      }
+
+      const uploadRes = await fetch(res.uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": "application/zip" },
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error("Failed to upload SCORM package.");
+      }
+
+      // The mock-upload route returns the extracted launch URL for zips
+      const uploadJson = await uploadRes.json();
+      const launchUrl = uploadJson?.url || res.fileUrl;
+      setFileUrl(launchUrl);
+      setMessage({ type: "success", text: `SCORM package "${file.name}" extracted and ready.` });
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "SCORM upload failed." });
     } finally {
       setUploading(false);
     }
@@ -269,14 +305,14 @@ export function FacultyQuickConfigForm({ courses, primaryColor = "#0ea5e9", user
               <select
                 value={contentType}
                 onChange={(e) => setContentType(e.target.value)}
-                className="w-full h-10 bg-transparent border border-input rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary/50"
+                className="w-full h-10 bg-card border border-input rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary/50"
               >
-                <option value="video" className="bg-popover text-foreground">Video Lesson</option>
-                <option value="text" className="bg-popover text-foreground">Text / Notes / PDF</option>
-                <option value="live_class" className="bg-popover text-foreground">Live Class / Zoom</option>
-                <option value="audio" className="bg-popover text-foreground">Audio Lecture</option>
-                <option value="excel" className="bg-popover text-foreground">Interactive Spreadsheet (Excel)</option>
-                <option value="scorm" className="bg-popover text-foreground">Interactive SCORM Package</option>
+                <option value="video" className="bg-card text-foreground">Video Lesson</option>
+                <option value="text" className="bg-card text-foreground">Text / Notes / PDF</option>
+                <option value="live_class" className="bg-card text-foreground">Live Class / Zoom</option>
+                <option value="audio" className="bg-card text-foreground">Audio Lecture</option>
+                <option value="excel" className="bg-card text-foreground">Interactive Spreadsheet (Excel)</option>
+                <option value="scorm" className="bg-card text-foreground">Interactive SCORM Package</option>
               </select>
             </div>
 
@@ -335,6 +371,43 @@ export function FacultyQuickConfigForm({ courses, primaryColor = "#0ea5e9", user
                     className="h-10 text-xs bg-transparent border-input focus:border-primary/50"
                   />
                 </div>
+              </div>
+            )}
+
+            {/* SCORM Package Upload */}
+            {contentType === "scorm" && (
+              <div className="space-y-3 bg-secondary/15 p-4 rounded-xl border border-border/60">
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">
+                  SCORM Package (.zip)
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={fileUrl}
+                    placeholder="No SCORM package uploaded yet."
+                    readOnly
+                    className="h-10 text-xs bg-transparent border-input flex-1 cursor-default"
+                  />
+                  <input
+                    type="file"
+                    ref={scormInputRef}
+                    accept=".zip"
+                    onChange={handleScormUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    disabled={uploading}
+                    onClick={() => scormInputRef.current?.click()}
+                    className="h-10 px-4 text-xs font-bold shrink-0 border border-border bg-card/50 hover:bg-secondary text-foreground flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
+                    Upload SCORM ZIP
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Upload a SCORM 1.2 or 2004 package. The system will extract it and locate the launch file automatically.
+                </p>
               </div>
             )}
 

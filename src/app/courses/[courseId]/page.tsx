@@ -4,7 +4,7 @@ import { requireAuth } from "@/features/auth/services/session";
 import { CourseRepository } from "@/features/course/repository/course-repository";
 import { QuizRepository } from "@/features/quiz/repository/quiz-repository";
 import { db } from "@/db/db";
-import { students, users, quizzes, lessonProgress, projects, projectSubmissions } from "@/db/schema";
+import { students, users, quizzes, lessonProgress, projects, projectSubmissions, courseProgress } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkspaceClient } from "@/features/course/components/WorkspaceClient";
@@ -98,6 +98,16 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
       .map((p) => p.lessonId);
   }
 
+  let scormCourseProgress = null;
+  if (courseDetails.scormEnabled && studentProfile) {
+    scormCourseProgress = await db.query.courseProgress.findFirst({
+      where: and(
+        eq(courseProgress.studentId, studentProfile.id),
+        eq(courseProgress.courseId, courseId)
+      ),
+    });
+  }
+
   // Fetch capstone project details for this course
   const capstoneProject = await db.query.projects.findFirst({
     where: eq(projects.courseId, courseId),
@@ -133,13 +143,16 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
         activeLesson={activeLesson}
         activeQuiz={activeQuiz}
         completedLessonIds={completedLessonIds}
+        scormCourseProgress={scormCourseProgress}
         capstoneProject={capstoneProject}
         capstoneSubmission={capstoneSubmission}
         tenantName={tenant.name}
+        subdomain={tenant.subdomain}
         primaryColor={tenant.branding?.primaryColor}
         user={userData}
         enableProctoring={!!(tenant.settings as any)?.features?.enableProctoring}
         enableAi={(tenant.settings as any)?.ai?.enableAi !== false}
+        enableCapstone={(tenant.settings as any)?.features?.enableCapstone !== false}
       />
     </DashboardLayout>
   );

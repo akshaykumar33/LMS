@@ -505,6 +505,10 @@ function getRelationsForTable(tableName: string): any {
     job_applications: schema.jobApplicationsRelations,
     certificates: schema.certificatesRelations,
     audit_logs: schema.auditLogsRelations,
+    digital_library: schema.digitalLibraryRelations,
+    lesson_progress: schema.lessonProgressRelations,
+    projects: schema.projectsRelations,
+    project_submissions: schema.projectSubmissionsRelations,
   };
   return mapping[tableName];
 }
