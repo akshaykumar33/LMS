@@ -5,6 +5,8 @@ import { getTenantContext } from "@/features/auth/services/tenant";
 import { requireAuth, verifyWriteAccess } from "@/features/auth/services/session";
 import { AdmissionService } from "../services/admission-service";
 import { createStripePaymentIntent } from "../services/stripe-service";
+import { createRazorpayOrder, verifyRazorpaySignature } from "../services/razorpay-service";
+import { getRazorpayEnvKeys, getPaymentMode } from "../services/payment-config";
 import { AdmissionRepository } from "../repository/admission-repository";
 import { admissionApplicationSchema, paymentSubmitSchema, documentUploadSchema } from "../schemas/admission-schemas";
 import { db } from "@/db/db";
@@ -314,6 +316,7 @@ export async function createStripePaymentIntentAction(applicationId: string) {
       success: true,
       clientSecret: intent.clientSecret,
       publishableKey: intent.publishableKey,
+      isSandbox: intent.isSandbox,
     };
   } catch (error: any) {
     console.error("Failed to create Stripe payment intent:", error);
@@ -493,3 +496,127 @@ export async function getPresignedUrlAction(fileName: string, contentType: strin
   }
 }
 
+
+/**
+ * Public Action: Create a Razorpay order for a student application fee.
+ * Returns the orderId + keyId needed to open the Razorpay checkout widget.
+ */
+export async function createRazorpayOrderAction(applicationId: string) {
+  const tenant = await getTenantContext();
+  if (!tenant) {
+    return { success: false, error: "No tenant context resolved." };
+  }
+
+  try {
+    const app = await AdmissionRepository.findById(tenant.id, applicationId);
+    if (!app) {
+      return { success: false, error: "Application not found." };
+    }
+    if (app.status === "approved") {
+      return { success: false, error: "This application is already approved." };
+    }
+
+    // ₹1,25,000 → 125000 paise  (matches the $1,500 USD tuition in INR equivalent)
+    const amountInPaise = 125000 * 100;
+
+    const order = await createRazorpayOrder(
+      tenant.id,
+      amountInPaise,
+      `app_${applicationId.substring(0, 12)}`,
+      {
+        tenantId: tenant.id,
+        applicationId: app.id,
+        email: app.email,
+      }
+    );
+
+    return {
+      success: true,
+      orderId: order.orderId,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: order.keyId,
+      isSandbox: order.isSandbox,
+    };
+  } catch (error: any) {
+    console.error("Failed to create Razorpay order:", error);
+    return { success: false, error: error.message || "Failed to initialize Razorpay payment." };
+  }
+}
+
+/**
+ * Public Action: Verify Razorpay payment signature and complete enrollment.
+ * Called client-side after Razorpay checkout widget closes with success.
+ */
+export async function verifyAndCompleteRazorpayPaymentAction(
+  applicationId: string,
+  razorpay_order_id: string,
+  razorpay_payment_id: string,
+  razorpay_signature: string
+) {
+  const tenant = await getTenantContext();
+  if (!tenant) {
+    return { success: false, error: "No tenant context resolved." };
+  }
+
+  try {
+    const { isSandbox } = getPaymentMode("razorpay");
+    const { keySecret } = getRazorpayEnvKeys();
+
+    // In sandbox with mock key we skip real verification (mirror Stripe mock fallback)
+    const isMockKey = keySecret.includes("Mock") || keySecret.includes("mock");
+
+    let signatureValid: boolean;
+    if (isSandbox && isMockKey) {
+      console.warn("[Razorpay Sandbox] Skipping signature verification — mock key in use.");
+      signatureValid = true;
+    } else {
+      signatureValid = verifyRazorpaySignature(
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+        keySecret
+      );
+    }
+
+    if (!signatureValid) {
+      return { success: false, error: "Payment verification failed. Invalid signature." };
+    }
+
+    // ₹1,25,000 = 125000 paise
+    const amountInRupees = "125000.00";
+
+    await AdmissionRepository.recordPayment(
+      tenant.id,
+      applicationId,
+      amountInRupees,
+      "razorpay",
+      razorpay_payment_id,
+      "completed"
+    );
+
+    await AdmissionRepository.updateApplicationStatus(tenant.id, applicationId, "paid");
+
+    const app = await AdmissionRepository.findById(tenant.id, applicationId);
+    if (app) {
+      try {
+        const { sendTenantEmail } = require("@/features/notification/services/mail-service");
+        sendTenantEmail(tenant.id, {
+          to: app.email,
+          subject: `Payment Confirmed — ${tenant.name}`,
+          html: `<p>Hi ${app.firstName},</p>
+                 <p>We have successfully verified your tuition payment of ₹1,25,000 via Razorpay (Payment ID: ${razorpay_payment_id}).</p>
+                 <p>Your enrollment is now complete.</p>
+                 <p>Best regards,<br/>Admissions Team</p>`
+        }).catch((err: any) => console.error("Failed to send Razorpay payment email:", err));
+      } catch (e) {
+        console.error("Failed to trigger Razorpay payment success email:", e);
+      }
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Razorpay payment verification failed:", error);
+    return { success: false, error: error.message || "Failed to complete Razorpay checkout." };
+  }
+}
