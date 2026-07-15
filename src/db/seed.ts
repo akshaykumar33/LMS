@@ -1175,6 +1175,9 @@ You must submit:
           });
         }
       }
+
+      // Seed Notifications for Linus
+      await db.insert(schema.notifications).values([
         {
           tenantId: tenant.id,
           userId: linusUser.id,
