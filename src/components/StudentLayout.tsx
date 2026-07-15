@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
+import { useUIStore, useGamificationStore } from "@/store";
 import { usePathname, useRouter } from "next/navigation";
 import { 
   Home, 
@@ -59,49 +60,32 @@ interface StudentLayoutProps {
 export function StudentLayout({ children, user, tenant, studentProfile }: StudentLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [streakCount, setStreakCount] = useState(5);
-  const [xp, setXp] = useState(450);
-  const [level, setLevel] = useState(3);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // Read gamification values from localStorage (display-only in layout header)
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedStreak = localStorage.getItem("student_streak");
-      const savedXp = localStorage.getItem("student_xp");
-      const savedLevel = localStorage.getItem("student_level");
+  // ── Zustand stores ────────────────────────────────────────────────────────────
+  const {
+    isSidebarCollapsed,
+    isMobileMenuOpen,
+    isCommandPaletteOpen: isSearchOpen,
+    toggleSidebar,
+    toggleMobileMenu,
+    closeMobileMenu,
+    toggleCommandPalette,
+    closeCommandPalette,
+  } = useUIStore();
 
-      if (savedStreak) setStreakCount(parseInt(savedStreak));
-      if (savedXp) setXp(parseInt(savedXp));
-      if (savedLevel) setLevel(parseInt(savedLevel));
-
-      // Listen for storage changes from DashboardClient (same tab via custom event)
-      const syncGamification = () => {
-        const s = localStorage.getItem("student_streak");
-        const x = localStorage.getItem("student_xp");
-        const l = localStorage.getItem("student_level");
-        if (s) setStreakCount(parseInt(s));
-        if (x) setXp(parseInt(x));
-        if (l) setLevel(parseInt(l));
-      };
-      window.addEventListener("gamification-update", syncGamification);
-      return () => window.removeEventListener("gamification-update", syncGamification);
-    }
-  }, []);
+  const { xp, level, streakCount } = useGamificationStore();
 
   // Global Ctrl+K / Cmd+K to toggle command palette
-  useEffect(() => {
+  React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        setIsSearchOpen(prev => !prev);
+        toggleCommandPalette();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [toggleCommandPalette]);
 
   const handleLogout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,7 +125,7 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
     <div className="flex min-h-screen bg-background text-foreground transition-colors duration-300">
       <CommandPalette 
         isOpen={isSearchOpen} 
-        onClose={() => setIsSearchOpen(false)} 
+        onClose={closeCommandPalette} 
         navigationItems={navigationItems}
       />
 
@@ -169,7 +153,7 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
             )}
           </div>
           <button 
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            onClick={toggleSidebar}
             className="p-1 rounded-lg border border-border bg-background hover:bg-secondary text-muted-foreground hover:text-foreground hidden md:block"
           >
             {isSidebarCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
@@ -266,7 +250,7 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
       <header className="fixed top-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 z-40 md:hidden">
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setIsMobileMenuOpen(true)}
+            onClick={toggleMobileMenu}
             className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground"
           >
             <Menu className="w-4 h-4" />
@@ -287,13 +271,13 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div 
             className="fixed inset-0 bg-background/80 backdrop-blur-sm"
-            onClick={() => setIsMobileMenuOpen(false)}
+            onClick={closeMobileMenu}
           />
           <div className="relative w-72 max-w-sm bg-card border-r border-border h-full flex flex-col p-6 shadow-2xl animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between mb-8">
               <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href="/dashboard" />
               <button 
-                onClick={() => setIsMobileMenuOpen(false)}
+                onClick={closeMobileMenu}
                 className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground"
               >
                 <X className="w-4 h-4" />
@@ -311,7 +295,7 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
                   <a
                     key={item.name}
                     href={item.href}
-                    onClick={() => setIsMobileMenuOpen(false)}
+                    onClick={() => closeMobileMenu()}
                     className={`flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition-all ${
                       isActive 
                         ? "text-primary bg-primary/10 border-l-2 border-primary" 
@@ -380,7 +364,7 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
           <div className="flex items-center gap-5">
             {/* Search command Palette button */}
             <button 
-              onClick={() => setIsSearchOpen(true)}
+              onClick={toggleCommandPalette}
               className="flex items-center gap-3 px-3 py-1.5 rounded-xl border border-border bg-card/45 hover:bg-secondary text-muted-foreground hover:text-foreground text-[11px] font-bold transition-all shadow-sm group"
             >
               <Search className="w-3.5 h-3.5" />
