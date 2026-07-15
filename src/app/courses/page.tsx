@@ -4,7 +4,7 @@ import { requireAuth } from "@/features/auth/services/session";
 import { CourseRepository } from "@/features/course/repository/course-repository";
 import { db } from "@/db/db";
 import { students, users, courses } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { CoursesListClient } from "@/features/course/components/CoursesListClient";
 
@@ -20,7 +20,7 @@ export default async function CoursesPage() {
   let studentProfile: any = null;
   if (user.role === "Student") {
     studentProfile = await db.query.students.findFirst({
-      where: eq(students.userId, user.userId),
+      where: and(eq(students.userId, user.userId), eq(students.tenantId, tenant.id)),
       with: { batch: true },
     });
 

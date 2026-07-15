@@ -396,15 +396,15 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
                 id="add-category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-secondary/40 border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="book">Textbook</option>
-                <option value="research_paper">Research Paper</option>
-                <option value="manual">Reference Manual</option>
-                <option value="worksheet">Practice Sheet / Worksheet</option>
-                <option value="excel">Excel Spreadsheet</option>
-                <option value="ppt">Presentation Slide</option>
-                <option value="audio">Audio Briefing</option>
+                <option value="book" className="bg-card text-foreground">Textbook</option>
+                <option value="research_paper" className="bg-card text-foreground">Research Paper</option>
+                <option value="manual" className="bg-card text-foreground">Reference Manual</option>
+                <option value="worksheet" className="bg-card text-foreground">Practice Sheet / Worksheet</option>
+                <option value="excel" className="bg-card text-foreground">Excel Spreadsheet</option>
+                <option value="ppt" className="bg-card text-foreground">Presentation Slide</option>
+                <option value="audio" className="bg-card text-foreground">Audio Briefing</option>
               </select>
             </div>
 
@@ -509,15 +509,15 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
                 id="edit-category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-secondary/40 border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="book">Textbook</option>
-                <option value="research_paper">Research Paper</option>
-                <option value="manual">Reference Manual</option>
-                <option value="worksheet">Practice Sheet / Worksheet</option>
-                <option value="excel">Excel Spreadsheet</option>
-                <option value="ppt">Presentation Slide</option>
-                <option value="audio">Audio Briefing</option>
+                <option value="book" className="bg-card text-foreground">Textbook</option>
+                <option value="research_paper" className="bg-card text-foreground">Research Paper</option>
+                <option value="manual" className="bg-card text-foreground">Reference Manual</option>
+                <option value="worksheet" className="bg-card text-foreground">Practice Sheet / Worksheet</option>
+                <option value="excel" className="bg-card text-foreground">Excel Spreadsheet</option>
+                <option value="ppt" className="bg-card text-foreground">Presentation Slide</option>
+                <option value="audio" className="bg-card text-foreground">Audio Briefing</option>
               </select>
             </div>
 

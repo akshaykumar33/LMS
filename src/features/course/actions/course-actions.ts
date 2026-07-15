@@ -46,7 +46,16 @@ export async function getLessonAction(lessonId: string) {
 /**
  * CMS Action: Update course name, code, description.
  */
-export async function updateCourseAction(courseId: string, formData: { name: string; code: string; description: string }) {
+export async function updateCourseAction(
+  courseId: string,
+  formData: {
+    name: string;
+    code: string;
+    description: string;
+    scormEnabled?: boolean;
+    scormPackageUrl?: string | null;
+  }
+) {
   try {
     const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
     verifyWriteAccess(user);
@@ -69,12 +78,15 @@ export async function updateCourseAction(courseId: string, formData: { name: str
         name: formData.name,
         code: formData.code,
         description: formData.description,
+        scormEnabled: formData.scormEnabled !== undefined ? formData.scormEnabled : undefined,
+        scormPackageUrl: formData.scormPackageUrl !== undefined ? formData.scormPackageUrl : undefined,
         updatedAt: new Date(),
       })
       .where(eq(schema.courses.id, courseId));
 
     revalidatePath("/admin/courses");
     revalidatePath("/dashboard");
+    revalidatePath(`/courses/[courseId]`, "page");
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to update course." };
@@ -627,18 +639,30 @@ ${recommendation}`;
       };
     }
 
-    const lesson = await db.query.lessons.findFirst({
-      where: eq(schema.lessons.id, lessonId),
-      with: {
-        module: {
-          with: {
-            course: true,
-          },
-        },
-      },
-    });
+    // Use explicit joins instead of nested `with` to avoid JSON DB mode issues
+    const [lessonRecord] = await db
+      .select({
+        id: schema.lessons.id,
+        title: schema.lessons.title,
+        content: schema.lessons.content,
+        contentType: schema.lessons.contentType,
+        courseTenantId: schema.courses.tenantId,
+      })
+      .from(schema.lessons)
+      .innerJoin(schema.modules, eq(schema.lessons.moduleId, schema.modules.id))
+      .innerJoin(schema.courses, eq(schema.modules.courseId, schema.courses.id))
+      .where(eq(schema.lessons.id, lessonId));
 
-    if (!lesson || lesson.module.course.tenantId !== user.tenantId) {
+    const lesson = lessonRecord;
+
+    try {
+      const fs = require("fs");
+      const path = require("path");
+      const logMsg = `[ASK_AI] user.tenantId="${user.tenantId}" | lessonId="${lessonId}" | foundLesson=${!!lesson} | lessonTenantId="${lesson ? lesson.courseTenantId : ""}"\n`;
+      fs.appendFileSync(path.resolve(process.cwd(), "ai-debug.log"), logMsg);
+    } catch (err) {}
+
+    if (!lesson || lesson.courseTenantId !== user.tenantId) {
       return { success: false, error: "Lesson context not found or unauthorized." };
     }
 
@@ -748,3 +772,67 @@ export async function getVideoProgressAction(lessonId: string) {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * CMS Action: Create or Update Capstone Project for a course.
+ */
+export async function updateCapstoneProjectAction(
+  courseId: string,
+  formData: {
+    title: string;
+    description: string;
+    difficulty: string;
+    durationWeeks: number;
+  }
+) {
+  try {
+    const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
+    verifyWriteAccess(user);
+
+    // Verify course belongs to tenant
+    const course = await db.query.courses.findFirst({
+      where: and(
+        eq(schema.courses.id, courseId),
+        eq(schema.courses.tenantId, user.tenantId)
+      ),
+    });
+
+    if (!course) {
+      return { success: false, error: "Course not found." };
+    }
+
+    // Check if capstone project already exists for this course
+    const existing = await db.query.projects.findFirst({
+      where: eq(schema.projects.courseId, courseId),
+    });
+
+    if (existing) {
+      await db
+        .update(schema.projects)
+        .set({
+          title: formData.title,
+          description: formData.description,
+          difficulty: formData.difficulty,
+          durationWeeks: formData.durationWeeks,
+        })
+        .where(eq(schema.projects.id, existing.id));
+    } else {
+      await db.insert(schema.projects).values({
+        tenantId: user.tenantId,
+        courseId: courseId,
+        title: formData.title,
+        description: formData.description,
+        difficulty: formData.difficulty,
+        durationWeeks: formData.durationWeeks,
+      });
+    }
+
+    revalidatePath("/admin/courses");
+    revalidatePath("/dashboard");
+    revalidatePath(`/courses/[courseId]`, "page");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to update capstone project." };
+  }
+}
+

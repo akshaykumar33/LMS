@@ -339,14 +339,14 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                       <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
-                        className="h-8 bg-card border border-border/60 rounded-lg text-[10px] text-muted-foreground px-2 focus:outline-none focus:border-primary/50"
+                        className="h-8 bg-card border border-border/60 rounded-lg text-[10px] text-foreground px-2 focus:outline-none focus:border-primary/50"
                       >
-                        <option value="all">All Stages</option>
-                        <option value="applied">Applied</option>
-                        <option value="interviewing">Interviewing</option>
-                        <option value="offered">Offer Released</option>
-                        <option value="selected">Selected</option>
-                        <option value="rejected">Rejected</option>
+                        <option value="all" className="bg-card text-foreground">All Stages</option>
+                        <option value="applied" className="bg-card text-foreground">Applied</option>
+                        <option value="interviewing" className="bg-card text-foreground">Interviewing</option>
+                        <option value="offered" className="bg-card text-foreground">Offer Released</option>
+                        <option value="selected" className="bg-card text-foreground">Selected</option>
+                        <option value="rejected" className="bg-card text-foreground">Rejected</option>
                       </select>
                     </div>
                   </div>

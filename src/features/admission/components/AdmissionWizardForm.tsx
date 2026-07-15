@@ -317,7 +317,7 @@ function isOldEnough(dobString: string) {
                 onValueChange={(value) =>
                   setFormData((prev) => ({ ...prev, batchId: value }))
                 }
-                >
+              >
                 <SelectTrigger className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 shadow-sm focus:border-sky-500 focus:outline-none">
                   <SelectValue placeholder="Select cohort batch" />
                 </SelectTrigger>
@@ -332,7 +332,7 @@ function isOldEnough(dobString: string) {
                     </SelectItem>
                   ))}
                 </SelectContent>
-                </Select>
+              </Select>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

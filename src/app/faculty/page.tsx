@@ -7,7 +7,7 @@ import { FacultyRepository } from "@/features/faculty/repository/faculty-reposit
 import { ScheduleClassForm } from "@/features/faculty/components/ScheduleClassForm";
 import { FacultyQuickConfigForm } from "@/features/faculty/components/FacultyQuickConfigForm";
 import { db } from "@/db/db";
-import { courses, users, projectSubmissions } from "@/db/schema";
+import { courses, users, projectSubmissions, projects } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { FacultyDashboardClient } from "@/features/faculty/components/FacultyDashboardClient";
 
@@ -71,6 +71,12 @@ export default async function FacultyPage({ searchParams }: PageProps) {
     },
   });
 
+  // 6. Fetch all capstone projects for this tenant (so the tab shows projects even when submissions are empty)
+  const capstoneProjects = await db.query.projects.findMany({
+    where: eq(projects.tenantId, tenant.id),
+    with: { course: true },
+  });
+
   const dbUser = await db.query.users.findFirst({
     where: eq(users.id, user.userId),
   });
@@ -124,7 +130,9 @@ export default async function FacultyPage({ searchParams }: PageProps) {
         primaryColor={primaryColor}
         courses={coursesWithModules}
         projectSubmissions={projectSubmissionsList}
+        capstoneProjects={capstoneProjects}
         userRole={user.role}
+        enableProctoring={!!(tenant.settings as any)?.features?.enableProctoring}
       />
     </DashboardLayout>
   );

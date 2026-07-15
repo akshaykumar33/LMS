@@ -6,6 +6,7 @@ import {
   Sparkles, CheckCircle2, ChevronRight, Award, Flame, Star, Zap
 } from "lucide-react";
 import { StudentResumeWidget } from "@/features/career/components/StudentResumeWidget";
+import { formatDate } from "@/utils/date-formatter";
 
 interface ProfileClientProps {
   user: {
@@ -28,52 +29,56 @@ interface ProfileClientProps {
       name: string;
     } | null;
   } | null;
+  gamification: {
+    xp: number;
+    level: number;
+    streak: number;
+    badges: {
+      id: string;
+      name: string;
+      desc: string;
+      unlocked: boolean;
+    }[];
+    activityLogs: {
+      text: string;
+      xp: string;
+      date: Date | string;
+    }[];
+  };
 }
 
-export function ProfileClient({ user, tenant, studentProfile }: ProfileClientProps) {
+export function ProfileClient({ user, tenant, studentProfile, gamification }: ProfileClientProps) {
   const primaryColor = tenant.branding?.primaryColor || "#0ea5e9";
   const [mounted, setMounted] = useState(false);
 
-  // Load level and XP stats from localStorage (if exists, else fallback)
-  const [xp, setXp] = useState(450);
-  const [level, setLevel] = useState(3);
-  const [streak, setStreak] = useState(5);
-
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== "undefined") {
-      const savedXp = localStorage.getItem("student_xp");
-      const savedLevel = localStorage.getItem("student_level");
-      const savedStreak = localStorage.getItem("student_streak");
-
-      if (savedXp) setXp(parseInt(savedXp));
-      if (savedLevel) setLevel(parseInt(savedLevel));
-      if (savedStreak) setStreak(parseInt(savedStreak));
-    }
   }, []);
-
-  // Static gamified achievements/badges
-  const badges = [
-    { id: "pioneer", name: "Pioneer Scholar", desc: "Successfully enrolled in the CoE batch.", unlocked: true, icon: Sparkles, color: "text-sky-400 bg-sky-500/10 border-sky-500/25" },
-    { id: "focus", name: "Focus Master", desc: "Completed 1 focus Pomodoro session.", unlocked: true, icon: Zap, color: "text-amber-400 bg-amber-500/10 border-amber-500/25" },
-    { id: "streak", name: "Daily Habit", desc: "Maintained a 5-day active study streak.", unlocked: true, icon: Flame, color: "text-rose-400 bg-rose-500/10 border-rose-500/25" },
-    { id: "perfect", name: "Perfect Score", desc: "Earned 100% on any module quiz.", unlocked: xp >= 600, icon: Trophy, color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/25" },
-    { id: "graduate", name: "Alumni Candidate", desc: "Passed all courses and unlocked certificates.", unlocked: false, icon: Award, color: "text-purple-400 bg-purple-500/10 border-purple-500/25" }
-  ];
-
-  // Simulated activity logging
-  const recentActivities = [
-    { text: "Completed 25-min Focus Pomodoro", xp: "+50 XP", date: "Today, 10:45 AM" },
-    { text: "Checked off daily goal: Explain transistor sizing to AI", xp: "+15 XP", date: "Today, 9:30 AM" },
-    { text: "Passed Quiz: CMOS Inverter Basics", xp: "+100 XP", date: "Yesterday" },
-    { text: "Checked off daily goal: Solve practice quiz on CMOS", xp: "+15 XP", date: "Yesterday" }
-  ];
 
   if (!mounted) return <div className="h-screen bg-background shimmer-bg rounded-2xl" />;
 
-  const nextLevelXp = level * 200;
-  const prevLevelXp = (level - 1) * 200;
-  const progressPercent = ((xp - prevLevelXp) / (nextLevelXp - prevLevelXp)) * 100;
+  const { xp, level, streak, badges: dbBadges, activityLogs } = gamification;
+
+  const badgeStyling: Record<string, { icon: React.ComponentType<any>; color: string }> = {
+    pioneer: { icon: Sparkles, color: "text-sky-400 bg-sky-500/10 border-sky-500/25" },
+    focus: { icon: Zap, color: "text-amber-400 bg-amber-500/10 border-amber-500/25" },
+    streak: { icon: Flame, color: "text-rose-400 bg-rose-500/10 border-rose-500/25" },
+    perfect: { icon: Trophy, color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/25" },
+    graduate: { icon: Award, color: "text-purple-400 bg-purple-500/10 border-purple-500/25" }
+  };
+
+  const badges = dbBadges.map(b => {
+    const style = badgeStyling[b.id] || { icon: Award, color: "text-purple-400 bg-purple-500/10 border-purple-500/25" };
+    return {
+      ...b,
+      icon: style.icon,
+      color: style.color
+    };
+  });
+
+  const nextLevelXp = level * 250;
+  const prevLevelXp = (level - 1) * 250;
+  const progressPercent = Math.min(100, Math.max(0, ((xp - prevLevelXp) / 250) * 100));
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -215,17 +220,23 @@ export function ProfileClient({ user, tenant, studentProfile }: ProfileClientPro
           <div className="bg-card border border-border rounded-2xl p-6 space-y-4 shadow-sm">
             <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Gamified Activity Logs</h3>
             <div className="divide-y divide-border/40">
-              {recentActivities.map((act, idx) => (
-                <div key={idx} className="flex justify-between items-center py-3 text-xs">
-                  <div className="space-y-0.5">
-                    <p className="font-extrabold text-foreground">{act.text}</p>
-                    <p className="text-[10px] text-muted-foreground">{act.date}</p>
+              {activityLogs && activityLogs.length > 0 ? (
+                activityLogs.map((act, idx) => (
+                  <div key={idx} className="flex justify-between items-center py-3 text-xs">
+                    <div className="space-y-0.5">
+                      <p className="font-extrabold text-foreground">{act.text}</p>
+                      <p className="text-[10px] text-muted-foreground">{formatDate(act.date)}</p>
+                    </div>
+                    <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-lg shrink-0">
+                      {act.xp}
+                    </span>
                   </div>
-                  <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-lg shrink-0">
-                    {act.xp}
-                  </span>
+                ))
+              ) : (
+                <div className="py-4 text-center text-muted-foreground text-xs font-bold">
+                  No gamification activity logs recorded yet.
                 </div>
-              ))}
+              )}
             </div>
           </div>
 

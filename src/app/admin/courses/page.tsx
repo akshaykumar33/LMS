@@ -28,6 +28,7 @@ export default async function AdminCoursesPage() {
     name: c.name,
     description: c.description,
     tenantName: tenantMap.get(c.tenantId) || "Unknown",
+    capstoneProject: c.capstoneProject || null,
     modules: c.modules.map((m: any) => ({
       id: m.id,
       name: m.name,
@@ -71,7 +72,12 @@ export default async function AdminCoursesPage() {
           </p>
         </div>
 
-        <CourseManagerConsole initialCourses={formattedCourses} primaryColor={tenant.branding?.primaryColor} userRole={user.role} />
+        <CourseManagerConsole 
+          initialCourses={formattedCourses} 
+          primaryColor={tenant.branding?.primaryColor} 
+          userRole={user.role}
+          enableCapstone={tenant.settings?.features?.enableCapstone !== false}
+        />
       </div>
     </DashboardLayout>
   );

@@ -308,4 +308,13 @@ input:-webkit-autofill:active {
   html {
     @apply font-sans;
   }
+  select {
+    background-color: var(--card) !important;
+    color: var(--foreground) !important;
+    border-color: var(--border) !important;
+  }
+  select option {
+    background-color: var(--popover) !important;
+    color: var(--foreground) !important;
+  }
 }

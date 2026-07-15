@@ -124,7 +124,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
 
   const activeStudentEmail = activeSubdomain === "intel"
     ? "linus.torvalds@student.intel.com"
-    : `student1@student.${activeSubdomain}.com`;
+    : `student@${activeSubdomain}.lms.com`;
 
   // Dynamically compile all sandbox credentials from quick-login-credentials.json
   const allAccounts = isParent
@@ -147,9 +147,9 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
     } else if (account.roleName === "Student (Certified)") {
       email = activeSubdomain === "intel"
         ? "linus.torvalds@student.intel.com"
-        : `student1@student.${activeSubdomain}.com`;
+        : `student@${activeSubdomain}.lms.com`;
     } else if (account.roleName === "Student (General)") {
-      email = `student2@student.${activeSubdomain}.com`;
+      email = `james.smith.0@student.${activeSubdomain}.com`;
     } else {
       email = email.replace("{{subdomain}}", activeSubdomain);
     }

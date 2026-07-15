@@ -74,26 +74,6 @@ export async function getStudentProfileStatsAction(studentId: string) {
   try {
     const user = await requireAuth(["Owner", "Admin", "Faculty", "Mentor", "Program Manager"]);
     const tenant = await getTenantContext();
-    
-    const logData = {
-      timestamp: new Date().toISOString(),
-      studentId,
-      userRole: user.role,
-      userTenantId: user.tenantId,
-      resolvedTenantId: tenant?.id,
-      resolvedTenantSubdomain: tenant?.subdomain
-    };
-    
-    try {
-      const fs = require("fs");
-      const path = require("path");
-      fs.appendFileSync(
-        path.join(process.cwd(), "debug.log"),
-        JSON.stringify(logData, null, 2) + "\n---\n"
-      );
-    } catch (fsErr) {
-      console.error("Failed to write to debug.log", fsErr);
-    }
 
     if (!tenant) {
       return { success: false, error: "Tenant context not found." };
@@ -101,14 +81,6 @@ export async function getStudentProfileStatsAction(studentId: string) {
     const stats = await FacultyRepository.getStudentProfileStats(tenant.id, studentId);
     return { success: true, data: stats };
   } catch (error: any) {
-    try {
-      const fs = require("fs");
-      const path = require("path");
-      fs.appendFileSync(
-        path.join(process.cwd(), "debug.log"),
-        `ERROR: ${error.message || error}\nStack: ${error.stack}\n---\n`
-      );
-    } catch (fsErr) {}
     return { success: false, error: error.message || "Failed to load student profile statistics." };
   }
 }

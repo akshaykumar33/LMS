@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const url = request.nextUrl.clone();
   const hostname = request.headers.get("host") || "";
 
@@ -59,11 +59,6 @@ export function middleware(request: NextRequest) {
     if (cookieSubdomain && url.pathname !== "/") {
       subdomain = cookieSubdomain;
     }
-  }
-
-  // Normalize empty subdomain to "wysbryx" as the absolute last fallback
-  if (!subdomain) {
-    subdomain = "wysbryx";
   }
 
   // Always set the header so getTenantContext() can distinguish root domain (empty) from missing header
