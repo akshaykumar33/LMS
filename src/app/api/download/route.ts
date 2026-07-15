@@ -558,7 +558,7 @@ export async function GET(request: NextRequest) {
       return new Response("Missing resource ID or lesson ID", { status: 400 });
     }
 
-    let item: { title: string; category: string; tenantId: string; author?: string | null } | null = null;
+    let item: { title: string; category: string; tenantId: string; author?: string | null; fileUrl?: string | null } | null = null;
 
     if (lessonId) {
       let resolvedLessonId = lessonId;
@@ -635,6 +635,7 @@ export async function GET(request: NextRequest) {
         category: libItem.category,
         tenantId: libItem.tenantId,
         author: libItem.author,
+        fileUrl: libItem.fileUrl,
       };
     }
 
