@@ -410,3 +410,17 @@ input:-webkit-autofill:active {
   border-radius: 0.75rem;
   padding: 0.75rem;
 }
+
+/* Invert date picker calendar icon for dark background visibility */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  filter: invert(1);
+  opacity: 1;
+}
+
