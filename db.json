@@ -21747,6 +21747,20 @@
       "completed": true,
       "scormData": null,
       "updatedAt": "2026-07-14T21:12:28.604Z"
+    },
+    {
+      "id": "d42bbe51-8294-449e-a774-2f4406fd9985",
+      "studentId": "bb8abd9a-63d7-4634-af77-bf617bc369ce",
+      "lessonId": "b2886dca-e4a1-4619-ad78-ad8a8669b527",
+      "completed": false,
+      "scormData": {
+        "videoProgress": {
+          "currentSeconds": 10.026667,
+          "duration": 10.026667,
+          "percentage": 100
+        }
+      },
+      "updatedAt": "2026-07-14T22:17:03.991Z"
     }
   ],
   "lessons": [
