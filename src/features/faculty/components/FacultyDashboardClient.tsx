@@ -29,6 +29,7 @@ interface FacultyDashboardClientProps {
   primaryColor: string;
   courses: any[];
   projectSubmissions?: any[];
+  capstoneProjects?: any[];
   userRole?: string;
   enableProctoring?: boolean;
 }
@@ -41,6 +42,7 @@ export function FacultyDashboardClient({
   primaryColor,
   courses,
   projectSubmissions = [],
+  capstoneProjects = [],
   userRole,
   enableProctoring = false
 }: FacultyDashboardClientProps) {
@@ -638,8 +640,39 @@ export function FacultyDashboardClient({
                   </table>
                 </div>
               ) : (
-                <div className="text-center py-12 text-muted-foreground text-xs font-semibold">
-                  No trainee project submissions recorded yet.
+                <div className="space-y-4">
+                  <p className="text-[10px] text-muted-foreground font-semibold px-1">
+                    No submissions received yet. Capstone projects available for this cohort:
+                  </p>
+                  {capstoneProjects.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {capstoneProjects.map((proj: any) => (
+                        <div key={proj.id} className="p-4 bg-muted/10 border border-border/50 rounded-xl space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="text-[8px] font-black uppercase tracking-wider text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded border border-border/40">
+                                {proj.course?.code || "Capstone"}
+                              </span>
+                              <h4 className="text-xs font-black text-foreground mt-1.5 leading-snug">{proj.title}</h4>
+                            </div>
+                            <span className="shrink-0 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                              {proj.difficulty || "Advanced"}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">
+                            {proj.description?.split("\n")[0]}
+                          </p>
+                          <div className="text-[9px] text-muted-foreground font-mono">
+                            Duration: {proj.durationWeeks} weeks
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-10 text-muted-foreground text-xs font-semibold bg-muted/5 border border-border/40 rounded-xl">
+                      No capstone projects configured for this tenant yet.
+                    </div>
+                  )}
                 </div>
               )}
             </div>

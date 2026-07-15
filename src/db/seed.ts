@@ -27,7 +27,7 @@ loadEnv();
 import { db } from "./db";
 import * as schema from "./schema";
 import bcrypt from "bcryptjs";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 
 async function main() {
   console.log("🌱 Starting database seeding...");
@@ -1154,8 +1154,27 @@ You must submit:
         }
       ]);
 
-      // Seed Linus Notifications
-      await db.insert(schema.notifications).values([
+      // Seed Linus Capstone Project Submission
+      if (seededCourses.length > 0) {
+        // Find the project for the first course
+        const firstProject = await db.query.projects.findFirst({
+          where: and(
+            eq(schema.projects.tenantId, tenant.id),
+            eq(schema.projects.courseId, seededCourses[0].id)
+          ),
+        });
+
+        if (firstProject) {
+          await db.insert(schema.projectSubmissions).values({
+            tenantId: tenant.id,
+            projectId: firstProject.id,
+            studentId: linusStudent.id,
+            gitRepoUrl: "https://github.com/torvalds/vlsi-capstone-design",
+            documentationUrl: "https://drive.google.com/file/d/linus-capstone-docs/view",
+            status: "pending",
+          });
+        }
+      }
         {
           tenantId: tenant.id,
           userId: linusUser.id,

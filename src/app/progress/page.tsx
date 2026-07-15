@@ -5,7 +5,7 @@ import { AnalyticsRepository } from "@/features/analytics/repository/analytics-r
 import { CertificateRepository } from "@/features/course/repository/certificate-repository";
 import { db } from "@/db/db";
 import { students, users, lessonProgress } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ProgressClient } from "@/features/analytics/components/ProgressClient";
 
@@ -17,7 +17,7 @@ export default async function ProgressPage() {
 
   // Load student profile details
   const studentProfile = await db.query.students.findFirst({
-    where: eq(students.userId, user.userId),
+    where: and(eq(students.userId, user.userId), eq(students.tenantId, tenant.id)),
     with: {
       batch: true,
     },

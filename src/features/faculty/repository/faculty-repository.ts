@@ -164,7 +164,7 @@ export class FacultyRepository {
     const application = await db.query.admissionApplications.findFirst({
       where: and(
         eq(admissionApplications.tenantId, tenantId),
-        eq(sql`LOWER(${admissionApplications.email})`, student.user.email.toLowerCase())
+        eq(admissionApplications.email, student.user.email)
       )
     });
 

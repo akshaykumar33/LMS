@@ -3,7 +3,7 @@ import { getTenantContext } from "@/features/auth/services/tenant";
 import { requireAuth } from "@/features/auth/services/session";
 import { db } from "@/db/db";
 import { students, users, digitalLibrary } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { DigitalLibraryClient } from "@/features/library/components/DigitalLibraryClient";
 
@@ -23,7 +23,7 @@ export default async function DigitalLibraryPage() {
   let studentProfile = undefined;
   if (user.role === "Student") {
     studentProfile = await db.query.students.findFirst({
-      where: eq(students.userId, user.userId),
+      where: and(eq(students.userId, user.userId), eq(students.tenantId, tenant.id)),
       with: {
         batch: true,
       },

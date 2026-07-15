@@ -25,8 +25,7 @@ import {
   Building2,
   ShieldCheck,
   Database,
-  Settings2,
-  Network
+  Settings2
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
@@ -200,13 +199,12 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
     }
 
     if (user.role === "Owner") {
-      // Owner: org-scoped system console only — no student/curriculum/placement items
+      // Owner: org-scoped system console only
       return [
         {
           title: "Organization Management",
           items: [
             { name: "Console Settings", href: "/super-admin", icon: Settings2 },
-            { name: "Sub-Org Network", href: "/super-admin?tab=permissions", icon: Network },
           ],
         },
       ];

@@ -61,9 +61,9 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Normalize empty subdomain to "wysbryx" as the absolute last fallback
+  // Normalize empty subdomain to "intel" as the default tenant
   if (!subdomain) {
-    subdomain = "wysbryx";
+    subdomain = "intel";
   }
 
   // Always set the header so getTenantContext() can distinguish root domain (empty) from missing header
