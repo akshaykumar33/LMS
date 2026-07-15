@@ -318,15 +318,15 @@ function isOldEnough(dobString: string) {
                   setFormData((prev) => ({ ...prev, batchId: value }))
                 }
               >
-                <SelectTrigger className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 shadow-sm focus:border-sky-500 focus:outline-none">
+                <SelectTrigger className="w-full h-10 px-3 rounded-lg border border-border bg-card text-xs text-foreground shadow-sm focus:border-sky-500 focus:outline-none">
                   <SelectValue placeholder="Select cohort batch" />
                 </SelectTrigger>
-                <SelectContent className="rounded-lg border border-slate-200 bg-white shadow-lg">
+                <SelectContent className="rounded-lg border border-border bg-popover shadow-lg text-popover-foreground">
                   {batches.map((b) => (
                     <SelectItem
                       key={b.id}
                       value={b.id}
-                      className="text-xs text-slate-800 py-2 px-3 rounded-md cursor-pointer focus:bg-slate-100"
+                      className="text-xs text-popover-foreground py-2 px-3 rounded-md cursor-pointer focus:bg-accent focus:text-accent-foreground hover:bg-accent hover:text-accent-foreground"
                     >
                       {b.name}
                     </SelectItem>
