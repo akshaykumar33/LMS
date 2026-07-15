@@ -210,7 +210,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
   const [aiModel, setAiModel] = useState("gpt-4o-mini");
 
   // Permission Matrix states
-  const [matrixTenantId, setMatrixTenantId] = useState("");
+  const intelTenant = tenantsList.find(t => t.subdomain === "intel");
+  const [matrixTenantId, setMatrixTenantId] = useState(intelTenant?.id || "");
   const [matrixRoles, setMatrixRoles] = useState<any[]>([]);
   const [matrixPermissions, setMatrixPermissions] = useState<any[]>([]);
   const [matrixMappings, setMatrixMappings] = useState<any[]>([]);
@@ -219,9 +220,11 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
 
   useEffect(() => {
     if (activeMainTab === "permissions" && tenantsList.length > 0 && !matrixTenantId) {
-      // Auto select first tenant
-      setMatrixTenantId(tenantsList[0].id);
-      loadPermissionMatrix(tenantsList[0].id);
+      // Default to intel tenant, fall back to first in list
+      const intelTenant = tenantsList.find(t => t.subdomain === "intel");
+      const defaultTenant = intelTenant || tenantsList[0];
+      setMatrixTenantId(defaultTenant.id);
+      loadPermissionMatrix(defaultTenant.id);
     }
   }, [activeMainTab]);
 
