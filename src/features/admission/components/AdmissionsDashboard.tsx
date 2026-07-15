@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useAdmissionsStore } from "@/store";
 import { approveApplicationAction, rejectApplicationAction, getApplicationDetailsAction, updateTenantPaymentSettingsAction } from "../actions/admission-actions";
 import { formatReadableDate } from "@/utils/date-formatter";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
@@ -64,15 +65,19 @@ export function AdmissionsDashboard({
   tenantSubdomain,
   initialSettings
 }: AdmissionsDashboardProps) {
-  // States
-  const [applications, setApplications] = useState<Application[]>(initialApplications);
-  const [selectedApp, setSelectedApp] = useState<any | null>(null);
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [filterBatch, setFilterBatch] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
-  const [enrollmentResult, setEnrollmentResult] = useState<any | null>(null);
-  const [errorState, setErrorState] = useState<string | null>(null);
+  const {
+    applications, setApplications,
+    selectedApp, setSelectedApp,
+    filterStatus, setFilterStatus,
+    filterBatch, setFilterBatch,
+    searchTerm, setSearchTerm,
+    actionLoading, setActionLoading,
+    enrollmentResult, setEnrollmentResult,
+    errorState, setErrorState,
+    updateApplicationStatus,
+    clearSelection,
+    filteredApplications,
+  } = useAdmissionsStore();
 
   // Tenant payment settings state variables
   const [settingsPayRequired, setSettingsPayRequired] = useState(initialSettings?.paymentRequired !== false);
@@ -107,22 +112,20 @@ export function AdmissionsDashboard({
     }
   };
 
-  // Stats
-  const totalCount = initialApplications.length;
-  const pendingCount = initialApplications.filter(a => a.status === "pending" || a.status === "under_review").length;
-  const approvedCount = initialApplications.filter(a => a.status === "approved").length;
-  const rejectedCount = initialApplications.filter(a => a.status === "rejected").length;
+  // Hydrate store with server-provided data on mount
+  React.useEffect(() => {
+    setApplications(initialApplications as any);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Filter logic
-  const filteredApps = applications.filter((app) => {
-    const matchesStatus = filterStatus === "all" || app.status === filterStatus;
-    const matchesBatch = filterBatch === "all" || app.batch.id === filterBatch;
-    const matchesSearch = 
-      app.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      app.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      app.email.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesBatch && matchesSearch;
-  });
+  // Stats — computed from the live store list
+  const totalCount = applications.length;
+  const pendingCount = applications.filter(a => a.status === "pending" || a.status === "under_review").length;
+  const approvedCount = applications.filter(a => a.status === "approved").length;
+  const rejectedCount = applications.filter(a => a.status === "rejected").length;
+
+  // Filtered list via store derived selector
+  const filteredApps = filteredApplications();
 
   const handleRowClick = async (appId: string) => {
     setActionLoading(true);
@@ -148,10 +151,7 @@ export function AdmissionsDashboard({
       const result = await approveApplicationAction(selectedApp.id);
       if (result.success) {
         setEnrollmentResult(result);
-        // Update local list
-        setApplications(apps => 
-          apps.map(a => a.id === selectedApp.id ? { ...a, status: "approved" } : a)
-        );
+        updateApplicationStatus(selectedApp.id, "approved");
       } else {
         setErrorState(result.error || "Approval failed.");
       }
@@ -170,10 +170,8 @@ export function AdmissionsDashboard({
     try {
       const result = await rejectApplicationAction(selectedApp.id);
       if (result.success) {
-        setApplications(apps => 
-          apps.map(a => a.id === selectedApp.id ? { ...a, status: "rejected" } : a)
-        );
-        setSelectedApp(null);
+        updateApplicationStatus(selectedApp.id, "rejected");
+        clearSelection();
       } else {
         alert(result.error || "Rejection failed.");
       }
@@ -466,7 +464,7 @@ export function AdmissionsDashboard({
         </div>
 
       {/* Review Modal Side-Drawer using shadcn Dialog */}
-      <Dialog open={!!selectedApp} onOpenChange={(open) => !open && setSelectedApp(null)}>
+      <Dialog open={!!selectedApp} onOpenChange={(open) => !open && clearSelection()}>
         <DialogContent className="max-w-lg bg-card/95 backdrop-blur-xl h-[90vh] shadow-2xl p-6 overflow-y-auto space-y-6 flex flex-col justify-between border-l border-border rounded-xl" showCloseButton={false}>
           {selectedApp && (
             <>
@@ -480,7 +478,7 @@ export function AdmissionsDashboard({
                     <p className="text-[11px] text-muted-foreground">{selectedApp.email} | {selectedApp.phone || "No phone input"}</p>
                   </div>
                   <button
-                    onClick={() => setSelectedApp(null)}
+                    onClick={() => clearSelection()}
                     className="w-7 h-7 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:bg-muted cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -549,8 +547,8 @@ export function AdmissionsDashboard({
                 {/* Documents */}
                 <div className="space-y-3">
                   <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-b border-border pb-1">Uploaded Transcripts</h4>
-                  {selectedApp.documents?.length > 0 ? (
-                    selectedApp.documents.map((doc: any) => (
+                  {(selectedApp.documents?.length ?? 0) > 0 ? (
+                    selectedApp.documents!.map((doc: any) => (
                       <div key={doc.id} className="flex items-center justify-between p-3 border border-border bg-background/20 rounded-xl text-xs">
                          <div>
                           <p className="font-bold text-foreground">{doc.documentName}</p>

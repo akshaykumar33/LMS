@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React from "react";
+import { useUIStore, useGamificationStore } from "@/store";
 import { usePathname, useRouter } from "next/navigation";
 import { 
   Home, 
@@ -81,56 +82,39 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, user, tenant, studentProfile, isParentOrg }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
-  // Gamification states (Students only)
-  const [streakCount, setStreakCount] = useState(5);
-  const [xp, setXp] = useState(450);
-  const [level, setLevel] = useState(3);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // ── Zustand stores (replaces all useState + localStorage useEffects) ─────────
+  const {
+    isSidebarCollapsed,
+    isMobileMenuOpen,
+    isCommandPaletteOpen: isSearchOpen,
+    toggleSidebar,
+    toggleMobileMenu,
+    closeMobileMenu,
+    toggleCommandPalette,
+    closeCommandPalette,
+  } = useUIStore();
+
+  const { xp, level, streakCount } = useGamificationStore();
 
   // Enforce Tenant Suspension Check
-  useEffect(() => {
+  React.useEffect(() => {
     if (tenant.status === "suspended" && user.role !== "SuperAdmin") {
       router.replace("/suspended");
     }
   }, [tenant.status, user.role, router]);
 
-  useEffect(() => {
-    if (user.role === "Student" && typeof window !== "undefined") {
-      const savedStreak = localStorage.getItem("student_streak");
-      const savedXp = localStorage.getItem("student_xp");
-      const savedLevel = localStorage.getItem("student_level");
-
-      if (savedStreak) setStreakCount(parseInt(savedStreak));
-      if (savedXp) setXp(parseInt(savedXp));
-      if (savedLevel) setLevel(parseInt(savedLevel));
-
-      const syncGamification = () => {
-        const s = localStorage.getItem("student_streak");
-        const x = localStorage.getItem("student_xp");
-        const l = localStorage.getItem("student_level");
-        if (s) setStreakCount(parseInt(s));
-        if (x) setXp(parseInt(x));
-        if (l) setLevel(parseInt(l));
-      };
-      window.addEventListener("gamification-update", syncGamification);
-      return () => window.removeEventListener("gamification-update", syncGamification);
-    }
-  }, [user.role]);
-
   // Global Ctrl+K / Cmd+K to toggle command palette
-  useEffect(() => {
+  React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        setIsSearchOpen(prev => !prev);
+        toggleCommandPalette();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [toggleCommandPalette]);
 
   const handleLogout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -382,7 +366,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
     <div className="flex min-h-screen bg-background text-foreground transition-colors duration-300">
       <CommandPalette 
         isOpen={isSearchOpen} 
-        onClose={() => setIsSearchOpen(false)} 
+        onClose={closeCommandPalette} 
         navigationItems={navigationItems}
       />
 
@@ -407,7 +391,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
               )}
             </div>
             <button 
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              onClick={toggleSidebar}
               className="absolute -right-3 top-1/2 -translate-y-1/2 p-1 rounded-full border border-border bg-background hover:bg-secondary text-muted-foreground hover:text-foreground hidden md:block z-50 shadow-md"
             >
               {isSidebarCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
@@ -520,7 +504,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
         <div className="flex items-center gap-3">
           {showSidebar && (
             <button 
-              onClick={() => setIsMobileMenuOpen(true)}
+              onClick={toggleMobileMenu}
               className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground"
             >
               <Menu className="w-4 h-4" />
@@ -560,13 +544,13 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div 
             className="fixed inset-0 bg-background/80 backdrop-blur-sm"
-            onClick={() => setIsMobileMenuOpen(false)}
+            onClick={closeMobileMenu}
           />
           <div className="relative w-72 max-w-sm bg-card border-r border-border h-full flex flex-col p-6 shadow-2xl animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between mb-8">
               <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={logoHref} />
               <button 
-                onClick={() => setIsMobileMenuOpen(false)}
+                onClick={closeMobileMenu}
                 className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground"
               >
                 <X className="w-4 h-4" />
@@ -588,7 +572,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
                         <a
                           key={item.name}
                           href={item.href}
-                          onClick={() => setIsMobileMenuOpen(false)}
+                          onClick={() => closeMobileMenu()}
                           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
                             isActive 
                               ? "text-primary bg-primary/10 border-l-2 border-primary" 
@@ -675,7 +659,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
           <div className="flex items-center gap-5">
             {/* Search command Palette button */}
             <button 
-              onClick={() => setIsSearchOpen(true)}
+              onClick={toggleCommandPalette}
               className="flex items-center gap-3 px-3 py-1.5 rounded-xl border border-border bg-card/45 hover:bg-secondary text-muted-foreground hover:text-foreground text-[11px] font-bold transition-all shadow-sm group"
             >
               <Search className="w-3.5 h-3.5" />
