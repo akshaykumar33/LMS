@@ -179,7 +179,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
   const matrixPermissions = permissionMatrix?.permissions ?? [];
   const matrixMappings = permissionMatrix
     ? Object.entries(permissionMatrix.matrix).flatMap(([roleId, perms]) =>
-        Object.entries(perms)
+        Object.entries(perms as Record<string, boolean>)
           .filter(([, granted]) => granted)
           .map(([permName]) => ({
             roleId,
