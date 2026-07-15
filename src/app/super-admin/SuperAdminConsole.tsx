@@ -219,12 +219,13 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
   const [togglingMatrix, setTogglingMatrix] = useState<string | null>(null); // key: roleId-permissionId
 
   useEffect(() => {
-    if (activeMainTab === "permissions" && tenantsList.length > 0 && !matrixTenantId) {
+    if (activeMainTab === "permissions" && tenantsList.length > 0) {
       // Default to intel tenant, fall back to first in list
       const intelTenant = tenantsList.find(t => t.subdomain === "intel");
       const defaultTenant = intelTenant || tenantsList[0];
-      setMatrixTenantId(defaultTenant.id);
-      loadPermissionMatrix(defaultTenant.id);
+      const targetId = matrixTenantId || defaultTenant.id;
+      if (!matrixTenantId) setMatrixTenantId(targetId);
+      loadPermissionMatrix(targetId);
     }
   }, [activeMainTab]);
 
