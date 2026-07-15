@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
+import { useAnalyticsStore } from "@/store";
 import { 
   Download, Building2, Users, GraduationCap, BarChart2, Shield, Search, 
   SlidersHorizontal, ChevronUp, ChevronDown, X, Info, TrendingUp, CheckCircle, 
@@ -45,26 +46,18 @@ interface AnalyticsConsoleProps {
 }
 
 export default function AnalyticsConsole({ initialData, userRole, primaryColor = "#0ea5e9" }: AnalyticsConsoleProps) {
-  const [data] = useState(initialData);
+  const data = initialData;
 
-  // Tabs for main section
-  const [activeTab, setActiveTab] = useState<"overview" | "matrix" | "charts">("overview");
-
-  // Filter and Sort states
-  const [searchTerm, setSearchTerm] = useState("");
-  const [tierFilter, setTierFilter] = useState<"all" | "parent" | "child">("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended">("all");
-  const [sortBy, setSortBy] = useState<"name" | "students" | "courses" | "score">("name");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  
-  // Comparative Chart metric selection
-  const [chartMetric, setChartMetric] = useState<"students" | "courses" | "score">("students");
-
-  // Focus Drawer state
-  const [focusedTenant, setFocusedTenant] = useState<TenantAnalytics | null>(null);
-
-  // Info Tooltip state
-  const [hoveredKpi, setHoveredKpi] = useState<string | null>(null);
+  const {
+    activeTab, setActiveTab,
+    searchTerm, setSearchTerm,
+    tierFilter, setTierFilter,
+    statusFilter, setStatusFilter,
+    sortBy, sortOrder, handleSort,
+    chartMetric, setChartMetric,
+    focusedTenant, setFocusedTenant,
+    hoveredKpi, setHoveredKpi,
+  } = useAnalyticsStore();
 
   // Filtered and Sorted tenants
   const processedTenants = useMemo(() => {
@@ -98,15 +91,6 @@ export default function AnalyticsConsole({ initialData, userRole, primaryColor =
         return sortOrder === "asc" ? comparison : -comparison;
       });
   }, [data.tenants, searchTerm, tierFilter, statusFilter, sortBy, sortOrder]);
-
-  const handleSort = (field: typeof sortBy) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortBy(field);
-      setSortOrder("desc");
-    }
-  };
 
   const exportToCSV = () => {
     const headers = [
