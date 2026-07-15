@@ -16307,6 +16307,26 @@
   ],
   "job_applications": [
     {
+      "id": "b1c2d3e4-0001-4000-8000-intelapp00001",
+      "tenantId": "ce477bcc-e91d-427a-afcd-2e72f0b075ea",
+      "studentId": "559e02cf-24d5-4de5-9cbf-82505aeb792f",
+      "jobId": "a1b2c3d4-0001-4000-8000-intel00000001",
+      "resumeUrl": "https://drive.google.com/file/d/linus-torvalds-resume/view",
+      "status": "interviewing",
+      "createdAt": "2026-07-10T10:00:00.000Z",
+      "updatedAt": "2026-07-10T10:00:00.000Z"
+    },
+    {
+      "id": "b1c2d3e4-0002-4000-8000-intelapp00002",
+      "tenantId": "ce477bcc-e91d-427a-afcd-2e72f0b075ea",
+      "studentId": "559e02cf-24d5-4de5-9cbf-82505aeb792f",
+      "jobId": "a1b2c3d4-0004-4000-8000-intel00000004",
+      "resumeUrl": "https://drive.google.com/file/d/linus-torvalds-resume/view",
+      "status": "offered",
+      "createdAt": "2026-07-11T10:00:00.000Z",
+      "updatedAt": "2026-07-11T10:00:00.000Z"
+    },
+    {
       "id": "74a95a45-5169-44c4-9d86-71e64f5aabce",
       "tenantId": "877af92f-4548-432d-a384-af777d67aae7",
       "studentId": "5d37f73f-d8c4-4956-8f50-0ea5a1a347de",
@@ -25689,6 +25709,62 @@
   ],
   "job_postings": [
     {
+      "id": "a1b2c3d4-0001-4000-8000-intel00000001",
+      "tenantId": "ce477bcc-e91d-427a-afcd-2e72f0b075ea",
+      "title": "EUV Lithography Process Specialist",
+      "company": "Intel Fab Operations",
+      "description": "Manage lithographic exposure processes inside cleanroom fabs. Tune source parameters and optical pellicle alignments.",
+      "requirements": "PhD or Master's in Physics, Material Science, or Optical Engineering. Experience with high-precision optical equipment.",
+      "salary": "$130,500 - $160,000",
+      "location": "Hsinchu, Taiwan / Hillsboro, OR",
+      "isActive": true,
+      "type": "job",
+      "createdAt": "2026-07-01T09:00:00.000Z",
+      "updatedAt": "2026-07-01T09:00:00.000Z"
+    },
+    {
+      "id": "a1b2c3d4-0002-4000-8000-intel00000002",
+      "tenantId": "ce477bcc-e91d-427a-afcd-2e72f0b075ea",
+      "title": "VLSI Design Intern",
+      "company": "Intel R&D Labs",
+      "description": "Looking for an internship trainee to participate in register-transfer level (RTL) coding, logic simulation, and micro-architecture specs validation.",
+      "requirements": "Basic knowledge of Verilog/VHDL, digital electronics principles, and scripting languages (Python/Tcl). Enrolled in a graduate program.",
+      "salary": "$3,500 / month",
+      "location": "Hillsboro, OR / San Jose, CA / Hsinchu, TW / Bangalore, IN",
+      "isActive": true,
+      "type": "internship",
+      "createdAt": "2026-07-01T09:00:00.000Z",
+      "updatedAt": "2026-07-01T09:00:00.000Z"
+    },
+    {
+      "id": "a1b2c3d4-0003-4000-8000-intel00000003",
+      "tenantId": "ce477bcc-e91d-427a-afcd-2e72f0b075ea",
+      "title": "Silicon Verification Engineer",
+      "company": "Intel Corporation",
+      "description": "Join the core design validation team. You will write UVM testbenches, run coverage-driven metrics, and verify sub-system blocks.",
+      "requirements": "Solid understanding of SystemVerilog, UVM, and assertion-based validation protocols. Experience with Synopsys VCS or Siemens Questa.",
+      "salary": "$110,000 - $135,000",
+      "location": "Austin, TX / Hillsboro, OR / Bangalore, IN",
+      "isActive": true,
+      "type": "job",
+      "createdAt": "2026-07-01T09:00:00.000Z",
+      "updatedAt": "2026-07-01T09:00:00.000Z"
+    },
+    {
+      "id": "a1b2c3d4-0004-4000-8000-intel00000004",
+      "tenantId": "ce477bcc-e91d-427a-afcd-2e72f0b075ea",
+      "title": "Physical Design & Layout Engineer",
+      "company": "Intel Labs",
+      "description": "Responsible for floorplanning, clock tree synthesis (CTS), routing, and DRC/LVS physical sign-off at advanced nodes.",
+      "requirements": "Hands-on experience with Cadence Innovus or Synopsys ICC2. Knowledge of RC parasitics extraction and electro-migration limits.",
+      "salary": "$115,000 - $140,000",
+      "location": "San Jose, CA / Hsinchu, TW / Bangalore, IN",
+      "isActive": true,
+      "type": "job",
+      "createdAt": "2026-07-01T09:00:00.000Z",
+      "updatedAt": "2026-07-01T09:00:00.000Z"
+    },
+    {
       "id": "ef69c4ea-52b6-4278-8c3d-8af2bb92c21c",
       "tenantId": "877af92f-4548-432d-a384-af777d67aae7",
       "title": "Silicon Verification Engineer",
@@ -28504,6 +28580,7 @@
     }
   ],
   "lesson_progress": [],
+  "course_progress": [],
   "lessons": [
     {
       "id": "5ac51a63-70e6-4067-b90c-190743c7aa5f",
