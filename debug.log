@@ -13,3 +13,9 @@
   "resolvedTenantSubdomain": "amd"
 }
 ---
+[ADMISSION ACTION] starting submission with: {"batchId":"ac98845c-86d0-43b0-ad62-3b15328bb609","email":"two@mail.in","firstName":"wddefqw","lastName":"feefq","phone":"25432562562","dateOfBirth":"2013-05-06","academicHistory":{"highestDegree":"B.Tech","institution":"MIT","gpaOrPercentage":"9","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 3c1598f4-6e79-4dc5-96c1-e10f1beff95d (nvidia-graphics)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 334c4405-d765-49f1-8491-9f3341a1c593
+[ADMISSION DOCUMENT] starting doc submit: 334c4405-d765-49f1-8491-9f3341a1c593, Undergraduate Degree Transcript, /uploads/3c1598f4-6e79-4dc5-96c1-e10f1beff95d/1784120249894-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
+[ADMISSION DOCUMENT] invalid schema

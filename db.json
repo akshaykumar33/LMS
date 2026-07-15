@@ -5543,6 +5543,29 @@
       "deletedAt": null,
       "createdBy": null,
       "updatedBy": null
+    },
+    {
+      "id": "334c4405-d765-49f1-8491-9f3341a1c593",
+      "tenantId": "3c1598f4-6e79-4dc5-96c1-e10f1beff95d",
+      "batchId": "ac98845c-86d0-43b0-ad62-3b15328bb609",
+      "email": "two@mail.in",
+      "firstName": "wddefqw",
+      "lastName": "feefq",
+      "phone": "25432562562",
+      "dateOfBirth": "2013-05-06T00:00:00.000Z",
+      "academicHistory": {
+        "highestDegree": "B.Tech",
+        "institution": "MIT",
+        "gpaOrPercentage": "9",
+        "graduationYear": 2026,
+        "experienceMonths": 0
+      },
+      "status": "pending",
+      "createdAt": "2026-07-15T12:57:32.342Z",
+      "updatedAt": "2026-07-15T12:57:32.342Z",
+      "deletedAt": null,
+      "createdBy": null,
+      "updatedBy": null
     }
   ],
   "admission_documents": [
@@ -12878,6 +12901,7 @@
       "batchId": "7611765f-6401-4ee4-a67e-df440150c1e6"
     }
   ],
+  "course_progress": [],
   "courses": [
     {
       "id": "e800a0e0-34c1-4c0e-b90e-470300e6e114",
@@ -12886,6 +12910,8 @@
       "name": "VLSI Physical Design & Verilog",
       "description": "Comprehensive introduction to VLSI layouts, physical design stages, floorplanning, CTS, routing, and Verilog HDL.",
       "syllabus": "Module 1: Introduction to VLSI\nModule 2: Synthesis & Floorplanning\nModule 3: Clock Tree Synthesis & Routing\nModule 4: Physical Verification & DRC",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-07T15:27:32.791Z",
       "updatedAt": "2026-07-07T15:27:32.791Z",
       "deletedAt": null
@@ -12897,6 +12923,8 @@
       "name": "Advanced Photolithography & EUV",
       "description": "In-depth study of nanometer scale chip fabrication, laser-produced tin plasma EUV light sources, and reflective optics.",
       "syllabus": "Module 1: EUV Light Systems\nModule 2: High-NA EUV Optics\nModule 3: Mask Defectivity",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-07T15:27:32.791Z",
       "updatedAt": "2026-07-07T15:27:32.791Z",
       "deletedAt": null
@@ -12908,6 +12936,8 @@
       "name": "Embedded Systems & Real-Time Kernels",
       "description": "Deep dive into embedded ARM systems, RTOS kernel synchronization, task scheduling, and microcontrollers.",
       "syllabus": "Module 1: ARM Architecture\nModule 2: FreeRTOS Task Scheduling\nModule 3: Memory Management",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-07T15:27:36.648Z",
       "updatedAt": "2026-07-07T15:27:36.649Z",
       "deletedAt": null
@@ -12919,6 +12949,8 @@
       "name": "Semiconductor Fab Operations & Safety",
       "description": "Cleanroom protocols, silicon ingot slicing, oxidation, wet/dry etching, chemical vapor deposition, and safety standards.",
       "syllabus": "Module 1: Cleanroom Air Filtration\nModule 2: Etching and Doping Processes\nModule 3: Hazard Management",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-07T15:27:40.383Z",
       "updatedAt": "2026-07-07T15:27:40.383Z",
       "deletedAt": null
@@ -12930,6 +12962,8 @@
       "name": "Semiconductor Fabrication Processes",
       "description": "Introduction to physical layout synthesis, etching, sub-micron silicon structures, photolithography, and doping physics.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.516Z",
       "updatedAt": "2026-07-10T07:54:45.516Z",
       "deletedAt": null
@@ -12941,6 +12975,8 @@
       "name": "VLSI Architecture & CMOS Design",
       "description": "Design high performance custom CMOS cells, static/dynamic registers, floorplanning, clock tree routing, and parasitic delays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.517Z",
       "updatedAt": "2026-07-10T07:54:45.517Z",
       "deletedAt": null
@@ -12952,6 +12988,8 @@
       "name": "Parallel Programming with CUDA C/C++",
       "description": "Accelerate numerical computation on GPU pipelines, warp execution optimization, shared memory banks, and memory latency hiding.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.517Z",
       "updatedAt": "2026-07-10T07:54:45.517Z",
       "deletedAt": null
@@ -12963,6 +13001,8 @@
       "name": "Deep Learning Hardware Accelerators",
       "description": "Study architecture of Tensor Cores, Matrix Multiply-Accumulate execution, INT8/FP8 quantization, and systolic arrays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.517Z",
       "updatedAt": "2026-07-10T07:54:45.517Z",
       "deletedAt": null
@@ -12974,6 +13014,8 @@
       "name": "Electronic Design Automation (EDA) Tools",
       "description": "Implement circuit simulation using Spice models, static timing analysis engines, logic synthesis, and DRC checkers.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.517Z",
       "updatedAt": "2026-07-10T07:54:45.517Z",
       "deletedAt": null
@@ -12985,6 +13027,8 @@
       "name": "High-Speed Interconnects & NVLink",
       "description": "Study multi-GPU physical fabrics, NVLink protocol stack, infiniBand architectures, and RDMA queue pairs.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.518Z",
       "updatedAt": "2026-07-10T07:54:45.518Z",
       "deletedAt": null
@@ -12996,6 +13040,8 @@
       "name": "Real-Time Ray Tracing Core Synthesis",
       "description": "Hardware microarchitecture of BVH traversal engines, ray-triangle intersection shaders, and denoising hardware.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.518Z",
       "updatedAt": "2026-07-10T07:54:45.518Z",
       "deletedAt": null
@@ -13007,6 +13053,8 @@
       "name": "Sub-Micron Semiconductor Device Physics",
       "description": "Explore quantum tunneling effects, gate leakage currents, FinFET & Gate-All-Around (GAA) transistor properties.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.518Z",
       "updatedAt": "2026-07-10T07:54:45.518Z",
       "deletedAt": null
@@ -13018,6 +13066,8 @@
       "name": "Semiconductor Fabrication Processes",
       "description": "Introduction to physical layout synthesis, etching, sub-micron silicon structures, photolithography, and doping physics.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.520Z",
       "updatedAt": "2026-07-10T07:54:45.520Z",
       "deletedAt": null
@@ -13029,6 +13079,8 @@
       "name": "VLSI Architecture & CMOS Design",
       "description": "Design high performance custom CMOS cells, static/dynamic registers, floorplanning, clock tree routing, and parasitic delays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.520Z",
       "updatedAt": "2026-07-10T07:54:45.520Z",
       "deletedAt": null
@@ -13040,6 +13092,8 @@
       "name": "Parallel Programming with CUDA C/C++",
       "description": "Accelerate numerical computation on GPU pipelines, warp execution optimization, shared memory banks, and memory latency hiding.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.520Z",
       "updatedAt": "2026-07-10T07:54:45.520Z",
       "deletedAt": null
@@ -13051,6 +13105,8 @@
       "name": "Deep Learning Hardware Accelerators",
       "description": "Study architecture of Tensor Cores, Matrix Multiply-Accumulate execution, INT8/FP8 quantization, and systolic arrays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.520Z",
       "updatedAt": "2026-07-10T07:54:45.520Z",
       "deletedAt": null
@@ -13062,6 +13118,8 @@
       "name": "Electronic Design Automation (EDA) Tools",
       "description": "Implement circuit simulation using Spice models, static timing analysis engines, logic synthesis, and DRC checkers.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.520Z",
       "updatedAt": "2026-07-10T07:54:45.520Z",
       "deletedAt": null
@@ -13073,6 +13131,8 @@
       "name": "High-Speed Interconnects & NVLink",
       "description": "Study multi-GPU physical fabrics, NVLink protocol stack, infiniBand architectures, and RDMA queue pairs.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.521Z",
       "updatedAt": "2026-07-10T07:54:45.521Z",
       "deletedAt": null
@@ -13084,6 +13144,8 @@
       "name": "Real-Time Ray Tracing Core Synthesis",
       "description": "Hardware microarchitecture of BVH traversal engines, ray-triangle intersection shaders, and denoising hardware.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.521Z",
       "updatedAt": "2026-07-10T07:54:45.521Z",
       "deletedAt": null
@@ -13095,6 +13157,8 @@
       "name": "Sub-Micron Semiconductor Device Physics",
       "description": "Explore quantum tunneling effects, gate leakage currents, FinFET & Gate-All-Around (GAA) transistor properties.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.521Z",
       "updatedAt": "2026-07-10T07:54:45.521Z",
       "deletedAt": null
@@ -13106,6 +13170,8 @@
       "name": "Semiconductor Fabrication Processes",
       "description": "Introduction to physical layout synthesis, etching, sub-micron silicon structures, photolithography, and doping physics.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.524Z",
       "updatedAt": "2026-07-10T07:54:45.524Z",
       "deletedAt": null
@@ -13117,6 +13183,8 @@
       "name": "VLSI Architecture & CMOS Design",
       "description": "Design high performance custom CMOS cells, static/dynamic registers, floorplanning, clock tree routing, and parasitic delays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.524Z",
       "updatedAt": "2026-07-10T07:54:45.524Z",
       "deletedAt": null
@@ -13128,6 +13196,8 @@
       "name": "Parallel Programming with CUDA C/C++",
       "description": "Accelerate numerical computation on GPU pipelines, warp execution optimization, shared memory banks, and memory latency hiding.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.524Z",
       "updatedAt": "2026-07-10T07:54:45.524Z",
       "deletedAt": null
@@ -13139,6 +13209,8 @@
       "name": "Deep Learning Hardware Accelerators",
       "description": "Study architecture of Tensor Cores, Matrix Multiply-Accumulate execution, INT8/FP8 quantization, and systolic arrays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.524Z",
       "updatedAt": "2026-07-10T07:54:45.524Z",
       "deletedAt": null
@@ -13150,6 +13222,8 @@
       "name": "Electronic Design Automation (EDA) Tools",
       "description": "Implement circuit simulation using Spice models, static timing analysis engines, logic synthesis, and DRC checkers.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.525Z",
       "updatedAt": "2026-07-10T07:54:45.525Z",
       "deletedAt": null
@@ -13161,6 +13235,8 @@
       "name": "High-Speed Interconnects & NVLink",
       "description": "Study multi-GPU physical fabrics, NVLink protocol stack, infiniBand architectures, and RDMA queue pairs.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.525Z",
       "updatedAt": "2026-07-10T07:54:45.525Z",
       "deletedAt": null
@@ -13172,6 +13248,8 @@
       "name": "Real-Time Ray Tracing Core Synthesis",
       "description": "Hardware microarchitecture of BVH traversal engines, ray-triangle intersection shaders, and denoising hardware.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.525Z",
       "updatedAt": "2026-07-10T07:54:45.525Z",
       "deletedAt": null
@@ -13183,6 +13261,8 @@
       "name": "Sub-Micron Semiconductor Device Physics",
       "description": "Explore quantum tunneling effects, gate leakage currents, FinFET & Gate-All-Around (GAA) transistor properties.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.525Z",
       "updatedAt": "2026-07-10T07:54:45.525Z",
       "deletedAt": null
@@ -13194,6 +13274,8 @@
       "name": "Semiconductor Fabrication Processes",
       "description": "Introduction to physical layout synthesis, etching, sub-micron silicon structures, photolithography, and doping physics.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.527Z",
       "updatedAt": "2026-07-10T07:54:45.527Z",
       "deletedAt": null
@@ -13205,6 +13287,8 @@
       "name": "VLSI Architecture & CMOS Design",
       "description": "Design high performance custom CMOS cells, static/dynamic registers, floorplanning, clock tree routing, and parasitic delays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.527Z",
       "updatedAt": "2026-07-10T07:54:45.527Z",
       "deletedAt": null
@@ -13216,6 +13300,8 @@
       "name": "Parallel Programming with CUDA C/C++",
       "description": "Accelerate numerical computation on GPU pipelines, warp execution optimization, shared memory banks, and memory latency hiding.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.527Z",
       "updatedAt": "2026-07-10T07:54:45.527Z",
       "deletedAt": null
@@ -13227,6 +13313,8 @@
       "name": "Deep Learning Hardware Accelerators",
       "description": "Study architecture of Tensor Cores, Matrix Multiply-Accumulate execution, INT8/FP8 quantization, and systolic arrays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.527Z",
       "updatedAt": "2026-07-10T07:54:45.527Z",
       "deletedAt": null
@@ -13238,6 +13326,8 @@
       "name": "Electronic Design Automation (EDA) Tools",
       "description": "Implement circuit simulation using Spice models, static timing analysis engines, logic synthesis, and DRC checkers.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.527Z",
       "updatedAt": "2026-07-10T07:54:45.527Z",
       "deletedAt": null
@@ -13249,6 +13339,8 @@
       "name": "High-Speed Interconnects & NVLink",
       "description": "Study multi-GPU physical fabrics, NVLink protocol stack, infiniBand architectures, and RDMA queue pairs.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.528Z",
       "updatedAt": "2026-07-10T07:54:45.528Z",
       "deletedAt": null
@@ -13260,6 +13352,8 @@
       "name": "Real-Time Ray Tracing Core Synthesis",
       "description": "Hardware microarchitecture of BVH traversal engines, ray-triangle intersection shaders, and denoising hardware.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.528Z",
       "updatedAt": "2026-07-10T07:54:45.528Z",
       "deletedAt": null
@@ -13271,6 +13365,8 @@
       "name": "Sub-Micron Semiconductor Device Physics",
       "description": "Explore quantum tunneling effects, gate leakage currents, FinFET & Gate-All-Around (GAA) transistor properties.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.528Z",
       "updatedAt": "2026-07-10T07:54:45.528Z",
       "deletedAt": null
@@ -13282,6 +13378,8 @@
       "name": "VLSI Architecture & CMOS Design",
       "description": "Design high performance custom CMOS cells, static/dynamic registers, floorplanning, clock tree routing, and parasitic delays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.529Z",
       "updatedAt": "2026-07-10T07:54:45.529Z",
       "deletedAt": null
@@ -13293,6 +13391,8 @@
       "name": "Parallel Programming with CUDA C/C++",
       "description": "Accelerate numerical computation on GPU pipelines, warp execution optimization, shared memory banks, and memory latency hiding.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.530Z",
       "updatedAt": "2026-07-10T07:54:45.530Z",
       "deletedAt": null
@@ -13304,6 +13404,8 @@
       "name": "Deep Learning Hardware Accelerators",
       "description": "Study architecture of Tensor Cores, Matrix Multiply-Accumulate execution, INT8/FP8 quantization, and systolic arrays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.530Z",
       "updatedAt": "2026-07-10T07:54:45.530Z",
       "deletedAt": null
@@ -13315,6 +13417,8 @@
       "name": "Electronic Design Automation (EDA) Tools",
       "description": "Implement circuit simulation using Spice models, static timing analysis engines, logic synthesis, and DRC checkers.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.530Z",
       "updatedAt": "2026-07-10T07:54:45.530Z",
       "deletedAt": null
@@ -13326,6 +13430,8 @@
       "name": "High-Speed Interconnects & NVLink",
       "description": "Study multi-GPU physical fabrics, NVLink protocol stack, infiniBand architectures, and RDMA queue pairs.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.530Z",
       "updatedAt": "2026-07-10T07:54:45.530Z",
       "deletedAt": null
@@ -13337,6 +13443,8 @@
       "name": "Real-Time Ray Tracing Core Synthesis",
       "description": "Hardware microarchitecture of BVH traversal engines, ray-triangle intersection shaders, and denoising hardware.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.530Z",
       "updatedAt": "2026-07-10T07:54:45.530Z",
       "deletedAt": null
@@ -13348,6 +13456,8 @@
       "name": "Sub-Micron Semiconductor Device Physics",
       "description": "Explore quantum tunneling effects, gate leakage currents, FinFET & Gate-All-Around (GAA) transistor properties.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.531Z",
       "updatedAt": "2026-07-10T07:54:45.531Z",
       "deletedAt": null
@@ -13359,6 +13469,8 @@
       "name": "Semiconductor Fabrication Processes",
       "description": "Introduction to physical layout synthesis, etching, sub-micron silicon structures, photolithography, and doping physics.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.532Z",
       "updatedAt": "2026-07-10T07:54:45.532Z",
       "deletedAt": null
@@ -13370,6 +13482,8 @@
       "name": "VLSI Architecture & CMOS Design",
       "description": "Design high performance custom CMOS cells, static/dynamic registers, floorplanning, clock tree routing, and parasitic delays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.532Z",
       "updatedAt": "2026-07-10T07:54:45.532Z",
       "deletedAt": null
@@ -13381,6 +13495,8 @@
       "name": "Parallel Programming with CUDA C/C++",
       "description": "Accelerate numerical computation on GPU pipelines, warp execution optimization, shared memory banks, and memory latency hiding.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.532Z",
       "updatedAt": "2026-07-10T07:54:45.532Z",
       "deletedAt": null
@@ -13392,6 +13508,8 @@
       "name": "Deep Learning Hardware Accelerators",
       "description": "Study architecture of Tensor Cores, Matrix Multiply-Accumulate execution, INT8/FP8 quantization, and systolic arrays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.533Z",
       "updatedAt": "2026-07-10T07:54:45.533Z",
       "deletedAt": null
@@ -13403,6 +13521,8 @@
       "name": "Electronic Design Automation (EDA) Tools",
       "description": "Implement circuit simulation using Spice models, static timing analysis engines, logic synthesis, and DRC checkers.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.533Z",
       "updatedAt": "2026-07-10T07:54:45.533Z",
       "deletedAt": null
@@ -13414,6 +13534,8 @@
       "name": "High-Speed Interconnects & NVLink",
       "description": "Study multi-GPU physical fabrics, NVLink protocol stack, infiniBand architectures, and RDMA queue pairs.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.533Z",
       "updatedAt": "2026-07-10T07:54:45.533Z",
       "deletedAt": null
@@ -13425,6 +13547,8 @@
       "name": "Real-Time Ray Tracing Core Synthesis",
       "description": "Hardware microarchitecture of BVH traversal engines, ray-triangle intersection shaders, and denoising hardware.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.533Z",
       "updatedAt": "2026-07-10T07:54:45.533Z",
       "deletedAt": null
@@ -13436,6 +13560,8 @@
       "name": "Sub-Micron Semiconductor Device Physics",
       "description": "Explore quantum tunneling effects, gate leakage currents, FinFET & Gate-All-Around (GAA) transistor properties.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.533Z",
       "updatedAt": "2026-07-10T07:54:45.533Z",
       "deletedAt": null
@@ -13447,6 +13573,8 @@
       "name": "Semiconductor Fabrication Processes",
       "description": "Introduction to physical layout synthesis, etching, sub-micron silicon structures, photolithography, and doping physics.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.535Z",
       "updatedAt": "2026-07-10T07:54:45.535Z",
       "deletedAt": null
@@ -13458,6 +13586,8 @@
       "name": "VLSI Architecture & CMOS Design",
       "description": "Design high performance custom CMOS cells, static/dynamic registers, floorplanning, clock tree routing, and parasitic delays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.535Z",
       "updatedAt": "2026-07-10T07:54:45.535Z",
       "deletedAt": null
@@ -13469,6 +13599,8 @@
       "name": "Parallel Programming with CUDA C/C++",
       "description": "Accelerate numerical computation on GPU pipelines, warp execution optimization, shared memory banks, and memory latency hiding.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.536Z",
       "updatedAt": "2026-07-10T07:54:45.536Z",
       "deletedAt": null
@@ -13480,6 +13612,8 @@
       "name": "Deep Learning Hardware Accelerators",
       "description": "Study architecture of Tensor Cores, Matrix Multiply-Accumulate execution, INT8/FP8 quantization, and systolic arrays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.536Z",
       "updatedAt": "2026-07-10T07:54:45.536Z",
       "deletedAt": null
@@ -13491,6 +13625,8 @@
       "name": "Electronic Design Automation (EDA) Tools",
       "description": "Implement circuit simulation using Spice models, static timing analysis engines, logic synthesis, and DRC checkers.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.536Z",
       "updatedAt": "2026-07-10T07:54:45.536Z",
       "deletedAt": null
@@ -13502,6 +13638,8 @@
       "name": "High-Speed Interconnects & NVLink",
       "description": "Study multi-GPU physical fabrics, NVLink protocol stack, infiniBand architectures, and RDMA queue pairs.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.536Z",
       "updatedAt": "2026-07-10T07:54:45.536Z",
       "deletedAt": null
@@ -13513,6 +13651,8 @@
       "name": "Real-Time Ray Tracing Core Synthesis",
       "description": "Hardware microarchitecture of BVH traversal engines, ray-triangle intersection shaders, and denoising hardware.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.536Z",
       "updatedAt": "2026-07-10T07:54:45.536Z",
       "deletedAt": null
@@ -13524,6 +13664,8 @@
       "name": "Sub-Micron Semiconductor Device Physics",
       "description": "Explore quantum tunneling effects, gate leakage currents, FinFET & Gate-All-Around (GAA) transistor properties.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.537Z",
       "updatedAt": "2026-07-10T07:54:45.537Z",
       "deletedAt": null
@@ -13535,6 +13677,8 @@
       "name": "Semiconductor Fabrication Processes",
       "description": "Introduction to physical layout synthesis, etching, sub-micron silicon structures, photolithography, and doping physics.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.539Z",
       "updatedAt": "2026-07-10T07:54:45.539Z",
       "deletedAt": null
@@ -13546,6 +13690,8 @@
       "name": "VLSI Architecture & CMOS Design",
       "description": "Design high performance custom CMOS cells, static/dynamic registers, floorplanning, clock tree routing, and parasitic delays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.539Z",
       "updatedAt": "2026-07-10T07:54:45.539Z",
       "deletedAt": null
@@ -13557,6 +13703,8 @@
       "name": "Parallel Programming with CUDA C/C++",
       "description": "Accelerate numerical computation on GPU pipelines, warp execution optimization, shared memory banks, and memory latency hiding.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.539Z",
       "updatedAt": "2026-07-10T07:54:45.539Z",
       "deletedAt": null
@@ -13568,6 +13716,8 @@
       "name": "Deep Learning Hardware Accelerators",
       "description": "Study architecture of Tensor Cores, Matrix Multiply-Accumulate execution, INT8/FP8 quantization, and systolic arrays.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.540Z",
       "updatedAt": "2026-07-10T07:54:45.540Z",
       "deletedAt": null
@@ -13579,6 +13729,8 @@
       "name": "Electronic Design Automation (EDA) Tools",
       "description": "Implement circuit simulation using Spice models, static timing analysis engines, logic synthesis, and DRC checkers.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.541Z",
       "updatedAt": "2026-07-10T07:54:45.541Z",
       "deletedAt": null
@@ -13590,6 +13742,8 @@
       "name": "High-Speed Interconnects & NVLink",
       "description": "Study multi-GPU physical fabrics, NVLink protocol stack, infiniBand architectures, and RDMA queue pairs.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.541Z",
       "updatedAt": "2026-07-10T07:54:45.541Z",
       "deletedAt": null
@@ -13601,6 +13755,8 @@
       "name": "Real-Time Ray Tracing Core Synthesis",
       "description": "Hardware microarchitecture of BVH traversal engines, ray-triangle intersection shaders, and denoising hardware.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.541Z",
       "updatedAt": "2026-07-10T07:54:45.541Z",
       "deletedAt": null
@@ -13612,6 +13768,8 @@
       "name": "Sub-Micron Semiconductor Device Physics",
       "description": "Explore quantum tunneling effects, gate leakage currents, FinFET & Gate-All-Around (GAA) transistor properties.",
       "syllabus": "Module 1: Fundamental Concepts\nModule 2: Advanced Design & Synthesizer Labs\nModule 3: Verification & DRC checks",
+      "scormEnabled": null,
+      "scormPackageUrl": null,
       "createdAt": "2026-07-10T07:54:45.541Z",
       "updatedAt": "2026-07-10T07:54:45.541Z",
       "deletedAt": null
