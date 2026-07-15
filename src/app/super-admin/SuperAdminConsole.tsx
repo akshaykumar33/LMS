@@ -218,15 +218,16 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
   const [loadingMatrix, setLoadingMatrix] = useState(false);
   const [togglingMatrix, setTogglingMatrix] = useState<string | null>(null); // key: roleId-permissionId
 
+  // Load permission matrix whenever the permissions tab becomes active
   useEffect(() => {
-    if (activeMainTab === "permissions" && tenantsList.length > 0) {
-      // Default to intel tenant, fall back to first in list
-      const intelTenant = tenantsList.find(t => t.subdomain === "intel");
-      const defaultTenant = intelTenant || tenantsList[0];
-      const targetId = matrixTenantId || defaultTenant.id;
-      if (!matrixTenantId) setMatrixTenantId(targetId);
-      loadPermissionMatrix(targetId);
-    }
+    if (activeMainTab !== "permissions" || tenantsList.length === 0) return;
+    const intelTenant = tenantsList.find(t => t.subdomain === "intel");
+    const defaultTenant = intelTenant || tenantsList[0];
+    const targetId = matrixTenantId || defaultTenant.id;
+    if (!matrixTenantId) setMatrixTenantId(targetId);
+    // Always fetch on tab activation — covers both initial load and tab revisit
+    loadPermissionMatrix(targetId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMainTab]);
 
   const loadPermissionMatrix = async (tenantId: string) => {
@@ -787,7 +788,9 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
             )}
           </div>
         </>
-      ) : (
+      ) : null}
+
+      {activeMainTab === "permissions" && (
         /* Global Permission Matrix View */
         <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-6 space-y-6 border border-border shadow-sm">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-border/40 pb-5">
