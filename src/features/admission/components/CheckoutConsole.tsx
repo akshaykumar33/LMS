@@ -312,6 +312,11 @@ function StripePaymentForm({
   const stripe = useStripe();
   const elements = useElements();
 
+  const formattedFee = parseFloat(tuitionFee || "1500.00").toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements) return;
@@ -399,7 +404,130 @@ function StripePaymentForm({
         {loading ? (
           <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Processing…</>
         ) : (
-          <><ShieldCheck className="w-4 h-4 mr-2" /> Pay ${parseFloat(tuitionFee || "1500.00").toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} via Stripe</>
+          <><ShieldCheck className="w-4 h-4 mr-2" /> Pay ${formattedFee} via Stripe</>
+        )}
+      </Button>
+    </form>
+  );
+}
+
+function StripeMockPaymentForm({
+  brandColor,
+  application,
+  onSuccess,
+  onError,
+  loading,
+  setLoading,
+  setLoadingStep,
+  tuitionFee,
+}: {
+  brandColor: string;
+  application: ApplicationDetails;
+  onSuccess: () => void;
+  onError: (err: string) => void;
+  loading: boolean;
+  setLoading: (l: boolean) => void;
+  setLoadingStep: (s: string) => void;
+  tuitionFee: string;
+}) {
+  const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
+  const [expiry, setExpiry] = useState("12/29");
+  const [cvc, setCvc] = useState("424");
+
+  const formattedFee = parseFloat(tuitionFee || "1500.00").toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setLoadingStep("Connecting to Stripe mock gateway…");
+    await new Promise((r) => setTimeout(r, 600));
+    setLoadingStep("Authorising sandbox card transaction…");
+    await new Promise((r) => setTimeout(r, 600));
+    setLoadingStep("Enrolling student account…");
+    await new Promise((r) => setTimeout(r, 600));
+
+    try {
+      const mockTxn = `ch_${Math.random().toString(36).substring(2, 12).toUpperCase()}`;
+      const res = await completePaymentAndEnrollAction(
+        application.id,
+        "stripe",
+        mockTxn
+      );
+      if (res.success) {
+        onSuccess();
+      } else {
+        onError(res.error || "Enrolment failed. Please contact support.");
+      }
+    } catch (err: any) {
+      onError(err.message || "An unexpected error occurred.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} id="panel-stripe-mock" className="space-y-5 animate-in fade-in duration-200">
+      <StripeTestHint />
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block">
+            Card Number
+          </Label>
+          <Input
+            type="text"
+            required
+            value={cardNumber}
+            onChange={(e) => setCardNumber(e.target.value)}
+            placeholder="4242 4242 4242 4242"
+            className="h-11 text-xs bg-slate-950/40 border-border"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block">
+              Expiration Date
+            </Label>
+            <Input
+              type="text"
+              required
+              value={expiry}
+              onChange={(e) => setExpiry(e.target.value)}
+              placeholder="MM/YY"
+              className="h-11 text-xs bg-slate-950/40 border-border"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block">
+              CVC
+            </Label>
+            <Input
+              type="text"
+              required
+              value={cvc}
+              onChange={(e) => setCvc(e.target.value)}
+              placeholder="424"
+              className="h-11 text-xs bg-slate-950/40 border-border"
+            />
+          </div>
+        </div>
+        <p className="text-[9px] text-muted-foreground flex items-center gap-1">
+          <Lock className="w-2.5 h-2.5" aria-hidden /> Encrypted sandbox bypass simulator active
+        </p>
+      </div>
+
+      <Button
+        type="submit"
+        disabled={loading}
+        className="w-full h-12 text-xs font-black text-white rounded-xl shadow-lg hover:opacity-95 active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
+        style={{ backgroundColor: brandColor }}
+      >
+        {loading ? (
+          <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Processing…</>
+        ) : (
+          <><ShieldCheck className="w-4 h-4 mr-2" /> Pay ${formattedFee} via Stripe Sandbox</>
         )}
       </Button>
     </form>
@@ -784,10 +912,15 @@ export function CheckoutConsole({
       try {
         const res = await createStripePaymentIntentAction(application.id);
         if (cancelled) return;
-        if (res.success && res.clientSecret && res.publishableKey) {
-          setClientSecret(res.clientSecret);
-          setStripePromise(loadStripe(res.publishableKey));
-          setStripeSandbox(res.isSandbox ?? true);
+        if (res.success && res.publishableKey) {
+          if (res.clientSecret) {
+            setClientSecret(res.clientSecret);
+            setStripePromise(loadStripe(res.publishableKey));
+            setStripeSandbox(res.isSandbox ?? true);
+          } else {
+            setClientSecret(null);
+            setStripeSandbox(true);
+          }
         } else {
           setStripeInitError(res.error || "Could not initialise Stripe.");
         }
@@ -827,7 +960,7 @@ export function CheckoutConsole({
         </div>
 
         <div className="relative z-10 space-y-6">
-          <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+          <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-450">
             <ShieldCheck className="w-10 h-10" />
           </div>
 
@@ -911,6 +1044,17 @@ export function CheckoutConsole({
                   <AlertCircle className="w-8 h-8 text-destructive/60" aria-hidden />
                   <p className="max-w-xs">{stripeInitError}</p>
                 </div>
+              ) : stripeSandbox && !clientSecret ? (
+                <StripeMockPaymentForm
+                  brandColor={brandColor}
+                  application={application}
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                  loading={loading}
+                  setLoading={setLoading}
+                  setLoadingStep={setLoadingStep}
+                  tuitionFee={tuitionFee}
+                />
               ) : stripePromise && clientSecret ? (
                 <Elements stripe={stripePromise} options={{ clientSecret }}>
                   <StripePaymentForm

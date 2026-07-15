@@ -30,7 +30,8 @@ export async function getStripeClientForTenant(tenantId: string): Promise<Stripe
   // Per-tenant override takes priority, then env-based key for current mode
   const secretKey =
     (tenant?.settings as any)?.gateways_config?.stripe?.secretKey ||
-    getStripeEnvKeys().secretKey;
+    getStripeEnvKeys().secretKey ||
+    "sk_test_mock_stripe_key";
 
   return new Stripe(secretKey, {
     apiVersion: "2025-01-27.acercans" as any,
@@ -44,7 +45,8 @@ export async function getStripePublishableKeyForTenant(tenantId: string): Promis
 
   return (
     (tenant?.settings as any)?.gateways_config?.stripe?.publishableKey ||
-    getStripeEnvKeys().publishableKey
+    getStripeEnvKeys().publishableKey ||
+    "pk_test_mock_stripe_key"
   );
 }
 
@@ -57,12 +59,19 @@ export async function createStripePaymentIntent(
   amountInCents: number,
   metadata: Record<string, string>
 ) {
-  const stripe = await getStripeClientForTenant(tenantId);
-  const publishableKey = await getStripePublishableKeyForTenant(tenantId);
+  const tenant = await db.query.tenants.findFirst({
+    where: eq(schema.tenants.id, tenantId),
+  });
 
-   // 🔹 NEW: simple mock detection that does NOT use `tenant`
   const secretKeyUsed =
-    process.env.STRIPE_SECRET_KEY || "sk_test_mock_stripe_key";
+    (tenant?.settings as any)?.gateways_config?.stripe?.secretKey ||
+    getStripeEnvKeys().secretKey ||
+    "sk_test_mock_stripe_key";
+
+  const publishableKey =
+    (tenant?.settings as any)?.gateways_config?.stripe?.publishableKey ||
+    getStripeEnvKeys().publishableKey ||
+    "pk_test_mock_stripe_key";
 
   const isMock =
     !secretKeyUsed ||
@@ -80,6 +89,8 @@ export async function createStripePaymentIntent(
       isSandbox: true,
     };
   }
+
+  const stripe = await getStripeClientForTenant(tenantId);
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: amountInCents,
