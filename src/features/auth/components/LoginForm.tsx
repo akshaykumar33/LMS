@@ -55,7 +55,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
 export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain, chainLength = 3 }: LoginFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
 
   const [email, setEmail] = useState(searchParams.get("email") || "");
   const [password, setPassword] = useState("");
@@ -100,7 +100,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
     try {
       const result = await loginAction({ email: demoEmail, password: "Password123" });
       if (result.success) {
-        router.push("/dashboard");
+        router.push("/");
         router.refresh();
       } else {
         setError(result.error || "Demo login failed.");
@@ -124,7 +124,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
 
   const activeStudentEmail = activeSubdomain === "intel"
     ? "linus.torvalds@student.intel.com"
-    : `student1@student.${activeSubdomain}.com`;
+    : `student@${activeSubdomain}.lms.com`;
 
   // Dynamically compile all sandbox credentials from quick-login-credentials.json
   const allAccounts = isParent
@@ -147,9 +147,9 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
     } else if (account.roleName === "Student (Certified)") {
       email = activeSubdomain === "intel"
         ? "linus.torvalds@student.intel.com"
-        : `student1@student.${activeSubdomain}.com`;
+        : `student@${activeSubdomain}.lms.com`;
     } else if (account.roleName === "Student (General)") {
-      email = `student2@student.${activeSubdomain}.com`;
+      email = `james.smith.0@student.${activeSubdomain}.com`;
     } else {
       email = email.replace("{{subdomain}}", activeSubdomain);
     }

@@ -54,7 +54,10 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
     { value: "book", label: "Textbooks" },
     { value: "research_paper", label: "Research Papers" },
     { value: "manual", label: "Reference Manuals" },
-    { value: "worksheet", label: "Practice Sheets" }
+    { value: "worksheet", label: "Practice Sheets" },
+    { value: "excel", label: "Excel Spreadsheets" },
+    { value: "ppt", label: "Presentations" },
+    { value: "audio", label: "Audio Briefings" }
   ];
 
   const resetForm = () => {
@@ -159,6 +162,12 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
         return "bg-amber-500/10 text-amber-400 border-amber-500/25";
       case "worksheet":
         return "bg-emerald-500/10 text-emerald-400 border-emerald-500/25";
+      case "excel":
+        return "bg-teal-500/10 text-teal-400 border-teal-500/25";
+      case "ppt":
+        return "bg-rose-500/10 text-rose-400 border-rose-500/25";
+      case "audio":
+        return "bg-indigo-500/10 text-indigo-400 border-indigo-500/25";
       default:
         return "bg-secondary text-muted-foreground border-border";
     }
@@ -174,6 +183,12 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
         return "Reference Manual";
       case "worksheet":
         return "Practice Worksheet";
+      case "excel":
+        return "Excel Spreadsheet";
+      case "ppt":
+        return "Presentation Slide";
+      case "audio":
+        return "Audio Briefing";
       default:
         return cat;
     }
@@ -309,14 +324,14 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
                     </>
                   )}
                   <a
-                    href={item.fileUrl}
+                    href={`/api/download?id=${item.id}`}
                     download
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center gap-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white font-extrabold text-[10px] px-3.5 py-2 rounded-xl transition-all cursor-pointer border border-primary/20"
                     style={{ borderColor: primaryColor }}
                   >
-                    <Download className="w-3 h-3" /> Download PDF
+                    <Download className="w-3 h-3" /> Download Resource
                   </a>
                 </div>
               </div>
@@ -381,12 +396,15 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
                 id="add-category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-secondary/40 border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="book">Textbook</option>
-                <option value="research_paper">Research Paper</option>
-                <option value="manual">Reference Manual</option>
-                <option value="worksheet">Practice Sheet / Worksheet</option>
+                <option value="book" className="bg-card text-foreground">Textbook</option>
+                <option value="research_paper" className="bg-card text-foreground">Research Paper</option>
+                <option value="manual" className="bg-card text-foreground">Reference Manual</option>
+                <option value="worksheet" className="bg-card text-foreground">Practice Sheet / Worksheet</option>
+                <option value="excel" className="bg-card text-foreground">Excel Spreadsheet</option>
+                <option value="ppt" className="bg-card text-foreground">Presentation Slide</option>
+                <option value="audio" className="bg-card text-foreground">Audio Briefing</option>
               </select>
             </div>
 
@@ -491,12 +509,15 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
                 id="edit-category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-secondary/40 border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="book">Textbook</option>
-                <option value="research_paper">Research Paper</option>
-                <option value="manual">Reference Manual</option>
-                <option value="worksheet">Practice Sheet / Worksheet</option>
+                <option value="book" className="bg-card text-foreground">Textbook</option>
+                <option value="research_paper" className="bg-card text-foreground">Research Paper</option>
+                <option value="manual" className="bg-card text-foreground">Reference Manual</option>
+                <option value="worksheet" className="bg-card text-foreground">Practice Sheet / Worksheet</option>
+                <option value="excel" className="bg-card text-foreground">Excel Spreadsheet</option>
+                <option value="ppt" className="bg-card text-foreground">Presentation Slide</option>
+                <option value="audio" className="bg-card text-foreground">Audio Briefing</option>
               </select>
             </div>
 

@@ -1,7 +1,33 @@
+import * as fs from "fs";
+import * as path from "path";
+
+function loadEnv() {
+  const envPath = path.resolve(process.cwd(), ".env");
+  if (fs.existsSync(envPath)) {
+    const env = fs.readFileSync(envPath, "utf-8");
+    for (const line of env.split("\n")) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let val = match[2] || "";
+        if (val.startsWith('"') && val.endsWith('"')) {
+          val = val.substring(1, val.length - 1);
+        } else if (val.startsWith("'") && val.endsWith("'")) {
+          val = val.substring(1, val.length - 1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  }
+}
+loadEnv();
+
 import { db } from "./db";
 import * as schema from "./schema";
 import bcrypt from "bcryptjs";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 
 async function main() {
   console.log("🌱 Starting database seeding...");
@@ -220,7 +246,7 @@ async function main() {
         status: "active",
         branding: {
           logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/67/TSMC_logo.svg",
-          primaryColor: "#000000",
+          primaryColor: "#E05423",
           secondaryColor: "#E05423",
           companyName: "TSMC Institute",
         },
@@ -247,7 +273,71 @@ async function main() {
     ])
     .returning();
 
-  const seededTenants = [vtTenant, ...subTenants];
+  // Seed Nvidia as a second Tenant-Level organization (Level 2 — sibling of VT under Wysbryx)
+  const [nvidiaTenant] = await db.insert(schema.tenants)
+    .values({
+      name: "Nvidia Corporation",
+      subdomain: "nvidia",
+      customDomain: "nvidia-coe.com",
+      parentTenantId: wysbryxTenant.id,
+      status: "active",
+      branding: {
+        logoUrl: "https://upload.wikimedia.org/wikipedia/sco/2/21/Nvidia_logo.svg",
+        primaryColor: "#76B900",
+        secondaryColor: "#1a1a1a",
+        companyName: "Nvidia Corp",
+      },
+      settings: {
+        features: { enableLibrary: true, enablePlacement: true, enableProctoring: true, enableCertificates: true },
+        gateways: { stripe: true, razorpay: false, paypal: false },
+        restrictions: { maxUsers: 500, maxCourses: 50, allowSelfSignup: false },
+      },
+    })
+    .returning();
+
+  // Seed Nvidia's leaf child sub-tenants (Mellanox & Qualcomm)
+  const nvidiaSubTenants = await db.insert(schema.tenants)
+    .values([
+      {
+        name: "Mellanox Technologies",
+        subdomain: "mellanox",
+        customDomain: "mellanox-academy.com",
+        status: "active",
+        branding: {
+          logoUrl: "https://upload.wikimedia.org/wikipedia/commons/9/93/Mellanox_logo_2019.png",
+          primaryColor: "#00B4D8",
+          secondaryColor: "#023E8A",
+          companyName: "Mellanox Academy",
+        },
+        parentTenantId: nvidiaTenant.id,
+        settings: {
+          features: { enableLibrary: true, enablePlacement: true, enableProctoring: true, enableCertificates: true },
+          gateways: { stripe: true, razorpay: false, paypal: false },
+          restrictions: { maxUsers: 200, maxCourses: 20, allowSelfSignup: false },
+        },
+      },
+      {
+        name: "Qualcomm Institute",
+        subdomain: "qualcomm",
+        customDomain: "qualcomm-institute.com",
+        status: "active",
+        branding: {
+          logoUrl: "https://upload.wikimedia.org/wikipedia/commons/f/fc/Qualcomm-Logo.svg",
+          primaryColor: "#3253DC",
+          secondaryColor: "#1a1a1a",
+          companyName: "Qualcomm Institute",
+        },
+        parentTenantId: nvidiaTenant.id,
+        settings: {
+          features: { enableLibrary: true, enablePlacement: true, enableProctoring: true, enableCertificates: true },
+          gateways: { stripe: true, razorpay: false, paypal: false },
+          restrictions: { maxUsers: 200, maxCourses: 20, allowSelfSignup: false },
+        },
+      },
+    ])
+    .returning();
+
+  const seededTenants = [vtTenant, ...subTenants, nvidiaTenant, ...nvidiaSubTenants];
   // Note: wysbryxTenant already has its SuperAdmin seeded above — it does not go through the per-tenant loop.
 
   // 4. Seed Roles and Role-Permissions per Tenant
@@ -321,21 +411,21 @@ async function main() {
       await db.insert(schema.rolePermissions).values(rolePermValues);
     }
 
-    if (tenant.subdomain === "vt") {
-      // VT is a Tenant-Level org — seed an Owner user instead of SuperAdmin
-      console.log(`👤 Seeding VT Owner User for ${tenant.name}...`);
-      const vtOwnerUser = {
+    if (tenant.subdomain === "vt" || tenant.subdomain === "nvidia") {
+      // VT and Nvidia are Tenant-Level orgs — seed an Owner user
+      console.log(`👤 Seeding Owner User for ${tenant.name}...`);
+      const orgOwnerUser = {
         tenantId: tenant.id,
-        firstName: "VT",
-        lastName: "Owner",
-        email: "owner@vt.lms.com",
+        firstName: tenant.subdomain === "nvidia" ? "Jensen" : "VT",
+        lastName: tenant.subdomain === "nvidia" ? "Huang" : "Owner",
+        email: `owner@${tenant.subdomain}.lms.com`,
         passwordHash,
         role: "Owner",
         customRoleId: roleMap.get("Owner"),
         status: "active",
       };
-      await db.insert(schema.users).values([vtOwnerUser]);
-      // VT also gets standard staff/students below — don't continue
+      await db.insert(schema.users).values([orgOwnerUser]);
+      // Org hubs also get standard staff/students below — don't continue
     }
 
     // 5. Seed Batches per Tenant
@@ -432,9 +522,53 @@ async function main() {
         customRoleId: roleMap.get("Mentor"),
         status: "active",
       },
+      {
+        tenantId: tenant.id,
+        firstName: "Patricia",
+        lastName: "Placement",
+        email: `placement@${tenant.subdomain}.lms.com`,
+        passwordHash,
+        role: "Placement Officer",
+        customRoleId: roleMap.get("Placement Officer"),
+        status: "active",
+      },
+      {
+        tenantId: tenant.id,
+        firstName: "Gordon",
+        lastName: "Guest",
+        email: `guest@${tenant.subdomain}.lms.com`,
+        passwordHash,
+        role: "Guest",
+        customRoleId: roleMap.get("Guest"),
+        status: "active",
+      },
+      {
+        tenantId: tenant.id,
+        firstName: "Stewart",
+        lastName: "Student",
+        email: `student@${tenant.subdomain}.lms.com`,
+        passwordHash,
+        role: "Student",
+        customRoleId: roleMap.get("Student"),
+        status: "active",
+      },
     ];
 
-    await db.insert(schema.users).values(staffUsers);
+    const insertedUsers = await db.insert(schema.users).values(staffUsers).returning();
+
+    // Create a student profile for the default student user
+    const studentUser = insertedUsers.find(u => u.email === `student@${tenant.subdomain}.lms.com`);
+    if (studentUser) {
+      const rollSuffix = Math.floor(1000 + Math.random() * 9000);
+      const year = new Date().getFullYear().toString().substring(2);
+      await db.insert(schema.students).values({
+        tenantId: tenant.id,
+        userId: studentUser.id,
+        batchId: seededBatches[0].id,
+        rollNumber: `ME-${tenant.subdomain.toUpperCase()}-${year}-${rollSuffix}`,
+        admissionNumber: `ADM-${tenant.subdomain.toUpperCase()}-${rollSuffix}`,
+      });
+    }
 
     // 7. Seed Admission Applications, Documents, Payments, and Enrollments
     console.log(`📝 Seeding Admission Applications & Students for ${tenant.name}...`);
@@ -608,26 +742,26 @@ You must submit:
     const libraryAssets = [
       {
         tenantId: tenant.id,
-        title: "CMOS VLSI Design: A Circuits and Systems Perspective (4th Edition)",
+        title: "CMOS VLSI Design Lecture Handbook",
         author: "Neil Weste & David Harris",
-        description: "The classic reference textbook covering CMOS circuit design, VLSI layouts, layout rules, layout constraints, timing analysis, and hardware modeling.",
-        fileUrl: "https://www.rose-hulman.edu/~herring/ece300/Weste&Harris_4th.pdf",
+        description: "The reference guide covering CMOS transistor design, VLSI layouts, cell library configurations, and timing optimizations.",
+        fileUrl: "https://inst.eecs.berkeley.edu/~ee241/sp06/lectures/weste.pdf",
         category: "book",
       },
       {
         tenantId: tenant.id,
-        title: "FinFETs and Other Multi-Gate Transistors",
+        title: "FinFET Device Physics and Chapter 1 Modeling",
         author: "J.P. Colinge",
-        description: "An advanced reference detailing 3D multi-gate transistors, sub-threshold leakage controls, electrostatic gate tuning, and nanotechnology process limits.",
-        fileUrl: "https://link.springer.com/book/10.1007/978-0-387-71751-7",
+        description: "An advanced research chapter detailing 3D multi-gate structure controls, sub-threshold leakage, and electrostatic gate tuning.",
+        fileUrl: "https://www.eetimes.com/wp-content/uploads/media/1179720/finfet_book_ch1.pdf",
         category: "book",
       },
       {
         tenantId: tenant.id,
-        title: "EUV Lithography Systems & Technical Manual",
-        author: "Intel Lithography Center of Excellence",
-        description: "Cleanroom processes, tin plasma light sources, reflective mirror alignment, high-NA optical calculations, and defect mitigation procedures.",
-        fileUrl: "https://www.intel.com/content/www/us/en/newsroom/resources/euvi-technology.html",
+        title: "ASML EUV Lithography Corporate Tech Specification Sheet",
+        author: "ASML Lithography Operations Group",
+        description: "ASML EUV machine parameters, NA calculations, tin plasma source setup, reflective mirror geometry, and cleanroom air constraints.",
+        fileUrl: "https://www.asml.com/-/media/asml/files/investors/shareholder-information/asml_fact_sheet_2023.pdf",
         category: "manual",
       },
       {
@@ -635,12 +769,12 @@ You must submit:
         title: "Sub-3nm Gate-All-Around (GAA) Transistor Performance Study",
         author: "Dr. Grace Hopper, Steve Mentor",
         description: "A research publication investigating structural parasitics, device channel lengths, and timing performance comparing FinFET vs GAA nanosheets.",
-        fileUrl: "https://arxiv.org/abs/2103.11192",
+        fileUrl: "https://arxiv.org/pdf/2103.11192.pdf",
         category: "research_paper",
       },
       {
         tenantId: tenant.id,
-        title: "VLSI Layout Design & DRC Verification Sheet",
+        title: "VLSI Layout Design & DRC Verification Worksheet",
         author: "Prof. Anantha Chandrakasan",
         description: "Hands-on worksheet detailing design rule checks (DRC), layout spacing constraints, metal layer routing practices, and parasitics extraction exercises.",
         fileUrl: "https://www.ece.ucsb.edu/~canyon/ece124a/drc_rules_lab.pdf",
@@ -648,11 +782,19 @@ You must submit:
       },
       {
         tenantId: tenant.id,
-        title: "EUV Lithography Resolution & NA Practice Problems",
-        author: "ASML Lithography Operations Team",
-        description: "Practice calculations for numerical aperture (NA), resolution bounds, depth of focus (DoF), and tin plasma light reflectivity calculations.",
-        fileUrl: "https://www.asml.com/-/media/asml/files/technology/euv-lithography-equations-handout.pdf",
+        title: "Transistor Parasitics Excel Spreadsheet Template",
+        author: "TSMC Operations team",
+        description: "Excel model grid to calculate source/drain capacitance, gate oxide charge limits, and propagation delay factors.",
+        fileUrl: "https://file-examples.com/wp-content/uploads/2017/02/file_example_XLS_10.xls",
         category: "worksheet",
+      },
+      {
+        tenantId: tenant.id,
+        title: "Semiconductor Cleanroom Protocol Briefing (Audio)",
+        author: "Prof. Max Planck",
+        description: "An audio podcast overview of contamination controls, cleanroom gowning steps, HEPA filter air flows, and photoresist exposure safety protocols.",
+        fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        category: "manual",
       }
     ];
     await db.insert(schema.digitalLibrary).values(libraryAssets);
@@ -686,11 +828,11 @@ You must submit:
         order: 2,
       }).returning();
 
-      // Module 1 Lessons
+      // Module 1 Lessons (with ALL multimedia types seeded)
       const mod1Lessons = [
         {
           moduleId: mod1.id,
-          title: "1.1 Technical Intro & Scope Overview",
+          title: "1.1 Technical Intro & Scope Overview (Video)",
           content: `Introduction to the core microarchitecture design challenges. This lesson covers key industry requirements, technology nodes (sub-5nm), and advanced logic library characterization. We will explore the theoretical boundaries of physical scaling.`,
           contentType: "video",
           videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
@@ -698,14 +840,14 @@ You must submit:
         },
         {
           moduleId: mod1.id,
-          title: "1.2 Theoretical Physics & Substrate Chemistry",
+          title: "1.2 Theoretical Physics & Substrate Chemistry (Text)",
           content: `Detailed documentation on silicon wafer crystal structures, epitaxial growth techniques, and dopant diffusion models. This write-up outlines the chemical equations governing high-K metal gates (HKMG) and shallow trench isolation (STI) boundaries.`,
           contentType: "text",
           order: 2,
         },
         {
           moduleId: mod1.id,
-          title: "1.3 Live Seminar: Advanced Physical Modeling",
+          title: "1.3 Live Seminar: Advanced Physical Modeling (Live Class)",
           content: `Real-time interactive seminar covering multi-gate architectures (FinFETs, GAA nanosheets). The session includes a live whiteboard demonstration on gate pitch scaling and parasitics mitigation.`,
           contentType: "live_class",
           zoomMeetingId: "482 9182 3912",
@@ -714,11 +856,27 @@ You must submit:
         },
         {
           moduleId: mod1.id,
-          title: "1.4 Timing Analysis & Static Slack Calculation",
+          title: "1.4 Timing Analysis & Static Slack Calculation (PDF Document)",
           content: `Deep technical lecture on setup and hold constraints. Learn about timing paths, clock jitter, skew budgets, and how cell delay is calculated using Non-Linear Delay Models (NLDM) and Composite Current Source (CCS) models.`,
           contentType: "text",
-          fileUrl: "https://www.analog.com/media/en/training-seminars/tutorials/MT-001.pdf",
+          fileUrl: "https://www.ece.ucsb.edu/~canyon/ece124a/drc_rules_lab.pdf",
           order: 4,
+        },
+        {
+          moduleId: mod1.id,
+          title: "1.5 Cleanroom Protocol Podcast Briefing (Audio Lecture)",
+          content: `An audio podcast overview of contamination controls, cleanroom gowning steps, HEPA filter air flows, and photoresist exposure safety protocols.`,
+          contentType: "audio",
+          videoUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+          order: 5,
+        },
+        {
+          moduleId: mod1.id,
+          title: "1.6 DRC Parametric Sizing Sheet (Interactive Excel)",
+          content: `Interactive physical verification sizing table. Adjust the transistor channel parameters in the grid cells to test Design Rule Check (DRC) threshold tolerances.`,
+          contentType: "excel",
+          fileUrl: "https://file-examples.com/wp-content/uploads/2017/02/file_example_XLS_10.xls",
+          order: 6,
         }
       ];
 
@@ -996,7 +1154,29 @@ You must submit:
         }
       ]);
 
-      // Seed Linus Notifications
+      // Seed Linus Capstone Project Submission
+      if (seededCourses.length > 0) {
+        // Find the project for the first course
+        const firstProject = await db.query.projects.findFirst({
+          where: and(
+            eq(schema.projects.tenantId, tenant.id),
+            eq(schema.projects.courseId, seededCourses[0].id)
+          ),
+        });
+
+        if (firstProject) {
+          await db.insert(schema.projectSubmissions).values({
+            tenantId: tenant.id,
+            projectId: firstProject.id,
+            studentId: linusStudent.id,
+            gitRepoUrl: "https://github.com/torvalds/vlsi-capstone-design",
+            documentationUrl: "https://drive.google.com/file/d/linus-capstone-docs/view",
+            status: "pending",
+          });
+        }
+      }
+
+      // Seed Notifications for Linus
       await db.insert(schema.notifications).values([
         {
           tenantId: tenant.id,

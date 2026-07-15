@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers, cookies } from "next/headers";
 import { getTenantContext } from "@/features/auth/services/tenant";
+import { getShortTenantName } from "@/utils/tenant-formatter";
 import { BrandLogo } from "@/components/BrandLogo";
 import { getCurrentUser } from "@/features/auth/services/session";
 import { CourseRepository } from "@/features/course/repository/course-repository";
@@ -14,6 +15,8 @@ import { Sparkles, ArrowRight, Library, GraduationCap, ShieldAlert, Cpu, CheckCi
 import { SubdomainHeroSandbox } from "@/features/course/components/SubdomainHeroSandbox";
 import { GatewayUserControls } from "@/components/GatewayUserControls";
 import { getAncestorChain } from "@/features/auth/services/is-parent-tenant";
+
+import { OrganizationHubExplorer } from "@/components/OrganizationHubExplorer";
 
 export default async function Home() {
   const tenant = await getTenantContext();
@@ -37,7 +40,10 @@ export default async function Home() {
       redirect("/login");
     }
     // Fetch Tenant-Level organizations (those whose parent is Wysbryx root)
-    const wysbryxId = tenant?.id;
+    const wysbryxTenant = await db.query.tenants.findFirst({
+      where: eq(tenants.subdomain, "wysbryx")
+    });
+    const wysbryxId = tenant?.id || wysbryxTenant?.id;
     const topLevelTenants = wysbryxId
       ? await db.query.tenants.findMany({
           where: and(
@@ -45,35 +51,30 @@ export default async function Home() {
             eq(tenants.parentTenantId, wysbryxId)
           ),
         })
-      : await db.query.tenants.findMany({
-          where: and(
-            eq(tenants.status, "active"),
-            isNull(tenants.parentTenantId)
-          ),
-        });
+      : [];
 
     return (
       <div className="flex flex-col flex-1 bg-background text-foreground min-h-screen relative overflow-hidden font-sans">
         {/* Grid Background */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:3rem_3rem] opacity-60"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.012)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.012)_1px,transparent_1px)] bg-[size:3rem_3rem] opacity-60"></div>
         
         {/* Ambient Radial Glowing Effects */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-orange-500/5 rounded-full blur-[160px] pointer-events-none"></div>
-        <div className="absolute bottom-0 right-10 w-[500px] h-[500px] bg-zinc-400/5 rounded-full blur-[140px] pointer-events-none"></div>
+        <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-orange-500/10 rounded-full blur-[160px] pointer-events-none"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-amber-500/5 rounded-full blur-[140px] pointer-events-none"></div>
 
         {/* Global Toolbar Header */}
-        <header className="border-b border-border/40 bg-background/50 backdrop-blur-xl relative z-20 sticky top-0">
+        <header className="border-b border-border/30 bg-background/45 backdrop-blur-xl relative z-20 sticky top-0">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <BrandLogo subdomain="wysbryx" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded border border-border/40">
                 Wysbryx Platform
               </span>
             </div>
             
             <div className="flex items-center gap-3">
               <ThemeSwitcher />
-              <div className="h-4 w-px bg-border" />
+              <div className="h-4 w-px bg-border/40" />
               <GatewayUserControls
                 email={sessionUser!.email}
                 role={sessionUser!.role}
@@ -86,14 +87,14 @@ export default async function Home() {
         {/* Main SaaS Hub Section */}
         <div className="relative max-w-6xl w-full mx-auto text-center space-y-16 px-6 py-20 flex-1 flex flex-col justify-center z-10">
           <div className="space-y-6">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 px-4 py-1.5 text-xs font-black text-orange-400 ring-1 ring-inset ring-orange-500/20 uppercase tracking-widest">
-              <Database className="w-3.5 h-3.5" /> SaaS Cloud Network
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 px-4 py-1.5 text-xs font-black text-orange-400 ring-1 ring-inset ring-orange-500/20 uppercase tracking-widest border border-orange-500/10">
+              <Database className="w-3.5 h-3.5 text-orange-500 animate-pulse" /> SaaS Cloud Network
             </span>
             <h1 className="text-5xl md:text-7xl font-black tracking-tight text-foreground leading-tight max-w-4xl mx-auto">
               Wysbryx <br/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 via-amber-500 to-zinc-400">Enterprise Tenant Hub</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-400 text-glow">Enterprise Tenant Hub</span>
             </h1>
-            <p className="text-xs md:text-sm text-muted-foreground max-w-xl mx-auto leading-relaxed">
+            <p className="text-xs md:text-sm text-muted-foreground max-w-xl mx-auto leading-relaxed font-semibold">
               Welcome to the Wysbryx multi-tenant training suite. Select a primary parent organization below to explore their sub-companies, dedicated learning divisions, and workspaces.
             </p>
           </div>
@@ -113,22 +114,23 @@ export default async function Home() {
                  <a
                   key={org.subdomain}
                   href={devUrl}
-                  className="flex flex-col justify-between p-8 rounded-3xl bg-card/85 backdrop-blur-sm border border-border/80 text-left transition-all duration-300 transform hover:-translate-y-1.5 hover:shadow-2xl hover:border-[var(--tenant-color)] group relative overflow-hidden"
-                  style={{ "--tenant-color": pColor } as React.CSSProperties}
+                  className="flex flex-col justify-between p-8 rounded-3xl bg-card/45 backdrop-blur-md border border-border/40 text-left transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl hover:border-[var(--tenant-color)] group relative overflow-hidden"
+                  style={{ 
+                    "--tenant-color": pColor,
+                    borderColor: `${pColor}20`,
+                    boxShadow: `0 0 40px rgba(0, 0, 0, 0.15), 0 0 1px ${pColor}15`
+                  } as React.CSSProperties}
                 >
                   <div 
-                    className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-[0.05] group-hover:opacity-[0.15] transition-all duration-500" 
+                    className="absolute top-0 right-0 w-36 h-36 rounded-full blur-3xl opacity-[0.06] group-hover:opacity-[0.18] transition-all duration-500" 
                     style={{ backgroundColor: pColor }}
                   />
                   
                   <div className="space-y-6 relative z-10">
                     <div className="flex items-center justify-between">
-                      <span 
-                        className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm text-white shadow-lg transition-transform group-hover:scale-110 duration-300"
-                        style={{ background: `linear-gradient(135deg, ${pColor}, ${pColor}bb)` }}
-                      >
-                        {org.name.substring(0, 2).toUpperCase()}
-                      </span>
+                      <div className="p-2.5 rounded-2xl bg-white dark:bg-slate-950/80 border border-slate-100 dark:border-slate-800/80 shadow-sm flex items-center justify-center">
+                        <BrandLogo subdomain={org.subdomain} iconOnly className="h-7 w-auto" />
+                      </div>
                       <span 
                         className="text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider border"
                         style={{ 
@@ -142,16 +144,16 @@ export default async function Home() {
                     </div>
 
                     <div>
-                      <h2 className="text-lg font-black text-foreground mb-2 group-hover:text-[var(--tenant-color)] transition-colors">{org.name}</h2>
+                      <h2 className="text-lg font-black text-foreground mb-2 group-hover:text-[var(--tenant-color)] transition-colors">{getShortTenantName(org.name, org.subdomain)}</h2>
                       <p className="text-xs text-muted-foreground leading-relaxed font-semibold">
                         Access the root gateway for {org.name} to configure courses, manage institutional sub-tenants, and view administrative analytics.
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-8 pt-4 border-t border-border/30 flex justify-between items-center text-xs font-black text-muted-foreground relative z-10">
+                  <div className="mt-8 pt-4 border-t border-border/20 flex justify-between items-center text-xs font-black text-muted-foreground relative z-10">
                     <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500/80">
-                      <CheckCircle className="w-3 h-3" /> System Online
+                      <CheckCircle className="w-3 h-3 animate-pulse" /> System Online
                     </span>
                     <span 
                       className="flex items-center gap-1 transition-all group-hover:gap-2.5"
@@ -208,32 +210,28 @@ export default async function Home() {
     return (
       <div className="flex flex-col flex-1 bg-background text-foreground min-h-screen relative overflow-hidden font-sans">
         {/* Grid Background */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:3rem_3rem] opacity-60"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.012)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.012)_1px,transparent_1px)] bg-[size:3rem_3rem] opacity-60"></div>
         
         {/* Ambient Radial Glowing Effects */}
         <div 
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] rounded-full blur-[160px] pointer-events-none opacity-[0.07]"
+          className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[1200px] h-[600px] rounded-full blur-[160px] pointer-events-none opacity-[0.09]"
           style={{ backgroundColor: primaryColor }}
         ></div>
 
         {/* Global Toolbar Header */}
-        <header className="border-b border-border/40 bg-background/50 backdrop-blur-xl relative z-20 sticky top-0">
+        <header className="border-b border-border/30 bg-background/45 backdrop-blur-xl relative z-20 sticky top-0">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span 
-                className="w-8 h-8 rounded-lg text-white flex items-center justify-center font-black text-xs shadow-lg animate-pulse"
-                style={{ backgroundColor: primaryColor }}
-              >
-                {tenant.subdomain.toUpperCase()}
-              </span>
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
-                {orgName} Network
+            <div className="flex items-center gap-2.5">
+              <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" />
+              <span className="text-border/40">|</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded border border-border/40">
+                Network Portal
               </span>
             </div>
             
             <div className="flex items-center gap-3">
               <ThemeSwitcher />
-              <div className="h-4 w-px bg-border" />
+              <div className="h-4 w-px bg-border/40" />
               <GatewayUserControls
                 email={sessionUser!.email}
                 role={sessionUser!.role}
@@ -245,121 +243,28 @@ export default async function Home() {
         </header>
 
         {/* Main Hub Section */}
-        <div className="relative max-w-6xl w-full mx-auto text-center space-y-16 px-6 py-20 flex-1 flex flex-col justify-center z-10">
+        <div className="relative max-w-6xl w-full mx-auto text-center space-y-12 px-6 py-16 flex-1 flex flex-col justify-center z-10 animate-fade-in">
           <div className="space-y-6">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-1.5 text-xs font-black uppercase tracking-widest border" style={{ color: primaryColor, borderColor: primaryColor + "30" }}>
               <GraduationCap className="w-3.5 h-3.5" /> Institutional Hub
             </span>
             <h1 className="text-5xl md:text-7xl font-black tracking-tight text-foreground leading-tight max-w-4xl mx-auto">
               {orgName} <br/>
-              <span className="text-transparent bg-clip-text" style={{ backgroundImage: `linear-gradient(to right, ${primaryColor}, #f59e0b)`, WebkitBackgroundClip: "text" }}>Semiconductor CoE</span>
+              <span className="text-transparent bg-clip-text text-glow" style={{ backgroundImage: `linear-gradient(to right, ${primaryColor}, #f59e0b)`, WebkitBackgroundClip: "text" }}>Semiconductor CoE</span>
             </h1>
-            <p className="text-xs md:text-sm text-muted-foreground max-w-xl mx-auto leading-relaxed">
+            <p className="text-xs md:text-sm text-muted-foreground max-w-xl mx-auto leading-relaxed font-semibold">
               Select your affiliated semiconductor academy or corporate training division below to access customized EDA laboratories, lecture syllabi, and placements.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto w-full">
-            {childAcademies.map((org: any) => {
-              const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
-              const isVercel = host.endsWith(".vercel.app");
-              const devUrl = isLocal
-                ? `http://${org.subdomain}.localhost${portSuffix}`
-                : isVercel
-                ? `/?tenant=${org.subdomain}`
-                : `https://${org.subdomain}.${host}`;
-              let pColor = org.branding?.primaryColor || primaryColor;
-              
-              const stats = statsMap[org.id] || { courseCount: 0, studentCount: 0, batchCount: 0 };
-
-              return (
-                 <a
-                  key={org.subdomain}
-                  href={devUrl}
-                  className="flex flex-col justify-between p-6 rounded-3xl bg-card/80 backdrop-blur-sm border border-border/80 text-left transition-all duration-300 transform hover:-translate-y-1.5 hover:shadow-2xl hover:border-[var(--tenant-color)] group relative overflow-hidden"
-                  style={{ "--tenant-color": pColor } as React.CSSProperties}
-                >
-                  <div 
-                    className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-[0.04] group-hover:opacity-[0.12] transition-all duration-500" 
-                    style={{ backgroundColor: pColor }}
-                  />
-                  
-                  <div className="space-y-5 relative z-10">
-                    <div className="flex items-center justify-between">
-                      <BrandLogo subdomain={org.subdomain} className="h-7 w-auto" />
-                      <span 
-                        className="text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider border"
-                        style={{ 
-                          backgroundColor: pColor + "10", 
-                          borderColor: pColor + "25",
-                          color: pColor
-                        }}
-                      >
-                        .{org.subdomain}
-                      </span>
-                    </div>
-                    <div>
-                      <h2 className="text-sm font-black text-foreground mb-1.5 group-hover:text-[var(--tenant-color)] transition-colors">{org.name}</h2>
-                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 font-semibold">
-                        {org.branding?.companyName 
-                          ? `${org.branding.companyName} — Advanced semiconductor training, EDA labs, and industry placement programs.`
-                          : "Access physical-layout labs, CAD simulation nodes, and verified job postings from international semiconductor partners."
-                        }
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span 
-                        className="inline-flex items-center gap-1 text-[9px] font-extrabold border rounded-xl px-3 py-1 transition-all duration-300"
-                        style={{ 
-                          backgroundColor: pColor + "08", 
-                          borderColor: pColor + "20",
-                          color: pColor 
-                        }}
-                      >
-                        <BookOpen className="w-3 h-3" />
-                        {stats.courseCount} Courses
-                      </span>
-                      <span 
-                        className="inline-flex items-center gap-1 text-[9px] font-extrabold border rounded-xl px-3 py-1 transition-all duration-300"
-                        style={{ 
-                          backgroundColor: pColor + "08", 
-                          borderColor: pColor + "20",
-                          color: pColor 
-                        }}
-                      >
-                        <Users className="w-3 h-3" />
-                        {stats.studentCount} Students
-                      </span>
-                      <span 
-                        className="inline-flex items-center gap-1 text-[9px] font-extrabold border rounded-xl px-3 py-1 transition-all duration-300"
-                        style={{ 
-                          backgroundColor: pColor + "08", 
-                          borderColor: pColor + "20",
-                          color: pColor 
-                        }}
-                      >
-                        <Layers className="w-3 h-3" />
-                        {stats.batchCount} Cohorts
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 pt-4 border-t border-border/30 flex justify-between items-center text-xs font-black text-muted-foreground relative z-10">
-                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500/80">
-                      <CheckCircle className="w-3 h-3" /> Active
-                    </span>
-                    <span 
-                      className="flex items-center gap-1 transition-all group-hover:gap-2.5"
-                      style={{ color: pColor }}
-                    >
-                      Access Portal <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </div>
-                </a>
-              );
-            })}
-          </div>
+          <OrganizationHubExplorer
+            childAcademies={childAcademies}
+            statsMap={statsMap}
+            primaryColor={primaryColor}
+            host={host}
+            portSuffix={portSuffix}
+            parentSubdomain={tenant.subdomain}
+          />
         </div>
       </div>
     );
@@ -391,28 +296,28 @@ export default async function Home() {
   return (
     <div className="flex flex-col flex-1 min-h-screen bg-background text-foreground relative overflow-hidden font-sans">
       {/* Grid Background */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-40"></div>
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.008)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.008)_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-40"></div>
       
       {/* Ambient background glow */}
       <div 
-        className="absolute top-0 right-0 w-[800px] h-[600px] rounded-full blur-[160px] pointer-events-none opacity-[0.08]"
+        className="absolute top-[-10%] right-[-10%] w-[900px] h-[600px] rounded-full blur-[180px] pointer-events-none opacity-[0.1]"
         style={{ backgroundColor: primaryColor }}
       ></div>
 
       {/* Header */}
-      <header className="border-b border-border bg-background/50 backdrop-blur-xl sticky top-0 z-50">
+      <header className="border-b border-border/40 bg-background/45 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <BrandLogo subdomain={tenant.subdomain} className="h-7 w-auto" href="/dashboard" />
-            <span className="text-border">|</span>
-            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+            <span className="text-border/40">|</span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded border border-border/40">
               Silicon Academy CoE
             </span>
           </div>
           
           <div className="flex items-center gap-4">
             <ThemeSwitcher />
-            <div className="h-4 w-px bg-border" />
+            <div className="h-4 w-px bg-border/40" />
             {sessionUser ? (
               <div className="flex items-center gap-3">
                 <GatewayUserControls
@@ -420,13 +325,6 @@ export default async function Home() {
                   role={sessionUser.role}
                   primaryColor={primaryColor}
                 />
-                <Link
-                  href="/dashboard"
-                  className="inline-flex items-center justify-center rounded-xl text-xs font-black h-8 px-4 text-white hover:opacity-90 transition-all shadow-md shadow-primary/20 cursor-pointer"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  Workspace
-                </Link>
               </div>
             ) : (
               <>
@@ -457,11 +355,11 @@ export default async function Home() {
           <div className="lg:col-span-7 space-y-8">
             <div className="space-y-4">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-primary border border-primary/20">
-                <Cpu className="w-3.5 h-3.5" /> Microelectronics Center of Excellence
+                <Cpu className="w-3.5 h-3.5 text-primary animate-pulse" /> Microelectronics Center of Excellence
               </span>
               <h1 className="text-4xl md:text-6xl font-black tracking-tight text-foreground leading-none">
                 Powering the Future of <br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/70">Semiconductor Talent</span>
+                <span className="text-transparent bg-clip-text text-glow" style={{ backgroundImage: `linear-gradient(to right, ${primaryColor}, ${primaryColor}dd)`, WebkitBackgroundClip: "text" }}>Semiconductor Talent</span>
               </h1>
               <p className="text-xs md:text-sm text-muted-foreground leading-relaxed max-w-xl font-semibold">
                 Welcome to the {tenant.branding?.companyName || tenant.name}. Our state-of-the-art curriculum in VLSI physical synthesis, sub-micron device physics, and layout design prepares engineers for production scaling.
@@ -471,28 +369,31 @@ export default async function Home() {
             <div className="flex flex-col sm:flex-row gap-3">
               <Link
                 href={applyUrl}
-                className="inline-flex items-center justify-center rounded-xl text-xs font-black h-12 px-6 text-white hover:opacity-95 transition-all shadow-md shadow-primary/20 cursor-pointer"
-                style={{ backgroundColor: primaryColor }}
+                className="inline-flex items-center justify-center rounded-xl text-xs font-black h-12 px-6 text-white hover:opacity-95 transition-all shadow-lg hover:shadow-xl cursor-pointer"
+                style={{ 
+                  backgroundColor: primaryColor,
+                  boxShadow: `0 8px 30px ${primaryColor}25`
+                }}
               >
                 Submit Admission Application
               </Link>
               <Link
                 href={loginUrl}
-                className="inline-flex items-center justify-center rounded-xl text-xs font-black h-12 px-6 border border-border bg-card/45 hover:bg-secondary/40 transition-all text-muted-foreground hover:text-foreground cursor-pointer"
+                className="inline-flex items-center justify-center rounded-xl text-xs font-black h-12 px-6 border border-border/60 bg-card/30 backdrop-blur-sm hover:bg-secondary/40 transition-all text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 Access Member Dashboard
               </Link>
             </div>
  
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 border-t border-border/50 pt-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 border-t border-border/30 pt-8">
               {[
                 { label: "Faculty Experts", val: "12+" },
                 { label: "Active Cohorts", val: "4" },
                 { label: "Placement Rate", val: "98%" },
                 { label: "EDA Lab Stations", val: "50+" },
               ].map((stat, i) => (
-                <div key={i} className="space-y-1">
-                  <p className="text-xl font-black text-foreground">{stat.val}</p>
+                <div key={i} className="p-4 rounded-2xl bg-card/20 border border-border/30 backdrop-blur-sm space-y-1">
+                  <p className="text-xl font-black text-foreground" style={{ color: primaryColor }}>{stat.val}</p>
                   <p className="text-[9px] text-muted-foreground font-black uppercase tracking-wider">{stat.label}</p>
                 </div>
               ))}
@@ -501,12 +402,14 @@ export default async function Home() {
  
           {/* Side Info card */}
           <div className="lg:col-span-5 hidden lg:block">
-            <SubdomainHeroSandbox />
+            <div className="p-1 rounded-3xl bg-gradient-to-br from-primary/20 via-transparent to-transparent">
+              <SubdomainHeroSandbox />
+            </div>
           </div>
         </div>
 
         {/* Public course preview catalog explorer */}
-        <div className="border-t border-border/40 pt-12">
+        <div className="border-t border-border/30 pt-12">
           <CourseCatalogExplorer
             courses={allTenantCourses}
             enrolledCourseIds={enrolledCourseIds}
@@ -517,7 +420,7 @@ export default async function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-background py-8 relative z-20">
+      <footer className="border-t border-border/40 bg-background/50 backdrop-blur-md py-8 relative z-20">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between text-xs text-muted-foreground gap-4 font-semibold">
           <p>&copy; {new Date().getFullYear()} {tenant.branding?.companyName || tenant.name}. All rights reserved.</p>
           <div className="flex items-center gap-6">
@@ -530,3 +433,4 @@ export default async function Home() {
     </div>
   );
 }
+

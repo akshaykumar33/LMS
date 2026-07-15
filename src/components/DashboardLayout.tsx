@@ -21,11 +21,16 @@ import {
   GraduationCap,
   Calendar,
   Sparkles,
-  LayoutGrid
+  LayoutGrid,
+  Building2,
+  ShieldCheck,
+  Database,
+  Settings2
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { NotificationBell } from "@/features/notification/components/NotificationBell";
+import { getShortTenantName } from "@/utils/tenant-formatter";
 import { logoutAction } from "@/features/auth/actions/auth-actions";
 import { CommandPalette } from "./CommandPalette";
 import { TenantQuickSwitcher } from "./TenantQuickSwitcher";
@@ -139,7 +144,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
   // isParentOrg is passed from server components that query child tenants
   // Falls back to checking parentTenantId for backward compatibility
   const isOnParentDomain = isParentOrg ?? !tenant.parentTenantId;
-  const logoHref = "/dashboard";
+  const logoHref = (user.role === "SuperAdmin" || user.role === "Owner") ? "/" : "/dashboard";
 
   // Dynamic Categorized Navigation groups based on user role
   const getNavigationGroups = () => {
@@ -169,64 +174,40 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
       ];
     }
     
-    const isIntelLevel = tenant.subdomain === "intel";
-    const userSub = user.subdomain || 
-      (user.email.includes("@vt.") ? "vt" : 
-       user.email.includes("@intel.") ? "intel" :
-       user.email.includes("wysbryx") ? "wysbryx" : "wysbryx");
-       
-    const isVtOwner = user.role === "Owner" && userSub === "vt";
-    const isIntelOwner = user.role === "Owner" && userSub === "intel";
-    const isWysbryxSuperAdmin = user.role === "SuperAdmin" && userSub === "wysbryx";
-
-    if (user.role === "SuperAdmin" || user.role === "Owner") {
-      const groups: {
-        title: string;
-        items: {
-          name: string;
-          href: string;
-          icon: any;
-        }[];
-      }[] = [];
-
-      // VT Owner or Intel Owner at Intel level should see the operational admin links
-      const showAdminConsoleForOwner = isIntelLevel && (isVtOwner || isIntelOwner);
-      if (showAdminConsoleForOwner) {
-        groups.push(
-          {
-            title: "Student Admissions",
-            items: [
-              { name: "Admissions Hub", href: "/admin/admissions", icon: Users },
-            ]
-          },
-          {
-            title: "Curriculum & Analytics",
-            items: [
-              { name: "Curriculum Manager", href: "/admin/courses", icon: BookOpen },
-              { name: "Platform Analytics", href: "/admin/analytics", icon: BarChart3 },
-            ]
-          },
-          {
-            title: "Recruiting",
-            items: [
-              { name: "Placement Console", href: "/admin/placement", icon: Briefcase },
-            ]
-          }
-        );
-      }
-
-      // Hide System Tenants on tenant subdomains or if we are at intel level
-      const showSystemTenants = (tenant.subdomain === "wysbryx" || tenant.subdomain === "");
-      if (showSystemTenants) {
-        groups.push({
-          title: "System Administration",
+    if (user.role === "SuperAdmin") {
+      // SuperAdmin: only system-level administration items — no student/faculty/curriculum noise
+      return [
+        {
+          title: "Tenant Management",
           items: [
-            { name: "System Tenants", href: "/super-admin", icon: Layers },
-          ]
-        });
-      }
+            { name: "Academy Tenants", href: "/super-admin", icon: Building2 },
+          ],
+        },
+        {
+          title: "Access & Permissions",
+          items: [
+            { name: "Permission Matrix", href: "/super-admin?tab=permissions", icon: ShieldCheck },
+          ],
+        },
+        {
+          title: "Infrastructure",
+          items: [
+            { name: "DB Health Playground", href: "/super-admin?tab=health", icon: Database },
+          ],
+        },
+      ];
+    }
 
-      return groups;
+    if (user.role === "Owner") {
+      // Owner: org-scoped system console only
+      return [
+        {
+          title: "Organization Management",
+          items: [
+            { name: "Console Settings", href: "/super-admin", icon: Settings2 },
+          ],
+        },
+      ];
     }
 
     if (["Faculty", "Mentor"].includes(user.role)) {
@@ -408,23 +389,21 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
           }`}
         >
           {/* Sidebar Header */}
-          <div className="p-5 flex items-center justify-between border-b border-border/50">
+          <div className="p-5 flex items-center justify-between border-b border-border/50 relative">
             <div className="flex items-center gap-3 overflow-hidden">
-              {!isSidebarCollapsed && (
-                <div className="flex items-center gap-2 truncate">
+              {!isSidebarCollapsed ? (
+                <div className="flex items-center gap-2 truncate pr-6">
                   <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={logoHref} />
-                  <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground opacity-75">
-                    Platform
-                  </span>
                 </div>
-              )}
-              {isSidebarCollapsed && (
-                <BrandLogo subdomain={tenant.subdomain} iconOnly href={logoHref} />
+              ) : (
+                <div className="w-full flex justify-center">
+                  <BrandLogo subdomain={tenant.subdomain} iconOnly href={logoHref} />
+                </div>
               )}
             </div>
             <button 
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-1 rounded-lg border border-border bg-background hover:bg-secondary text-muted-foreground hover:text-foreground hidden md:block"
+              className="absolute -right-3 top-1/2 -translate-y-1/2 p-1 rounded-full border border-border bg-background hover:bg-secondary text-muted-foreground hover:text-foreground hidden md:block z-50 shadow-md"
             >
               {isSidebarCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
             </button>
@@ -485,11 +464,13 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 justify-between">
                     <p className="text-xs font-extrabold text-foreground truncate">
-                      {user.firstName}
+                      {user.role === "SuperAdmin" ? "System Admin" : user.firstName}
                     </p>
-                    <span className={`text-[8px] font-black border px-1.5 py-0.5 rounded shrink-0 ${getRoleBadgeColor()}`}>
-                      {user.role}
-                    </span>
+                    {user.role !== "SuperAdmin" && (
+                      <span className={`text-[8px] font-black border px-1.5 py-0.5 rounded shrink-0 ${getRoleBadgeColor()}`}>
+                        {user.role}
+                      </span>
+                    )}
                   </div>
                   <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
                 </div>
@@ -498,8 +479,8 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
 
             {!isSidebarCollapsed && (
               <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
-                <span className="truncate max-w-[130px] font-medium">
-                  {user.role === "Student" ? (studentProfile?.batch?.name || "No cohort") : tenant.name}
+                <span className="truncate max-w-[130px] font-medium" title={tenant.name}>
+                  {user.role === "Student" ? (studentProfile?.batch?.name || "No cohort") : getShortTenantName(tenant.name, tenant.subdomain)}
                 </span>
                 <form onSubmit={handleLogout}>
                   <button 
@@ -658,7 +639,18 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
         {/* Top Header */}
         <header className="h-16 hidden md:flex items-center justify-between px-8 border-b border-border/40 shrink-0 sticky top-0 bg-background/50 backdrop-blur-md z-30">
           {/* Breadcrumbs */}
-          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+          <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground">
+            {/* Clickable domain brand icon home link */}
+            {(user.role === "SuperAdmin" || user.role === "Owner") && (
+              <a 
+                href="/" 
+                className="p-1.5 rounded-lg border border-border/85 hover:bg-secondary bg-card/35 transition-all shadow-sm flex items-center justify-center cursor-pointer shrink-0"
+                title={`Go to ${user.role === "SuperAdmin" ? "Wysbryx" : tenant.name} Homepage`}
+              >
+                <BrandLogo subdomain={tenant.subdomain} iconOnly className="h-4.5 w-auto" />
+              </a>
+            )}
+            
             {getBreadcrumbs().map((b, idx, arr) => (
               <React.Fragment key={b.href}>
                 {idx > 0 && <span className="text-[10px] opacity-40">/</span>}
@@ -710,7 +702,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
             )}
 
             {/* Non-student dynamic role pill */}
-            {user.role !== "Student" && (
+            {user.role !== "Student" && user.role !== "SuperAdmin" && (
               <div className="flex items-center gap-2 pl-4">
                 <span className={`text-[10px] font-extrabold uppercase border px-3 py-1 rounded-full flex items-center gap-1.5 ${getRoleBadgeColor()}`}>
                   <Shield className="w-3 h-3" />
@@ -730,8 +722,12 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
                       {user.firstName.charAt(0)}{user.lastName.charAt(0)}
                     </div>
                     <div className="text-left">
-                      <p className="text-xs font-extrabold text-foreground leading-none">{user.firstName}</p>
-                      <p className="text-[10px] text-muted-foreground">{user.role}</p>
+                      <p className="text-xs font-extrabold text-foreground leading-none">
+                        {user.role === "SuperAdmin" ? "System Admin" : user.firstName}
+                      </p>
+                      {user.role !== "SuperAdmin" && (
+                        <p className="text-[10px] text-muted-foreground">{user.role}</p>
+                      )}
                     </div>
                   </div>
                   <form onSubmit={handleLogout}>

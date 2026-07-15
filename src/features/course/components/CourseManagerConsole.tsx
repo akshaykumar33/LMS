@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { updateCourseAction, updateModuleAction, updateLessonAction } from "../actions/course-actions";
+import React, { useState, useRef } from "react";
+import { updateCourseAction, updateModuleAction, updateLessonAction, updateCapstoneProjectAction } from "../actions/course-actions";
+import { getPresignedUrlAction } from "@/features/admission/actions/admission-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,15 @@ interface Course {
   name: string;
   description: string | null;
   tenantName?: string;
+  scormEnabled?: boolean;
+  scormPackageUrl?: string | null;
+  capstoneProject?: {
+    id: string;
+    title: string;
+    description: string;
+    difficulty: string;
+    durationWeeks: number;
+  } | null;
   modules: Module[];
 }
 
@@ -40,21 +50,68 @@ interface CourseManagerConsoleProps {
   initialCourses: Course[];
   primaryColor?: string;
   userRole?: string;
+  enableCapstone?: boolean;
 }
 
 function cleanModuleName(name: string): string {
   return name.replace(/^module\s+\d+[\s:-]*/i, "").trim();
 }
 
-export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7", userRole }: CourseManagerConsoleProps) {
+export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7", userRole, enableCapstone = true }: CourseManagerConsoleProps) {
   const [courses, setCourses] = useState<Course[]>(initialCourses);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(initialCourses[0] || null);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [editingModule, setEditingModule] = useState<Module | null>(null);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
+  const [editingCapstone, setEditingCapstone] = useState<any | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [scormUploading, setScormUploading] = useState(false);
+  const scormFileRef = useRef<HTMLInputElement>(null);
+
+  const [courseScormUploading, setCourseScormUploading] = useState(false);
+  const courseScormFileRef = useRef<HTMLInputElement>(null);
+
+  const handleScormZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingLesson) return;
+    setScormUploading(true);
+    try {
+      const res = await getPresignedUrlAction(file.name, "application/zip");
+      if (!res.success || !res.uploadUrl) throw new Error(res.error || "Failed to get upload URL.");
+      const uploadRes = await fetch(res.uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": "application/zip" } });
+      if (!uploadRes.ok) throw new Error("Upload failed.");
+      const uploadJson = await uploadRes.json();
+      const launchUrl = uploadJson?.url || res.fileUrl;
+      setEditingLesson({ ...editingLesson, fileUrl: launchUrl });
+      showFeedback(`SCORM package "${file.name}" extracted and ready.`);
+    } catch (err: any) {
+      showFeedback(err.message || "SCORM upload failed.", "error");
+    } finally {
+      setScormUploading(false);
+    }
+  };
+
+  const handleCourseScormZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingCourse) return;
+    setCourseScormUploading(true);
+    try {
+      const res = await getPresignedUrlAction(file.name, "application/zip");
+      if (!res.success || !res.uploadUrl) throw new Error(res.error || "Failed to get upload URL.");
+      const uploadRes = await fetch(res.uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": "application/zip" } });
+      if (!uploadRes.ok) throw new Error("Upload failed.");
+      const uploadJson = await uploadRes.json();
+      const launchUrl = uploadJson?.url || res.fileUrl;
+      setEditingCourse({ ...editingCourse, scormPackageUrl: launchUrl });
+      showFeedback(`SCORM package "${file.name}" extracted and ready.`);
+    } catch (err: any) {
+      showFeedback(err.message || "SCORM upload failed.", "error");
+    } finally {
+      setCourseScormUploading(false);
+    }
+  };
 
   const showFeedback = (text: string, type: "success" | "error" = "success") => {
     setFeedback({ text, type });
@@ -69,6 +126,8 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
       name: editingCourse.name,
       code: editingCourse.code,
       description: editingCourse.description || "",
+      scormEnabled: editingCourse.scormEnabled || false,
+      scormPackageUrl: editingCourse.scormPackageUrl || null,
     });
     setIsSubmitting(false);
 
@@ -113,6 +172,7 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
       content: editingLesson.content || "",
       videoUrl: editingLesson.videoUrl || "",
       fileUrl: editingLesson.fileUrl || "",
+      contentType: editingLesson.contentType,
     });
     setIsSubmitting(false);
 
@@ -128,6 +188,35 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
       showFeedback("Lesson & transcript updated successfully.");
     } else {
       showFeedback(res.error || "Failed to update lesson.", "error");
+    }
+  };
+
+  const handleUpdateCapstone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCapstone || !selectedCourse) return;
+    setIsSubmitting(true);
+    const res = await updateCapstoneProjectAction(selectedCourse.id, {
+      title: editingCapstone.title,
+      description: editingCapstone.description || "",
+      difficulty: editingCapstone.difficulty || "Intermediate",
+      durationWeeks: Number(editingCapstone.durationWeeks) || 4,
+    });
+    setIsSubmitting(false);
+
+    if (res.success) {
+      const updatedCourse = {
+        ...selectedCourse,
+        capstoneProject: {
+          ...selectedCourse.capstoneProject,
+          ...editingCapstone,
+        },
+      };
+      setCourses(courses.map(c => c.id === selectedCourse.id ? updatedCourse : c));
+      setSelectedCourse(updatedCourse);
+      setEditingCapstone(null);
+      showFeedback("Capstone project updated successfully.");
+    } else {
+      showFeedback(res.error || "Failed to update capstone project.", "error");
     }
   };
 
@@ -344,6 +433,69 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                   ))}
                 </div>
               </div>
+
+              {/* Capstone Project Section */}
+              {enableCapstone && (
+                <div className="border-t border-border/80 pt-6 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
+                      Capstone Project
+                    </h3>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={userRole === "Guest"}
+                      onClick={() => {
+                        setEditingCapstone(selectedCourse.capstoneProject || {
+                          title: `${selectedCourse.name} - Capstone Project`,
+                          description: "",
+                          difficulty: "Intermediate",
+                          durationWeeks: 4
+                        });
+                      }}
+                      className="text-xs font-bold border"
+                      style={{
+                        borderColor: `${primaryColor}30`,
+                        backgroundColor: `${primaryColor}0c`,
+                        color: primaryColor,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = `${primaryColor}1a`;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = `${primaryColor}0c`;
+                      }}
+                    >
+                      {selectedCourse.capstoneProject ? "Edit Capstone" : "Assign Capstone"}
+                    </Button>
+                  </div>
+
+                  {selectedCourse.capstoneProject ? (
+                    <div className="p-4 rounded-xl border border-border/60 bg-muted/5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-extrabold text-foreground">
+                          🏆 {selectedCourse.capstoneProject.title}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-[9px] font-bold font-mono uppercase px-1.5 h-4">
+                            {selectedCourse.capstoneProject.difficulty}
+                          </Badge>
+                          <Badge variant="secondary" className="text-[9px] font-bold font-mono uppercase px-1.5 h-4">
+                            {selectedCourse.capstoneProject.durationWeeks} Weeks
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                        {selectedCourse.capstoneProject.description}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center border border-dashed border-border/60 rounded-xl text-xs text-muted-foreground">
+                      No capstone project assigned to this course. Trainees will not be prompted to submit a final project.
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -393,6 +545,53 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                 onChange={(e) => setEditingCourse({ ...editingCourse, description: e.target.value })}
                 className="w-full h-24 bg-transparent border border-input rounded-lg p-2.5 text-xs text-white resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
               />
+            </div>
+
+            <div className="space-y-3 pt-2 border-t border-border/40">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-bold text-foreground">Deliver via SCORM Package</Label>
+                  <p className="text-[10px] text-muted-foreground">Bypasses curriculum roadmap lessons with a single SCORM zip.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={editingCourse.scormEnabled || false}
+                  onChange={(e) => setEditingCourse({ ...editingCourse, scormEnabled: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                />
+              </div>
+
+              {editingCourse.scormEnabled && (
+                <div className="space-y-2 bg-slate-900/50 p-3 rounded-xl border border-border/50">
+                  <Label className="text-[10px] text-slate-400 font-bold uppercase block">
+                    SCORM Zip Package (.zip)
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      value={editingCourse.scormPackageUrl || ""}
+                      placeholder="Upload SCORM zip below"
+                      readOnly
+                      className="h-9 text-[10px] flex-1 bg-slate-950 border-border"
+                    />
+                    <input
+                      type="file"
+                      ref={courseScormFileRef}
+                      accept=".zip"
+                      onChange={handleCourseScormZipUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      disabled={courseScormUploading}
+                      onClick={() => courseScormFileRef.current?.click()}
+                      className="h-9 px-3 text-[10px] font-bold shrink-0 bg-sky-600 hover:bg-sky-500 text-white"
+                    >
+                      {courseScormUploading ? "Extracting…" : "Upload Zip"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
@@ -489,6 +688,22 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
             </div>
 
             <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground font-bold uppercase">Content Type</Label>
+              <select
+                value={editingLesson.contentType}
+                onChange={(e) => setEditingLesson({ ...editingLesson, contentType: e.target.value })}
+                className="w-full h-10 bg-card border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="video" className="bg-card text-foreground">Video Lesson</option>
+                <option value="text" className="bg-card text-foreground">Text / Notes / PDF</option>
+                <option value="live_class" className="bg-card text-foreground">Live Class / Zoom</option>
+                <option value="audio" className="bg-card text-foreground">Audio Lecture</option>
+                <option value="excel" className="bg-card text-foreground">Interactive Spreadsheet (Excel)</option>
+                <option value="scorm" className="bg-card text-foreground">Interactive SCORM Package</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
               <Label className="text-xs text-muted-foreground font-bold uppercase">Video URL (Optional)</Label>
               <Input
                 type="url"
@@ -500,14 +715,32 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground font-bold uppercase">Worksheet PDF / Document URL (Optional)</Label>
-              <Input
-                type="url"
-                value={editingLesson.fileUrl || ""}
-                placeholder="https://example.com/handout.pdf"
-                onChange={(e) => setEditingLesson({ ...editingLesson, fileUrl: e.target.value })}
-                className="h-10 text-xs"
-              />
+              <Label className="text-xs text-muted-foreground font-bold uppercase">
+                {editingLesson.contentType === "scorm" ? "SCORM Launch URL" : "Worksheet PDF / Document URL (Optional)"}
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  type={editingLesson.contentType === "scorm" ? "text" : "url"}
+                  value={editingLesson.fileUrl || ""}
+                  placeholder={editingLesson.contentType === "scorm" ? "Upload a SCORM zip below or paste a launch URL" : "https://example.com/handout.pdf"}
+                  onChange={(e) => setEditingLesson({ ...editingLesson, fileUrl: e.target.value })}
+                  readOnly={editingLesson.contentType === "scorm"}
+                  className="h-10 text-xs flex-1"
+                />
+                {editingLesson.contentType === "scorm" && (
+                  <>
+                    <input type="file" ref={scormFileRef} accept=".zip" onChange={handleScormZipUpload} className="hidden" />
+                    <Button
+                      type="button"
+                      disabled={scormUploading}
+                      onClick={() => scormFileRef.current?.click()}
+                      className="h-10 px-3 text-xs font-bold shrink-0"
+                    >
+                      {scormUploading ? "Extracting…" : "Upload .zip"}
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -525,6 +758,89 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                 type="button"
                 variant="ghost"
                 onClick={() => setEditingLesson(null)}
+                className="text-xs font-bold"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="text-xs font-bold"
+                style={{ backgroundColor: primaryColor, color: "#fff" }}
+              >
+                {isSubmitting ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Editing Capstone Project Modal */}
+      {editingCapstone && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleUpdateCapstone}
+            className="bg-slate-950 border border-border p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl"
+          >
+            <h3 className="text-lg font-bold text-foreground">
+              {selectedCourse?.capstoneProject ? "Edit Capstone Project" : "Assign Capstone Project"}
+            </h3>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground font-bold uppercase">Project Title</Label>
+              <Input
+                type="text"
+                required
+                value={editingCapstone.title}
+                onChange={(e) => setEditingCapstone({ ...editingCapstone, title: e.target.value })}
+                className="h-10 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground font-bold uppercase">Difficulty</Label>
+                <select
+                  value={editingCapstone.difficulty}
+                  onChange={(e) => setEditingCapstone({ ...editingCapstone, difficulty: e.target.value })}
+                  className="w-full h-10 bg-card border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="Easy" className="bg-card text-foreground">Easy</option>
+                  <option value="Intermediate" className="bg-card text-foreground">Intermediate</option>
+                  <option value="Advanced" className="bg-card text-foreground">Advanced</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground font-bold uppercase">Duration (Weeks)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={52}
+                  required
+                  value={editingCapstone.durationWeeks}
+                  onChange={(e) => setEditingCapstone({ ...editingCapstone, durationWeeks: parseInt(e.target.value) || 4 })}
+                  className="h-10 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-slate-400 font-bold uppercase">Description & Guidelines</Label>
+              <textarea
+                required
+                value={editingCapstone.description || ""}
+                onChange={(e) => setEditingCapstone({ ...editingCapstone, description: e.target.value })}
+                placeholder="Detail submission requirements, Git repository guidelines, and PDF report constraints..."
+                className="w-full h-40 bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setEditingCapstone(null)}
                 className="text-xs font-bold"
               >
                 Cancel

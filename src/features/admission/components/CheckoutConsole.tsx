@@ -384,7 +384,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                         type="text"
                         value={upiId}
                         onChange={(e) => setUpiId(e.target.value)}
-                        className="h-9 text-xs bg-slate-900"
+                        className="h-9 text-xs"
                         placeholder="username@okaxis"
                       />
                     </div>
@@ -396,12 +396,12 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                   <select
                     value={selectedBank}
                     onChange={(e) => setSelectedBank(e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-border bg-slate-900 text-xs text-white focus:border-sky-500"
+                    className="w-full h-9 px-3 rounded-lg border border-border bg-card text-foreground text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
                   >
-                    <option value="sbi">State Bank of India (SBI)</option>
-                    <option value="hdfc">HDFC Bank Ltd</option>
-                    <option value="icici">ICICI Bank</option>
-                    <option value="axis">Axis Bank</option>
+                    <option value="sbi" className="bg-card text-foreground">State Bank of India (SBI)</option>
+                    <option value="hdfc" className="bg-card text-foreground">HDFC Bank Ltd</option>
+                    <option value="icici" className="bg-card text-foreground">ICICI Bank</option>
+                    <option value="axis" className="bg-card text-foreground">Axis Bank</option>
                   </select>
                 </div>
 
@@ -465,7 +465,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                           type="email"
                           value={paypalEmail}
                           onChange={(e) => setPaypalEmail(e.target.value)}
-                          className="h-9 text-xs bg-slate-900"
+                          className="h-9 text-xs"
                           placeholder="sandbox-buyer@paypal.com"
                         />
                       </div>
@@ -476,7 +476,7 @@ export function CheckoutConsole({ application, primaryColor }: CheckoutConsolePr
                           type="password"
                           value={paypalPassword}
                           onChange={(e) => setPaypalPassword(e.target.value)}
-                          className="h-9 text-xs bg-slate-900"
+                          className="h-9 text-xs"
                           placeholder="••••••••"
                         />
                       </div>

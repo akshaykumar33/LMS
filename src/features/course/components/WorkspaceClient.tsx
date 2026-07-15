@@ -10,7 +10,7 @@ import {
 import confetti from "canvas-confetti";
 import { QuizWorkspace } from "@/features/quiz/components/QuizWorkspace";
 import { toggleLessonCompletionAction, submitProjectAction, askAiAction } from "../actions/course-actions";
-import { ScormPlayer } from "./ScormPlayer";
+import { saveScormAttemptAction, getScormProgressAction, saveScormCourseAttemptAction, getScormCourseProgressAction } from "../actions/scorm-actions";
 
 interface Lesson {
   id: string;
@@ -36,6 +36,8 @@ interface CourseDetails {
   name: string;
   description: string | null;
   syllabus: string | null;
+  scormEnabled?: boolean;
+  scormPackageUrl?: string | null;
   modules: Module[];
 }
 
@@ -51,9 +53,11 @@ interface WorkspaceClientProps {
   activeLesson: Lesson | null;
   activeQuiz: any | null;
   completedLessonIds: string[];
+  scormCourseProgress?: any | null;
   capstoneProject?: any | null;
   capstoneSubmission?: any | null;
   tenantName: string;
+  subdomain: string;
   primaryColor?: string;
   user: {
     userId: string;
@@ -62,6 +66,392 @@ interface WorkspaceClientProps {
     role?: string;
   };
   enableProctoring?: boolean;
+  enableAi?: boolean;
+  enableCapstone?: boolean;
+}
+
+function renderFormattedContent(text: string, primaryColor: string) {
+  // 1. Detect if it is Score Bot report card format
+  if (text.includes("Score Bot Report Card") || text.includes("🎯 **Score Bot Report Card**")) {
+    const studentMatch = text.match(/Student\*+:\s*(.*)/i);
+    const rollMatch = text.match(/Roll Number\*+:\s*(.*)/i);
+    const progressMatch = text.match(/Roadmap Progress\*+:\s*(\d+)\/(\d+)/i);
+    const quizzesMatch = text.match(/Quizzes Attempted\*+:\s*(\d+)\s*\|\s*Passed:\s*(\d+)/i);
+    const scoreMatch = text.match(/Average Quiz Score\*+:\s*(\d+)%/i);
+    const integrityMatch = text.match(/Proctor Integrity Status\*+:\s*(\d+)\s*warnings\s*\(([^)]+)\)/i);
+    
+    const recIndex = text.indexOf("Recommendation");
+    let recommendation = "";
+    if (recIndex !== -1) {
+      recommendation = text.substring(recIndex + 14).replace(/^[:\-\s\n*]+/g, "").trim();
+    }
+
+    const studentName = studentMatch ? studentMatch[1].trim() : "Student";
+    const rollNumber = rollMatch ? rollMatch[1].trim() : "N/A";
+    const compLessons = progressMatch ? parseInt(progressMatch[1]) : 0;
+    const totalLessons = progressMatch ? parseInt(progressMatch[2]) : 6;
+    const progressPercent = totalLessons > 0 ? Math.round((compLessons / totalLessons) * 100) : 0;
+    const quizCount = quizzesMatch ? parseInt(quizzesMatch[1]) : 0;
+    const quizPassed = quizzesMatch ? parseInt(quizzesMatch[2]) : 0;
+    const avgScore = scoreMatch ? parseInt(scoreMatch[1]) : 0;
+    const warnings = integrityMatch ? parseInt(integrityMatch[1]) : 0;
+    const status = integrityMatch ? integrityMatch[2].trim() : "CLEAR";
+
+    const isFlagged = status.includes("FLAG") || warnings > 1;
+
+    return (
+      <div className="space-y-3.5 font-sans text-[11px] bg-card border border-border p-4 rounded-xl shadow-lg relative overflow-hidden text-left">
+        <div 
+          className="absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl pointer-events-none opacity-20"
+          style={{ backgroundColor: primaryColor }}
+        />
+        
+        <div className="flex items-center justify-between border-b border-border/60 pb-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs">🎯</span>
+            <span className="font-extrabold text-foreground tracking-wide uppercase text-[9px]">Score Bot Analytics</span>
+          </div>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider border whitespace-nowrap ${
+            isFlagged 
+              ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20" 
+              : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+          }`}>
+            <span className="text-[9px] leading-none">{isFlagged ? "⚠️" : "✅"}</span>
+            <span>{isFlagged ? "FLAG AUDIT" : "CLEAR"}</span>
+          </span>
+        </div>
+
+        {/* Student Metadata */}
+        <div className="flex flex-col gap-1.5 text-[9.5px] bg-secondary/15 p-2.5 rounded-lg border border-border/20">
+          <div className="flex justify-between items-center gap-4">
+            <span className="text-muted-foreground font-medium">Student</span>
+            <strong className="text-foreground font-bold truncate max-w-[170px]" title={studentName}>{studentName}</strong>
+          </div>
+          <div className="flex justify-between items-center gap-4">
+            <span className="text-muted-foreground font-medium">Roll Number</span>
+            <strong className="text-foreground font-bold font-mono">{rollNumber}</strong>
+          </div>
+        </div>
+
+        {/* Roadmap Progress Bar */}
+        <div className="space-y-1">
+          <div className="flex justify-between items-center text-[9.5px]">
+            <span className="font-bold text-muted-foreground">Course Completion</span>
+            <span className="font-black text-foreground">{compLessons}/{totalLessons} ({progressPercent}%)</span>
+          </div>
+          <div className="w-full bg-secondary/35 h-1.5 rounded-full overflow-hidden border border-border/40">
+            <div 
+              className="h-full rounded-full transition-all duration-500" 
+              style={{ width: `${progressPercent}%`, backgroundColor: primaryColor }}
+            />
+          </div>
+        </div>
+
+        {/* Analytical Grid widgets */}
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* Average quiz score widget */}
+          <div className="bg-secondary/10 border border-border/30 p-2.5 rounded-xl flex flex-col items-center justify-center text-center space-y-1">
+            <span className="text-[8.5px] font-extrabold text-muted-foreground uppercase tracking-wider">Average Score</span>
+            <div className="relative flex items-center justify-center my-0.5">
+              <svg className="w-10 h-10 transform -rotate-90">
+                <circle cx="20" cy="20" r="16" stroke="rgba(156, 163, 175, 0.25)" strokeWidth="2.5" fill="transparent" />
+                <circle cx="20" cy="20" r="16" stroke={primaryColor} strokeWidth="2.5" fill="transparent" 
+                        strokeDasharray={100.5} strokeDashoffset={100.5 - (100.5 * Math.min(avgScore, 100)) / 100} />
+              </svg>
+              <span className="absolute text-[9.5px] font-black text-foreground">{avgScore}%</span>
+            </div>
+          </div>
+
+          {/* Assessment metrics */}
+          <div className="bg-secondary/10 border border-border/30 p-2.5 rounded-xl flex flex-col justify-between text-left space-y-1">
+            <div>
+              <span className="text-[8.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">Quizzes</span>
+              <div className="text-base font-black text-foreground mt-0.5">{quizCount}</div>
+              <span className="text-[8.5px] text-muted-foreground font-semibold">Attempted</span>
+            </div>
+            <div className="border-t border-border/20 pt-1 mt-1 flex justify-between items-center text-[8.5px]">
+              <span className="text-muted-foreground">Passed:</span>
+              <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{quizPassed}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Integrity status info */}
+        {warnings > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 p-2 rounded-lg text-[9px] leading-relaxed flex items-start gap-1">
+            <span className="text-xs shrink-0">⚠️</span>
+            <div>
+              <strong>Security Warnings:</strong> {warnings} warning(s) flagged. Keep camera aligned to workspace.
+            </div>
+          </div>
+        )}
+
+        {/* AI recommendation panel */}
+        {recommendation && (
+          <div 
+            className="border-l-2 p-2.5 rounded-r-lg text-[9.5px] leading-relaxed mb-2" 
+            style={{ borderColor: primaryColor, backgroundColor: `${primaryColor}10` }}
+          >
+            <span className="font-extrabold text-foreground uppercase tracking-wider block text-[7.5px] mb-1 opacity-70">AI Coach Advice</span>
+            <span className="text-muted-foreground font-medium">{recommendation}</span>
+          </div>
+        )}
+
+        {/* View & Download Scorecard Button */}
+        <button
+          onClick={() => {
+            if (typeof window !== "undefined" && (window as any).__showScorecard) {
+              (window as any).__showScorecard(studentName, avgScore);
+            }
+          }}
+          className="w-full py-2.5 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg cursor-pointer transform hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-1.5 hover:opacity-90"
+          style={{ backgroundColor: primaryColor }}
+        >
+          🏆 View & Download Career Scorecard
+        </button>
+      </div>
+    );
+  }
+
+  // 2. Otherwise render standard formatted markdown lines
+  const lines = text.split("\n");
+  return (
+    <div className="space-y-1.5 font-sans leading-relaxed text-left">
+      {lines.map((line, lIdx) => {
+        let trimmed = line.trim();
+        if (!trimmed) return <div key={lIdx} className="h-1" />;
+
+        // Handle Horizontal rule
+        if (trimmed === "---" || trimmed === "***" || trimmed.startsWith("---")) {
+          return <hr key={lIdx} className="my-2 border-border/40" />;
+        }
+
+        // Handle Header tags
+        if (trimmed.startsWith("### ")) {
+          return <h4 key={lIdx} className="text-xs font-black text-foreground mt-2 mb-1">{trimmed.substring(4)}</h4>;
+        }
+        if (trimmed.startsWith("## ")) {
+          return <h3 key={lIdx} className="text-sm font-extrabold text-foreground mt-3 mb-1">{trimmed.substring(3)}</h3>;
+        }
+
+        // Handle list bullet item
+        const isBullet = trimmed.startsWith("•") || trimmed.startsWith("-") || trimmed.startsWith("*");
+        if (isBullet) {
+          trimmed = trimmed.substring(1).trim();
+        }
+
+        // Format inline items: bold **, links [](), inline code/math formulas $
+        const formattedNodes: React.ReactNode[] = [];
+        let cursor = 0;
+
+        while (cursor < trimmed.length) {
+          if (trimmed.startsWith("**", cursor)) {
+            const nextIdx = trimmed.indexOf("**", cursor + 2);
+            if (nextIdx !== -1) {
+              formattedNodes.push(
+                <strong key={cursor} className="font-bold text-foreground">
+                  {trimmed.substring(cursor + 2, nextIdx)}
+                </strong>
+              );
+              cursor = nextIdx + 2;
+              continue;
+            }
+          }
+
+          if (trimmed.startsWith("[", cursor)) {
+            const closingBracket = trimmed.indexOf("]", cursor + 1);
+            if (closingBracket !== -1 && trimmed.startsWith("(", closingBracket + 1)) {
+              const closingParen = trimmed.indexOf(")", closingBracket + 2);
+              if (closingParen !== -1) {
+                const linkText = trimmed.substring(cursor + 1, closingBracket);
+                const linkUrl = trimmed.substring(closingBracket + 2, closingParen);
+                formattedNodes.push(
+                  <a
+                    key={cursor}
+                    href={linkUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:opacity-85 font-black"
+                    style={{ color: primaryColor }}
+                  >
+                    {linkText}
+                  </a>
+                );
+                cursor = closingParen + 1;
+                continue;
+              }
+            }
+          }
+
+          if (trimmed.startsWith("$", cursor)) {
+            const closingMath = trimmed.indexOf("$", cursor + 1);
+            if (closingMath !== -1) {
+              formattedNodes.push(
+                <code key={cursor} className="bg-secondary/40 px-1 py-0.5 rounded text-[10px] font-mono text-amber-400 font-bold">
+                  {trimmed.substring(cursor + 1, closingMath)}
+                </code>
+              );
+              cursor = closingMath + 1;
+              continue;
+            }
+          }
+
+          formattedNodes.push(trimmed[cursor]);
+          cursor++;
+        }
+
+        if (isBullet) {
+          return (
+            <div key={lIdx} className="flex items-start gap-2 pl-3 py-0.5 text-[11px]">
+              <span className="text-primary font-bold shrink-0 mt-0.5" style={{ color: primaryColor }}>•</span>
+              <span className="text-muted-foreground flex-1">{formattedNodes}</span>
+            </div>
+          );
+        }
+
+        return (
+          <p key={lIdx} className="text-muted-foreground text-[11px]">
+            {formattedNodes}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Inline SCORM iframe + API bridge. No standalone player component needed. */
+function ScormInlinePlayer({
+  lessonId,
+  courseId,
+  isCourseLevel = false,
+  fileUrl,
+  userName,
+  userId,
+  onComplete,
+  onScormDataUpdate,
+}: {
+  lessonId?: string;
+  courseId?: string;
+  isCourseLevel?: boolean;
+  fileUrl: string | null;
+  userName: string;
+  userId: string;
+  onComplete?: () => void;
+  onScormDataUpdate?: (data: any) => void;
+}) {
+  const stateRef = useRef<Record<string, string>>({});
+  const sessionStartRef = useRef<number>(Date.now());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    sessionStartRef.current = Date.now();
+
+    // Load existing progress then bind APIs
+    (async () => {
+      setLoading(true);
+      const res = isCourseLevel && courseId
+        ? await getScormCourseProgressAction(courseId)
+        : await getScormProgressAction(lessonId!);
+      if (res.success && res.data) {
+        stateRef.current = res.data as Record<string, string>;
+      } else {
+        stateRef.current = {};
+      }
+
+      // Pre-populate learner identity
+      stateRef.current["cmi.core.student_id"] = stateRef.current["cmi.core.student_id"] || userId;
+      stateRef.current["cmi.core.student_name"] = stateRef.current["cmi.core.student_name"] || userName;
+      stateRef.current["cmi.learner_id"] = stateRef.current["cmi.learner_id"] || userId;
+      stateRef.current["cmi.learner_name"] = stateRef.current["cmi.learner_name"] || userName;
+
+      setLoading(false);
+    })();
+
+    const persistState = async () => {
+      // Calculate and inject elapsed session time
+      const elapsedSec = Math.round((Date.now() - sessionStartRef.current) / 1000);
+      const prev = parseInt(stateRef.current["_total_time_seconds"] || "0", 10);
+      stateRef.current["_total_time_seconds"] = String(prev + elapsedSec);
+      sessionStartRef.current = Date.now(); // reset for next commit
+
+      const result = isCourseLevel && courseId
+        ? await saveScormCourseAttemptAction(courseId, { ...stateRef.current })
+        : await saveScormAttemptAction(lessonId!, { ...stateRef.current });
+      if (result.success) {
+        if (onScormDataUpdate) {
+          onScormDataUpdate(stateRef.current);
+        }
+        if (onComplete) {
+          const status = stateRef.current["cmi.core.lesson_status"] || stateRef.current["cmi.completion_status"] || "";
+          const success = stateRef.current["cmi.success_status"] || "";
+          if (["completed", "passed"].includes(status.toLowerCase()) || success.toLowerCase() === "passed") {
+            onComplete();
+          }
+        }
+      }
+    };
+
+    // SCORM 1.2 API
+    (window as any).API = {
+      LMSInitialize: () => "true",
+      LMSFinish: () => { persistState(); return "true"; },
+      LMSGetValue: (el: string) => stateRef.current[el] || "",
+      LMSSetValue: (el: string, val: string) => { stateRef.current[el] = val; return "true"; },
+      LMSCommit: () => { persistState(); return "true"; },
+      LMSGetLastError: () => "0",
+      LMSGetErrorString: () => "No error",
+      LMSGetDiagnostic: () => "",
+    };
+
+    // SCORM 2004 API
+    (window as any).API_1484_11 = {
+      Initialize: () => "true",
+      Terminate: () => { persistState(); return "true"; },
+      GetValue: (el: string) => stateRef.current[el] || "",
+      SetValue: (el: string, val: string) => { stateRef.current[el] = val; return "true"; },
+      Commit: () => { persistState(); return "true"; },
+      GetLastError: () => "0",
+      GetErrorString: () => "No error",
+      GetDiagnostic: () => "",
+    };
+
+    return () => {
+      delete (window as any).API;
+      delete (window as any).API_1484_11;
+    };
+  }, [lessonId, courseId, isCourseLevel]);
+
+  if (loading) {
+    return (
+      <div className="w-full h-[38vh] min-h-[320px] bg-neutral-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-sky-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs font-semibold text-neutral-400">Loading SCORM module…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!fileUrl) {
+    return (
+      <div className="w-full h-[38vh] min-h-[320px] bg-neutral-950 flex items-center justify-center">
+        <p className="text-xs text-neutral-500 font-semibold">No SCORM package uploaded for this course.</p>
+      </div>
+    );
+  }
+
+  const heightClass = isCourseLevel ? "h-[65vh] min-h-[500px]" : "h-[38vh] min-h-[320px]";
+
+  return (
+    <div className="w-full bg-neutral-950 p-3">
+      <iframe
+        src={fileUrl}
+        className={`w-full ${heightClass} border-0 rounded-xl bg-white`}
+        title="SCORM Content"
+        allowFullScreen
+      />
+    </div>
+  );
 }
 
 export function WorkspaceClient({ 
@@ -70,12 +460,16 @@ export function WorkspaceClient({
   activeLesson, 
   activeQuiz, 
   completedLessonIds = [],
+  scormCourseProgress,
   capstoneProject,
   capstoneSubmission,
   tenantName, 
+  subdomain,
   primaryColor = "#0ea5e9",
   user,
-  enableProctoring = false
+  enableProctoring = false,
+  enableAi = true,
+  enableCapstone = true
 }: WorkspaceClientProps) {
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -84,8 +478,64 @@ export function WorkspaceClient({
 
   // Lesson completions
   const [completedLessons, setCompletedLessons] = useState<string[]>(completedLessonIds);
+  const [scormCompleted, setScormCompleted] = useState(!!scormCourseProgress?.completed);
+  const [localScormData, setLocalScormData] = useState<any>(scormCourseProgress?.scormData || {});
   const [updatingProgress, setUpdatingProgress] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Scorecard modal simulation states
+  const [isScorecardOpen, setIsScorecardOpen] = useState(false);
+  const [scorecardData, setScorecardData] = useState<{ studentName: string; avgScore: number } | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as any).__showScorecard = (studentName: string, avgScore: number) => {
+        setScorecardData({ studentName, avgScore });
+        setIsScorecardOpen(true);
+      };
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        delete (window as any).__showScorecard;
+      }
+    };
+  }, []);
+
+  // Video progress tracking refs & handlers
+  const lastSavedTimeRef = useRef(0);
+
+  const handleVideoLoadedMetadata = async (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (user.role !== "Student" || !activeLesson) return;
+    const video = e.currentTarget;
+    try {
+      const { getVideoProgressAction } = await import("../actions/course-actions");
+      const res = await getVideoProgressAction(activeLesson.id);
+      if (res.success && res.currentSeconds) {
+        video.currentTime = res.currentSeconds;
+        lastSavedTimeRef.current = res.currentSeconds;
+      }
+    } catch (err) {
+      console.error("Failed to resume video progress:", err);
+    }
+  };
+
+  const handleVideoTimeUpdate = async (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (user.role !== "Student" || !activeLesson) return;
+    const video = e.currentTarget;
+    const currentTime = video.currentTime;
+    const duration = video.duration;
+    if (!duration || isNaN(duration)) return;
+
+    if (Math.abs(currentTime - lastSavedTimeRef.current) >= 8 || currentTime === duration) {
+      lastSavedTimeRef.current = currentTime;
+      try {
+        const { saveVideoProgressAction } = await import("../actions/course-actions");
+        await saveVideoProgressAction(activeLesson.id, currentTime, duration);
+      } catch (err) {
+        console.error("Failed to auto-save video progress:", err);
+      }
+    }
+  };
 
   // Capstone submission local states
   const [isResubmitting, setIsResubmitting] = useState(false);
@@ -116,13 +566,33 @@ export function WorkspaceClient({
   const [penWidth, setPenWidth] = useState(3);
   
   // AI Chat state
+  const [activeBot, setActiveBot] = useState<"tutor" | "book" | "score">("tutor");
   const [aiQuery, setAiQuery] = useState("");
-  const [aiMessages, setAiMessages] = useState<Array<{ sender: "user" | "ai"; text: string }>>([
+  const [aiMessages, setAiMessages] = useState<Array<{ sender: "user" | "ai"; text: string; rag?: any[] }>>([
     { sender: "ai", text: "Hello! I am your AI Semiconductor Assistant. Ask me anything about today's lesson, or use the shortcuts below to summarize or quiz yourself." }
   ]);
+  const [expandedRagIndices, setExpandedRagIndices] = useState<Record<number, boolean>>({});
   const [aiLoading, setAiLoading] = useState(false);
   const [flashcards, setFlashcards] = useState<Array<{ q: string; a: string; showAnswer?: boolean }>>([]);
   const [customQuiz, setCustomQuiz] = useState<Array<{ q: string; opts: string[]; answer: number; selected?: number }>>([]);
+
+  useEffect(() => {
+    if (activeBot === "tutor") {
+      setAiMessages([
+        { sender: "ai", text: "Hello! I am your AI Semiconductor Assistant. Ask me anything about today's lesson, or use the shortcuts below to summarize or quiz yourself." }
+      ]);
+    } else if (activeBot === "book") {
+      setAiMessages([
+        { sender: "ai", text: "Hello! I am your AI Book Bot Librarian. I can search through our digital library textbooks, manuals, and worksheets. Try typing 'CMOS' or 'EUV' or 'transistor' to find reference links." }
+      ]);
+    } else if (activeBot === "score") {
+      setAiMessages([
+        { sender: "ai", text: "Hello! I am your AI Score Bot Coach. I can analyze your roadmap progress, average quiz score grades, and proctoring integrity record. Click 'Analyze Score' below to pull your progress audit report card!" }
+      ]);
+    }
+    setFlashcards([]);
+    setCustomQuiz([]);
+  }, [activeBot]);
 
   // Chat & Polls state
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; user: string; text: string; time: string; rx?: string }>>([
@@ -162,6 +632,7 @@ export function WorkspaceClient({
     // Clear flashcard/custom quiz states on lesson change
     setFlashcards([]);
     setCustomQuiz([]);
+    lastSavedTimeRef.current = 0;
   }, [activeLesson]);
 
   // Notes Auto-save logic
@@ -174,6 +645,63 @@ export function WorkspaceClient({
     }, 1000);
     return () => clearTimeout(delayDebounce);
   }, [notes, activeLesson]);
+
+  const downloadWithWatermark = async (fileUrl: string, fileName: string) => {
+    if (!fileUrl.toLowerCase().endsWith(".pdf")) {
+      const link = document.createElement("a");
+      link.href = fileUrl;
+      link.download = fileName;
+      link.target = "_blank";
+      link.click();
+      return;
+    }
+
+    setUpdatingProgress(true);
+    try {
+      const response = await fetch(fileUrl);
+      const blob = await response.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+
+      const { PDFDocument, rgb, degrees } = await import("pdf-lib");
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const pages = pdfDoc.getPages();
+
+      const watermarkText = `${tenantName.toUpperCase()} - ${user.firstName} ${user.lastName} (${user.userId})`;
+
+      for (const page of pages) {
+        const { width, height } = page.getSize();
+        
+        page.drawText(watermarkText, {
+          x: width / 2 - 180,
+          y: height / 2 - 100,
+          size: 14,
+          color: rgb(0.7, 0.7, 0.7),
+          opacity: 0.35,
+          rotate: degrees(45),
+        });
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      const newBlob = new Blob([pdfBytes as any], { type: "application/pdf" });
+      const newUrl = URL.createObjectURL(newBlob);
+
+      const link = document.createElement("a");
+      link.href = newUrl;
+      link.download = fileName.toLowerCase().endsWith(".pdf") ? fileName : `${fileName}.pdf`;
+      link.click();
+
+      setTimeout(() => URL.revokeObjectURL(newUrl), 1000);
+    } catch (error) {
+      console.error("Failed to apply PDF watermark:", error);
+      const link = document.createElement("a");
+      link.href = fileUrl;
+      link.download = fileName;
+      link.target = "_blank";
+      link.click();
+    } finally {
+      setUpdatingProgress(false);
+    }
+  };
 
   const handleToggleComplete = async (lessonId: string) => {
     if (user.role === "Guest") {
@@ -365,10 +893,24 @@ export function WorkspaceClient({
     setAiLoading(true);
 
     try {
-      const res = await askAiAction(activeLesson.id, queryText);
+      const res = await askAiAction(activeLesson.id, queryText, activeBot);
       if (res.success && res.data) {
         const payload = res.data;
-        setAiMessages(prev => [...prev, { sender: "ai", text: payload.text }]);
+        
+        // Generate simulated RAG chunks for this prompt
+        const textLower = queryText.toLowerCase();
+        let ragChunks = [
+          { source: "Course Syllabus & Lab Manual.pdf", page: 2, snippet: "The student learning dashboard allows tracking of daily course roadmap objectives and quizzes.", score: 0.81 },
+          { source: "Core Course Notes.pdf", page: 15, snippet: "All assignments require git repository references for faculty evaluation.", score: 0.76 }
+        ];
+        if (textLower.includes("cmos") || textLower.includes("fabrication") || textLower.includes("vlsi") || textLower.includes("lithography") || textLower.includes("summarize") || textLower.includes("quiz")) {
+          ragChunks = [
+            { source: "CMOS VLSI Design (4th Ed) - Chapter 3.pdf", page: 89, snippet: "The scaling of CMOS transistors requires precise control over gate-to-source capacitance and threshold voltage parameters.", score: 0.94 },
+            { source: "Lithography Guidelines Handbook.pdf", page: 12, snippet: "Immersion lithography scaling limits are dictated by the refractive index of fluid layer.", score: 0.88 }
+          ];
+        }
+
+        setAiMessages(prev => [...prev, { sender: "ai", text: payload.text, rag: ragChunks }]);
         
         if (payload.flashcards) {
           setFlashcards(payload.flashcards);
@@ -421,6 +963,136 @@ export function WorkspaceClient({
     setNewChatText("");
   };
 
+  // Brand details resolver
+  const getBrandDetails = () => {
+    const sub = subdomain.toLowerCase();
+    if (sub === "vt" || sub === "vti") {
+      return {
+        logoText: "VT",
+        logoSubtext: "VIRGINIA TECH",
+        logoColor: "#861F41", // Maroon
+        accentColor: "#E57724", // Orange
+        domain: "iamneo.vt.edu",
+        pathway: "Sustainability & ESG Career Pathway"
+      };
+    } else if (sub === "intel") {
+      return {
+        logoText: "Intel",
+        logoSubtext: "INTEL COE",
+        logoColor: "#0068B5",
+        accentColor: "#00c6ff",
+        domain: "iamneo.intel.com",
+        pathway: "Advanced Semiconductor & VLSI Design Pathway"
+      };
+    } else if (sub === "amd") {
+      return {
+        logoText: "AMD",
+        logoSubtext: "AMD COE",
+        logoColor: "#ED1C24",
+        accentColor: "#ff4d4d",
+        domain: "iamneo.amd.com",
+        pathway: "High Performance Computing & GPU Design Pathway"
+      };
+    } else {
+      return {
+        logoText: tenantName.substring(0, 3).toUpperCase(),
+        logoSubtext: tenantName.toUpperCase(),
+        logoColor: primaryColor,
+        accentColor: primaryColor,
+        domain: `iamneo.${subdomain}.edu`,
+        pathway: "Microelectronics & Systems Engineering Pathway"
+      };
+    }
+  };
+
+  // High-fidelity print generator
+  const handlePrintScorecard = () => {
+    if (!scorecardData) return;
+    const printContent = document.getElementById("career-scorecard-print-area");
+    if (!printContent) return;
+
+    const brand = getBrandDetails();
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+
+    win.document.write(`
+      <html>
+        <head>
+          <title>${brand.logoSubtext} Career Scorecard - ${scorecardData.studentName}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <style>
+            @media print {
+              @page {
+                size: landscape;
+                margin: 0.5cm;
+              }
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                background-color: white !important;
+                color: black !important;
+              }
+            }
+            body {
+              font-family: system-ui, -apple-system, sans-serif;
+              background-color: white;
+              padding: 10px;
+            }
+          </style>
+        </head>
+        <body class="bg-white">
+          <div class="w-[1150px] mx-auto bg-white p-6 rounded-3xl border border-slate-100">
+            ${printContent.innerHTML}
+          </div>
+          <script>
+            window.addEventListener('load', () => {
+              setTimeout(() => {
+                window.print();
+                window.close();
+              }, 800);
+            });
+          </script>
+        </body>
+      </html>
+    `);
+    win.document.close();
+  };
+
+  const brand = getBrandDetails();
+
+  // Dynamic calculations for 10 indices
+  const baseScore = scorecardData?.avgScore || 82;
+  const indexScores = [
+    baseScore,
+    Math.min(100, baseScore + 8),
+    Math.max(40, baseScore - 4),
+    Math.min(100, baseScore + 4),
+    Math.max(40, baseScore - 2),
+    Math.max(40, baseScore - 6),
+    Math.min(100, baseScore + 10),
+    Math.max(40, baseScore - 1),
+    Math.min(100, baseScore + 2),
+    Math.min(100, baseScore + 9),
+  ];
+  const overallAverageScore = Math.round(indexScores.reduce((a, b) => a + b, 0) / 10);
+  const totalScorePoints = overallAverageScore * 10;
+  
+  let gradeLetter = "A";
+  if (overallAverageScore >= 90) gradeLetter = "A+";
+  else if (overallAverageScore >= 80) gradeLetter = "A";
+  else if (overallAverageScore >= 70) gradeLetter = "B";
+  else if (overallAverageScore >= 60) gradeLetter = "C";
+  else gradeLetter = "D";
+
+  const getRatingText = (s: number) => {
+    if (s >= 90) return "Outstanding";
+    if (s >= 80) return "Excellent";
+    if (s >= 70) return "Strong";
+    if (s >= 60) return "Good";
+    return "Needs Imp.";
+  };
+
   // Get active items to highlight sidebar
   const activeLessonId = activeLesson?.id || "";
   const activeQuizId = activeQuiz?.id || "";
@@ -434,63 +1106,125 @@ export function WorkspaceClient({
           sidebarOpen ? "w-72" : "w-0"
         } overflow-hidden`}
       >
-        <div className="p-4 border-b border-border/80 flex items-center justify-between">
-          <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-            <BookOpen className="w-3.5 h-3.5 text-primary" /> Syllabus Roadmap
-          </span>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-5">
-          {course.modules.map((mod) => (
-            <div key={mod.id} className="space-y-2">
-              <h4 className="px-2 text-[10px] font-black text-muted-foreground uppercase tracking-wide leading-tight truncate" title={mod.name}>
-                {mod.name}
-              </h4>
-              <div className="space-y-1">
-                {mod.lessons.map((les) => {
-                  const isActive = activeLessonId === les.id;
-                  const lessonQuiz = quizzes.find((q) => q.lessonId === les.id);
-                  return (
-                    <div key={les.id} className="space-y-0.5">
-                      <a
-                        href={`/courses/${course.id}?lessonId=${les.id}`}
-                        className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                          isActive 
-                            ? "bg-primary/10 text-primary border-l-2" 
-                            : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
-                        }`}
-                        style={isActive ? { borderLeftColor: primaryColor, color: primaryColor } : undefined}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <span className="shrink-0 text-sm">
-                            {les.contentType === "video" ? "📺" : les.contentType === "live_class" ? "🎥" : "📄"}
-                          </span>
-                          <span className="truncate flex-1">{les.title}</span>
-                        </div>
-                        {completedLessons.includes(les.id) && (
-                          <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        )}
-                      </a>
+        {course.scormEnabled ? (
+          <>
+            <div className="p-4 border-b border-border/80 flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <BookOpen className="w-3.5 h-3.5 text-primary" /> SCORM Package
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="bg-slate-900/40 border border-border/50 p-4 rounded-xl space-y-3.5">
+                <div className="space-y-1">
+                  <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                    Course Delivery
+                  </h4>
+                  <p className="text-xs font-extrabold text-foreground">{course.name}</p>
+                </div>
 
-                      {lessonQuiz && (
-                        <a
-                          href={`/courses/${course.id}?quizId=${lessonQuiz.id}`}
-                          className={`w-full flex items-center gap-2 px-3 py-1.5 pl-8 rounded-xl text-[10px] font-extrabold transition-all ${
-                            activeQuizId === lessonQuiz.id
-                              ? "bg-amber-500/10 text-amber-500 border-l-2 border-amber-500" 
-                              : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
-                          }`}
-                        >
-                          <span>✍️</span>
-                          <span className="truncate flex-1">{lessonQuiz.title}</span>
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
+                <div className="space-y-1">
+                  <span className="text-[9px] text-muted-foreground block font-bold uppercase">Completion Status</span>
+                  {scormCompleted ? (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-black bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-emerald-400 uppercase tracking-widest">
+                      Completed
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-black bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded text-sky-400 uppercase tracking-widest">
+                      In Progress
+                    </span>
+                  )}
+                </div>
+
+                {(localScormData["cmi.core.score.raw"] || localScormData["cmi.score.raw"]) ? (
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-muted-foreground block font-bold uppercase">Assessment Score</span>
+                    <strong className="text-sm font-black text-foreground">
+                      {localScormData["cmi.core.score.raw"] || localScormData["cmi.score.raw"]}%
+                    </strong>
+                  </div>
+                ) : null}
+
+                {localScormData["_total_time_seconds"] ? (
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-muted-foreground block font-bold uppercase">Total Time Spent</span>
+                    <strong className="text-xs font-extrabold text-foreground">
+                      {Math.round(parseInt(localScormData["_total_time_seconds"], 10) / 60)} mins
+                    </strong>
+                  </div>
+                ) : null}
+
+                {(localScormData["cmi.core.lesson_location"] || localScormData["cmi.location"]) ? (
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-muted-foreground block font-bold uppercase">Last Bookmark</span>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {localScormData["cmi.core.lesson_location"] || localScormData["cmi.location"]}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <>
+            <div className="p-4 border-b border-border/80 flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <BookOpen className="w-3.5 h-3.5 text-primary" /> Syllabus Roadmap
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-5">
+              {course.modules.map((mod) => (
+                <div key={mod.id} className="space-y-2">
+                  <h4 className="px-2 text-[10px] font-black text-muted-foreground uppercase tracking-wide leading-tight truncate" title={mod.name}>
+                    {mod.name}
+                  </h4>
+                  <div className="space-y-1">
+                    {mod.lessons.map((les) => {
+                      const isActive = activeLessonId === les.id;
+                      const lessonQuiz = quizzes.find((q) => q.lessonId === les.id);
+                      return (
+                        <div key={les.id} className="space-y-0.5">
+                          <a
+                            href={`/courses/${course.id}?lessonId=${les.id}`}
+                            className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                              isActive 
+                                ? "bg-primary/10 text-primary border-l-2" 
+                                : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
+                            }`}
+                            style={isActive ? { borderLeftColor: primaryColor, color: primaryColor } : undefined}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <span className="shrink-0 text-sm">
+                                {les.contentType === "video" ? "📺" : les.contentType === "live_class" ? "🎥" : "📄"}
+                              </span>
+                              <span className="truncate flex-1">{les.title}</span>
+                            </div>
+                            {completedLessons.includes(les.id) && (
+                              <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            )}
+                          </a>
+
+                          {lessonQuiz && (
+                            <a
+                              href={`/courses/${course.id}?quizId=${lessonQuiz.id}`}
+                              className={`w-full flex items-center gap-2 px-3 py-1.5 pl-8 rounded-xl text-[10px] font-extrabold transition-all ${
+                                activeQuizId === lessonQuiz.id
+                                  ? "bg-amber-500/10 text-amber-500 border-l-2 border-amber-500" 
+                                  : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
+                              }`}
+                            >
+                              <span>✍️</span>
+                              <span className="truncate flex-1">{lessonQuiz.title}</span>
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </aside>
 
       {/* Collapse Sidebar Button */}
@@ -503,7 +1237,48 @@ export function WorkspaceClient({
 
       {/* Main Study Zone */}
       <div className="flex-1 flex flex-col overflow-hidden bg-background">
-        {activeQuiz ? (
+        {course.scormEnabled ? (
+          <div className="flex-1 overflow-y-auto p-4 bg-card/10">
+            <div className="max-w-5xl mx-auto space-y-4">
+              <div className="bg-card border border-border p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                <div>
+                  <h3 className="text-sm font-extrabold text-foreground">{course.name}</h3>
+                  <p className="text-[10px] text-muted-foreground">SCORM Course Delivery Mode</p>
+                </div>
+                {scormCompleted && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded text-emerald-400 uppercase tracking-wider">
+                    🎉 Completed
+                  </span>
+                )}
+              </div>
+              <div className="border border-border rounded-2xl overflow-hidden shadow-2xl bg-black">
+                <ScormInlinePlayer
+                  courseId={course.id}
+                  isCourseLevel={true}
+                  fileUrl={course.scormPackageUrl || null}
+                  userName={`${user.firstName} ${user.lastName}`}
+                  userId={user.userId}
+                  onScormDataUpdate={(data) => {
+                    setLocalScormData(data);
+                    const status = (data["cmi.core.lesson_status"] || data["cmi.completion_status"] || "").toLowerCase();
+                    const success = (data["cmi.success_status"] || "").toLowerCase();
+                    if (["completed", "passed"].includes(status) || success === "passed") {
+                      setScormCompleted(true);
+                    }
+                  }}
+                  onComplete={() => {
+                    setScormCompleted(true);
+                    confetti({
+                      particleCount: 100,
+                      spread: 70,
+                      origin: { y: 0.6 }
+                    });
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ) : activeQuiz ? (
           <div className="flex-1 overflow-y-auto flex items-center justify-center p-6 bg-card/10">
             <QuizWorkspace 
               quiz={activeQuiz} 
@@ -514,17 +1289,23 @@ export function WorkspaceClient({
           </div>
         ) : activeLesson ? (
           <div className="flex-1 flex flex-col overflow-hidden">
-            
-            {/* Viewport: Video, PDF text, or Zoom */}
-            <div className="bg-card/35 border-b border-border shrink-0">
+                {/* Viewport: Video, PDF text, or Zoom */}
+                <div className="bg-card/35 border-b border-border shrink-0">
               {activeLesson.contentType === "video" && activeLesson.videoUrl && (
                 <div className="aspect-video max-h-[38vh] mx-auto bg-black relative flex items-center justify-center">
                   <video 
-                    src={activeLesson.videoUrl} 
+                    key={activeLesson.videoUrl}
                     controls 
                     className="w-full h-full object-contain"
                     poster="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=1200"
-                  />
+                    onLoadedMetadata={handleVideoLoadedMetadata}
+                    onTimeUpdate={handleVideoTimeUpdate}
+                    playsInline
+                  >
+                    {activeLesson.videoUrl && <source src={activeLesson.videoUrl} type="video/mp4" />}
+                    <source src="/sample-video.mp4" type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
                 </div>
               )}
 
@@ -573,20 +1354,115 @@ export function WorkspaceClient({
                 </div>
               )}
 
-              {activeLesson.contentType === "scorm" && (
-                <div className="p-4 bg-neutral-900 border-b border-border flex flex-col items-stretch">
-                  <ScormPlayer
-                    lessonId={activeLesson.id}
-                    fileUrl={activeLesson.fileUrl || null}
-                    onComplete={() => {
-                      confetti({ particleCount: 80, spread: 60 });
-                      // Add lesson to completed array locally
-                      if (!completedLessons.includes(activeLesson.id)) {
-                        setCompletedLessons(prev => [...prev, activeLesson.id]);
-                      }
-                    }}
-                  />
+
+              {activeLesson.contentType === "audio" && activeLesson.videoUrl && (
+                <div className="py-6 px-8 text-center bg-gradient-to-tr from-card to-background space-y-4 border-b border-border">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 text-primary text-xl flex items-center justify-center mx-auto">
+                    🎧
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black bg-primary/10 border border-primary/20 px-2 py-0.5 rounded text-primary uppercase tracking-widest">
+                      Audio Lecture Podcast
+                    </span>
+                    <h3 className="text-sm font-extrabold text-foreground">{activeLesson.title}</h3>
+                  </div>
+                  <div className="max-w-md mx-auto">
+                    <audio 
+                      key={activeLesson.videoUrl}
+                      controls 
+                      className="w-full"
+                    >
+                      {activeLesson.videoUrl && <source src={activeLesson.videoUrl} type="audio/mpeg" />}
+                      <source src="/sample-audio.mp3" type="audio/mpeg" />
+                    </audio>
+                  </div>
+                  {/* Waveform graphic visualization */}
+                  <div className="flex justify-center items-end gap-1 h-8 max-w-[200px] mx-auto select-none">
+                    <span className="w-1 bg-primary/40 rounded-full h-4 animate-bounce" style={{ animationDelay: '0.1s' }} />
+                    <span className="w-1 bg-primary/60 rounded-full h-7 animate-bounce" style={{ animationDelay: '0.3s' }} />
+                    <span className="w-1 bg-primary rounded-full h-5 animate-bounce" style={{ animationDelay: '0.5s' }} />
+                    <span className="w-1 bg-primary/70 rounded-full h-8 animate-bounce" style={{ animationDelay: '0.2s' }} />
+                    <span className="w-1 bg-primary/50 rounded-full h-4 animate-bounce" style={{ animationDelay: '0.4s' }} />
+                  </div>
                 </div>
+              )}
+
+              {(activeLesson.contentType === "excel" || activeLesson.contentType === "sheets") && (
+                <div className="p-4 bg-card/60 border-b border-border flex flex-col items-stretch space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[9px] font-black bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
+                        Interactive Spreadsheet Workspace
+                      </span>
+                      <h3 className="text-xs font-black text-foreground mt-1">{activeLesson.title}</h3>
+                    </div>
+                    {activeLesson.fileUrl && (
+                      <a 
+                        href={activeLesson.fileUrl} 
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[9px] font-black uppercase text-primary tracking-wider hover:underline flex items-center gap-1"
+                        style={{ color: primaryColor }}
+                      >
+                        📂 Open Excel Sheet
+                      </a>
+                    )}
+                  </div>
+                  
+                  {/* Spreadsheet Grid Component */}
+                  <div className="border border-border rounded-xl overflow-hidden bg-background">
+                    <table className="w-full text-left border-collapse text-[10px]">
+                      <thead>
+                        <tr className="bg-muted/30 text-muted-foreground border-b border-border font-bold">
+                          <th className="p-2 border-r border-border text-center w-8 bg-muted/10"></th>
+                          <th className="p-2 border-r border-border w-24">Parameter</th>
+                          <th className="p-2 border-r border-border w-16">Target</th>
+                          <th className="p-2 border-r border-border w-16">Value</th>
+                          <th className="p-2 border-r border-border w-16">Tolerance</th>
+                          <th className="p-2">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { id: 1, param: "Fin Width (W_fin)", target: "8nm", val: "7.92nm", tol: "±0.1nm", status: "PASS" },
+                          { id: 2, param: "Gate Length (L_g)", target: "14nm", val: "14.05nm", tol: "±0.2nm", status: "PASS" },
+                          { id: 3, param: "EOT (Oxide Thickness)", target: "0.9nm", val: "0.89nm", tol: "±0.05nm", status: "PASS" },
+                          { id: 4, param: "Threshold Voltage (V_th)", target: "0.28V", val: "0.274V", tol: "±0.02V", status: "PASS" },
+                        ].map((row) => (
+                          <tr key={row.id} className="border-b border-border hover:bg-muted/10">
+                            <td className="p-2 border-r border-border text-center font-bold text-muted-foreground bg-muted/10">{row.id}</td>
+                            <td className="p-2 border-r border-border font-extrabold text-foreground">{row.param}</td>
+                            <td className="p-2 border-r border-border text-muted-foreground font-semibold">{row.target}</td>
+                            <td className="p-2 border-r border-border font-mono">
+                              <input 
+                                type="text"
+                                defaultValue={row.val}
+                                className="w-full bg-transparent focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 border-none text-foreground font-mono"
+                              />
+                            </td>
+                            <td className="p-2 border-r border-border text-muted-foreground">{row.tol}</td>
+                            <td className="p-2 font-black text-emerald-400">{row.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {activeLesson.contentType === "scorm" && (
+                <ScormInlinePlayer
+                  lessonId={activeLesson.id}
+                  fileUrl={activeLesson.fileUrl || null}
+                  userName={user ? `${user.firstName} ${user.lastName}` : "Student"}
+                  userId={user?.userId || ""}
+                  onComplete={() => {
+                    confetti({ particleCount: 80, spread: 60 });
+                    if (!completedLessons.includes(activeLesson.id)) {
+                      setCompletedLessons(prev => [...prev, activeLesson.id]);
+                    }
+                  }}
+                />
               )}
             </div>
 
@@ -603,7 +1479,7 @@ export function WorkspaceClient({
                       { id: "notes", label: "Notebook", icon: Edit3 },
                       { id: "chat", label: "Discussion Hub", icon: MessageSquare }
                     ];
-                    if (capstoneProject) {
+                    if (capstoneProject && enableCapstone) {
                       list.push({ id: "capstone", label: "Capstone Project", icon: Award });
                     }
                     return list;
@@ -628,10 +1504,10 @@ export function WorkspaceClient({
                   })}
                 </div>
                 
-                {activeTab === "notes" && (
+                {activeTab === "notes" && notesSaving && (
                   <span className="text-[9px] text-muted-foreground font-semibold flex items-center gap-1.5">
-                    {notesSaving ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3 text-emerald-400" />}
-                    {notesSaving ? "Saving..." : "Saved to Local Storage"}
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    <span>Saving...</span>
                   </span>
                 )}
               </div>
@@ -668,10 +1544,8 @@ export function WorkspaceClient({
                           <p className="text-[10px] text-muted-foreground">Download the exercises and practice problems for this module.</p>
                         </div>
                         <a 
-                          href={activeLesson.fileUrl} 
+                          href={`/api/download?lessonId=${activeLesson.id}`}
                           download
-                          target="_blank"
-                          rel="noreferrer"
                           className="flex items-center gap-1.5 bg-primary hover:opacity-95 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer self-stretch sm:self-auto justify-center"
                           style={{ backgroundColor: primaryColor }}
                         >
@@ -1028,162 +1902,655 @@ export function WorkspaceClient({
       </div>
 
       {/* Floating AI Assistant pane */}
-      <aside 
-        className={`bg-card border-l border-border flex flex-col transition-all duration-300 shrink-0 ${
-          aiOpen ? "w-80" : "w-0"
-        } overflow-hidden`}
-      >
-        <div className="p-4 border-b border-border/80 flex items-center justify-between shrink-0">
-          <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-primary" /> AI Tutor Assistant
-          </span>
-        </div>
-        
-        {/* Chat output */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {aiMessages.map((msg, idx) => (
-            <div 
-              key={idx} 
-              className={`p-3 rounded-xl text-xs leading-relaxed border ${
-                msg.sender === "user" 
-                  ? "bg-secondary/30 border-border max-w-[85%] ml-auto" 
-                  : "bg-primary/5 border-primary/25 text-foreground max-w-[90%]"
+      {enableAi && (
+        <aside 
+          className={`bg-card border-l border-border flex flex-col transition-all duration-300 shrink-0 ${
+            aiOpen ? "w-80" : "w-0"
+          } overflow-hidden`}
+        >
+          <div className="p-4 border-b border-border/80 flex items-center justify-between shrink-0">
+            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-primary" /> AI Assistant Console
+            </span>
+          </div>
+
+          {/* Bot Tabs Selector */}
+          <div className="flex border-b border-border bg-muted/20 shrink-0">
+            <button
+              onClick={() => setActiveBot("tutor")}
+              className={`flex-1 py-2 text-[9px] font-black uppercase tracking-wider text-center border-b-2 transition-all ${
+                activeBot === "tutor"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
+              style={activeBot === "tutor" ? { borderColor: primaryColor, color: primaryColor } : undefined}
             >
-              {msg.text}
-            </div>
-          ))}
-
-          {/* Interactive Dynamic generated components */}
-          {flashcards.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-border/40">
-              <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Interactive Flashcards</span>
-              {flashcards.map((fc, i) => (
-                <div key={i} className="bg-secondary/15 border border-border p-3 rounded-xl space-y-2">
-                  <p className="text-xs font-bold text-foreground">Q: {fc.q}</p>
-                  {fc.showAnswer ? (
-                    <p className="text-[11px] text-muted-foreground leading-relaxed animate-in fade-in">A: {fc.a}</p>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setFlashcards(prev => prev.map((item, idx) => idx === i ? { ...item, showAnswer: true } : item));
-                      }}
-                      className="text-[9px] font-black bg-primary/20 text-primary px-2.5 py-1 rounded-lg hover:opacity-90"
-                      style={{ color: primaryColor, backgroundColor: `${primaryColor}20` }}
-                    >
-                      Flip Card
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {customQuiz.length > 0 && (
-            <div className="space-y-3 pt-2 border-t border-border/40">
-              <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Self-Assessment Quiz</span>
-              {customQuiz.map((item, i) => (
-                <div key={i} className="bg-secondary/15 border border-border p-3 rounded-xl space-y-2.5">
-                  <p className="text-xs font-bold text-foreground">{i + 1}. {item.q}</p>
-                  <div className="space-y-1.5">
-                    {item.opts.map((opt, oIdx) => {
-                      const isSel = item.selected === oIdx;
-                      const isCorrect = item.answer === oIdx;
-                      return (
-                        <button
-                          key={oIdx}
-                          onClick={() => {
-                            setCustomQuiz(prev => prev.map((q, qIdx) => qIdx === i ? { ...q, selected: oIdx } : q));
-                            if (oIdx === item.answer) {
-                              confetti({ particleCount: 25, spread: 30, origin: { y: 0.8 } });
-                            }
-                          }}
-                          className={`w-full text-left p-2 rounded-lg text-[10px] font-semibold border transition-all ${
-                            item.selected !== undefined
-                              ? isCorrect
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/35"
-                                : isSel
-                                  ? "bg-rose-500/10 text-rose-400 border-rose-500/35"
-                                  : "bg-transparent text-muted-foreground border-border"
-                              : "bg-background text-muted-foreground border-border hover:border-slate-500"
-                          }`}
-                          disabled={item.selected !== undefined}
-                        >
-                          {opt}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {aiLoading && (
-            <div className="flex items-center justify-center p-3 text-muted-foreground text-xs gap-2">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Analyzing lesson transcript...</span>
-            </div>
-          )}
-        </div>
-
-        {/* AI Action Shortcuts */}
-        <div className="p-3 bg-secondary/15 border-t border-border space-y-2 shrink-0">
-          <span className="text-[8px] font-black uppercase text-muted-foreground tracking-wider block mb-1">Quick Tools</span>
-          <div className="grid grid-cols-3 gap-1.5">
-            <button 
-              onClick={() => askAI("Summarize Lesson")}
-              className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
-            >
-              Summary
+              🤖 Tutor
             </button>
-            <button 
-              onClick={() => askAI("Generate Flashcards")}
-              className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
+            <button
+              onClick={() => setActiveBot("book")}
+              className={`flex-1 py-2 text-[9px] font-black uppercase tracking-wider text-center border-b-2 transition-all ${
+                activeBot === "book"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+              style={activeBot === "book" ? { borderColor: primaryColor, color: primaryColor } : undefined}
             >
-              Flashcards
+              📚 Book
             </button>
-            <button 
-              onClick={() => askAI("Quiz me")}
-              className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
+            <button
+              onClick={() => setActiveBot("score")}
+              className={`flex-1 py-2 text-[9px] font-black uppercase tracking-wider text-center border-b-2 transition-all ${
+                activeBot === "score"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+              style={activeBot === "score" ? { borderColor: primaryColor, color: primaryColor } : undefined}
             >
-              Quiz Me
+              🎯 Score
             </button>
           </div>
-        </div>
+          
+          {/* Chat output */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {aiMessages.map((msg, idx) => {
+              const hasRag = msg.sender === "ai" && msg.rag && msg.rag.length > 0;
+              const isExpanded = !!expandedRagIndices[idx];
 
-        {/* Input */}
-        <form 
-          onSubmit={(e) => {
-            e.preventDefault();
-            askAI();
-          }} 
-          className="p-3 border-t border-border shrink-0 flex gap-1.5"
-        >
-          <input
-            type="text"
-            placeholder="Ask about this lesson..."
-            value={aiQuery}
-            onChange={(e) => setAiQuery(e.target.value)}
-            className="flex-1 bg-secondary/20 border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="bg-primary text-white p-1.5 rounded-xl hover:opacity-95 flex items-center justify-center transition-colors cursor-pointer"
-            style={{ backgroundColor: primaryColor }}
+              return (
+                <div key={idx} className="space-y-1">
+                  <div 
+                    className={`p-3 rounded-xl text-xs leading-relaxed border ${
+                      msg.sender === "user" 
+                        ? "bg-secondary/30 border-border max-w-[85%] ml-auto" 
+                        : "bg-primary/5 border-primary/25 text-foreground max-w-[90%]"
+                    }`}
+                  >
+                    {renderFormattedContent(msg.text, primaryColor)}
+                    
+                    {hasRag && (
+                      <div className="mt-2.5 pt-2 border-t border-primary/10">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedRagIndices(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                          className="flex items-center gap-1 text-[8.5px] font-black uppercase text-primary tracking-wider hover:underline cursor-pointer"
+                          style={{ color: primaryColor }}
+                        >
+                          <BrainCircuit className="w-3 h-3 shrink-0" />
+                          {isExpanded ? "Hide RAG Sources ▴" : "Show RAG Sources ▾"}
+                        </button>
+                        
+                        {isExpanded && (
+                          <div className="mt-2 space-y-2 animate-in slide-in-from-top-1 duration-150">
+                            {msg.rag!.map((chunk: any, cIdx: number) => (
+                              <div key={cIdx} className="bg-background/80 border border-border/50 p-2 rounded-lg space-y-1 text-[9.5px]">
+                                <div className="flex justify-between items-center text-[8.5px] text-muted-foreground font-semibold">
+                                  <span className="truncate max-w-[130px] font-sans font-bold text-foreground" title={chunk.source}>
+                                    📄 {chunk.source} (Page {chunk.page})
+                                  </span>
+                                  <span className="font-mono text-emerald-400">Match: {(chunk.score * 100).toFixed(0)}%</span>
+                                </div>
+                                <p className="text-muted-foreground italic leading-normal font-medium">
+                                  &ldquo;{chunk.snippet}&rdquo;
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Interactive Dynamic generated components */}
+            {flashcards.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-border/40">
+                <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Interactive Flashcards</span>
+                {flashcards.map((fc, i) => (
+                  <div key={i} className="bg-secondary/15 border border-border p-3 rounded-xl space-y-2">
+                    <p className="text-xs font-bold text-foreground">Q: {fc.q}</p>
+                    {fc.showAnswer ? (
+                      <p className="text-[11px] text-muted-foreground leading-relaxed animate-in fade-in">A: {fc.a}</p>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setFlashcards(prev => prev.map((item, idx) => idx === i ? { ...item, showAnswer: true } : item));
+                        }}
+                        className="text-[9px] font-black bg-primary/20 text-primary px-2.5 py-1 rounded-lg hover:opacity-90"
+                        style={{ color: primaryColor, backgroundColor: `${primaryColor}20` }}
+                      >
+                        Flip Card
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {customQuiz.length > 0 && (
+              <div className="space-y-3 pt-2 border-t border-border/40">
+                <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Self-Assessment Quiz</span>
+                {customQuiz.map((item, i) => (
+                  <div key={i} className="bg-secondary/15 border border-border p-3 rounded-xl space-y-2.5">
+                    <p className="text-xs font-bold text-foreground">{i + 1}. {item.q}</p>
+                    <div className="space-y-1.5">
+                      {item.opts.map((opt, oIdx) => {
+                        const isSel = item.selected === oIdx;
+                        const isCorrect = item.answer === oIdx;
+                        return (
+                          <button
+                            key={oIdx}
+                            onClick={() => {
+                              setCustomQuiz(prev => prev.map((q, qIdx) => qIdx === i ? { ...q, selected: oIdx } : q));
+                              if (oIdx === item.answer) {
+                                confetti({ particleCount: 25, spread: 30, origin: { y: 0.8 } });
+                              }
+                            }}
+                            className={`w-full text-left p-2 rounded-lg text-[10px] font-semibold border transition-all ${
+                              item.selected !== undefined
+                                ? isCorrect
+                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/35"
+                                  : isSel
+                                    ? "bg-rose-500/10 text-rose-400 border-rose-500/35"
+                                    : "bg-transparent text-muted-foreground border-border"
+                                : "bg-background text-muted-foreground border-border hover:border-slate-500"
+                            }`}
+                            disabled={item.selected !== undefined}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {aiLoading && (
+              <div className="flex items-center justify-center p-3 text-muted-foreground text-xs gap-2">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>
+                  {activeBot === "tutor" 
+                    ? "Analyzing lesson transcript..." 
+                    : activeBot === "book" 
+                      ? "Searching digital library catalog..." 
+                      : "Calculating score analytics report..."}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* AI Action Shortcuts */}
+          <div className="p-3 bg-secondary/15 border-t border-border space-y-2 shrink-0">
+            <span className="text-[8px] font-black uppercase text-muted-foreground tracking-wider block mb-1">Quick Tools</span>
+            
+            {activeBot === "tutor" && (
+              <div className="grid grid-cols-3 gap-1.5">
+                <button 
+                  onClick={() => askAI("Summarize Lesson")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
+                >
+                  Summary
+                </button>
+                <button 
+                  onClick={() => askAI("Generate Flashcards")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
+                >
+                  Flashcards
+                </button>
+                <button 
+                  onClick={() => askAI("Quiz me")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center"
+                >
+                  Quiz Me
+                </button>
+              </div>
+            )}
+
+            {activeBot === "book" && (
+              <div className="grid grid-cols-3 gap-1.5">
+                <button 
+                  onClick={() => askAI("CMOS VLSI")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
+                >
+                  CMOS Books
+                </button>
+                <button 
+                  onClick={() => askAI("Lithography")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
+                >
+                  Lithography
+                </button>
+                <button 
+                  onClick={() => askAI("FinFET")}
+                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
+                >
+                  FinFET Docs
+                </button>
+              </div>
+            )}
+
+            {activeBot === "score" && (
+              <div className="flex gap-1.5">
+                <button 
+                  onClick={() => askAI("Show my score report card")}
+                  className="flex-1 py-1.5 text-[9px] font-black uppercase tracking-wider border border-border bg-card hover:bg-secondary rounded-lg text-center text-primary"
+                  style={{ color: primaryColor }}
+                >
+                  📊 Run Performance Score Audit
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              askAI();
+            }} 
+            className="p-3 border-t border-border shrink-0 flex gap-1.5"
           >
-            <Send className="w-3.5 h-3.5" />
-          </button>
-        </form>
-      </aside>
+            <input
+              type="text"
+              placeholder={
+                activeBot === "tutor" 
+                  ? "Ask about this lesson..." 
+                  : activeBot === "book" 
+                    ? "Search books, authors, categories..." 
+                    : "Ask score bot coach..."
+              }
+              value={aiQuery}
+              onChange={(e) => setAiQuery(e.target.value)}
+              className="flex-1 bg-secondary/20 border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground focus:outline-none"
+            />
+            <button
+              type="submit"
+              className="bg-primary text-white p-1.5 rounded-xl hover:opacity-95 flex items-center justify-center transition-colors cursor-pointer"
+              style={{ backgroundColor: primaryColor }}
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </form>
+        </aside>
+      )}
 
       {/* Collapse AI Button */}
-      <button
-        onClick={() => setAiOpen(!aiOpen)}
-        className="absolute top-1/2 -translate-y-1/2 right-0 z-20 w-5 h-10 bg-card border-l border-y border-border hover:bg-secondary flex items-center justify-center text-muted-foreground rounded-l-lg"
-      >
-        {aiOpen ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-      </button>
+      {enableAi && (
+        <button
+          onClick={() => setAiOpen(!aiOpen)}
+          className="absolute top-1/2 -translate-y-1/2 right-0 z-20 w-5 h-10 bg-card border-l border-y border-border hover:bg-secondary flex items-center justify-center text-muted-foreground rounded-l-lg"
+        >
+          {aiOpen ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+        </button>
+      )}
+
+      {/* CAREER SCORECARD DOWNLOADABLE MODAL */}
+      {isScorecardOpen && scorecardData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-6xl bg-white text-slate-800 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col p-6 space-y-6 max-h-[95vh]">
+            
+            {/* Modal Actions Bar (No Print) */}
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3 shrink-0">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  🏆 Interactive Career Scorecard Simulator
+                </h3>
+                <p className="text-xs text-slate-500 font-semibold font-sans">Verify visual elements, download/print PDF matching the design specification.</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePrintScorecard}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  📥 Download / Print PDF Scorecard
+                </button>
+                <button
+                  onClick={() => setIsScorecardOpen(false)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-black uppercase tracking-widest rounded-xl cursor-pointer transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Area Wrapper */}
+            <div className="flex-1 overflow-y-auto pr-1">
+              <div id="career-scorecard-print-area" className="bg-white text-slate-800 p-8 rounded-2xl flex flex-col space-y-6 relative border border-slate-100 min-w-[1000px]">
+                
+                {/* 1. Header Row */}
+                <div className="flex justify-between items-center border-b-2 border-slate-100 pb-4">
+                  {/* Left: Branding Logo */}
+                  <div className="flex items-center gap-3">
+                    <span 
+                      className="w-10 h-10 rounded-xl text-white flex items-center justify-center font-black text-sm shadow-md"
+                      style={{ backgroundColor: brand.logoColor }}
+                    >
+                      {brand.logoText}
+                    </span>
+                    <div>
+                      <h2 className="text-sm font-black tracking-wider text-slate-800 leading-tight">{brand.logoSubtext}</h2>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Center of Excellence</p>
+                    </div>
+                  </div>
+
+                  {/* Center: Title & Slogan */}
+                  <div className="text-center space-y-0.5">
+                    <h1 
+                      className="text-lg md:text-xl font-black uppercase tracking-wider"
+                      style={{ color: brand.logoColor }}
+                    >
+                      {brand.logoText} CAREER SCORECARD
+                    </h1>
+                    <div className="flex items-center justify-center gap-1 text-[9px] text-slate-500 font-semibold">
+                      <span>🍃 Your Journey.</span>
+                      <span>Your Growth.</span>
+                      <span>Your Impact. 🍃</span>
+                    </div>
+                  </div>
+
+                  {/* Right: Student Avatar & Info */}
+                  <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 p-2 rounded-2xl">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-200 border-2 border-slate-200 shrink-0 flex items-center justify-center text-slate-500">
+                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-xs font-black text-slate-800">{scorecardData.studentName}</h3>
+                      <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">{brand.pathway}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Top row metrics cards */}
+                <div className="grid grid-cols-5 gap-4 text-left">
+                  {/* Metric 1: Overall Score */}
+                  <div className="border border-slate-100 bg-slate-50/50 p-3 rounded-2xl flex flex-col justify-between h-24">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">{brand.logoText} OVERALL SCORE</span>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-lg font-black text-slate-800">{totalScorePoints} <span className="text-slate-400 text-xs font-bold">/ 1000</span></p>
+                        <span className="text-[8px] text-emerald-600 font-black block mt-0.5">{overallAverageScore}% Performance</span>
+                      </div>
+                      <div className="relative w-12 h-12 flex items-center justify-center">
+                        <svg className="w-12 h-12 transform -rotate-90">
+                          <circle cx="24" cy="24" r="20" stroke="#f1f5f9" strokeWidth="3" fill="transparent" />
+                          <circle cx="24" cy="24" r="20" stroke={brand.logoColor} strokeWidth="3" fill="transparent" 
+                                  strokeDasharray="125.6" strokeDashoffset={125.6 - (125.6 * overallAverageScore) / 100} />
+                        </svg>
+                        <span className="absolute text-[9px] font-black text-slate-800">{overallAverageScore}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Metric 2: Progress Over Time */}
+                  <div className="border border-slate-100 bg-slate-50/50 p-3 rounded-2xl flex flex-col justify-between h-24">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">PROGRESS OVER TIME</span>
+                    <div className="h-14 flex flex-col justify-end">
+                      <svg className="w-full h-10" viewBox="0 0 140 40">
+                        <path d="M10,35 L30,28 L50,22 L70,18 L90,12 L110,8 L130,4" fill="none" stroke={brand.logoColor} strokeWidth="2" />
+                        <circle cx="10" cy="35" r="2" fill={brand.accentColor} />
+                        <circle cx="30" cy="28" r="2" fill={brand.accentColor} />
+                        <circle cx="50" cy="22" r="2" fill={brand.accentColor} />
+                        <circle cx="70" cy="18" r="2" fill={brand.accentColor} />
+                        <circle cx="90" cy="12" r="2" fill={brand.accentColor} />
+                        <circle cx="110" cy="8" r="2" fill={brand.accentColor} />
+                        <circle cx="130" cy="4" r="2" fill={brand.accentColor} />
+                        <line x1="10" y1="38" x2="130" y2="38" stroke="#e2e8f0" strokeWidth="1" />
+                      </svg>
+                      <div className="flex justify-between text-[7px] text-slate-400 font-bold px-1 mt-1">
+                        <span>Jan</span><span>Mar</span><span>May</span><span>Jul</span><span>Sep</span><span>Nov</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Metric 3: Percentile Rank */}
+                  <div className="border border-slate-100 bg-slate-50/50 p-3 rounded-2xl flex items-center gap-3 h-24">
+                    <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600 border border-emerald-100">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M6 12a6 6 0 0 1 12 0c0 3-3 6-6 6s-6-3-6-6Z" />
+                        <path d="M12 18v3" />
+                        <path d="M8 21h8" />
+                        <path d="m3 10 3 2 3-2" />
+                        <path d="m21 10-3 2-3-2" />
+                      </svg>
+                    </div>
+                    <div>
+                      <span className="text-[7.5px] font-black uppercase tracking-wider text-slate-400 block">PERCENTILE RANK</span>
+                      <p className="text-base font-black text-slate-800">Top 12%</p>
+                      <span className="text-[7px] text-slate-400 font-semibold block leading-tight">Among all {brand.logoText} Students</span>
+                    </div>
+                  </div>
+
+                  {/* Metric 4: Reward Points */}
+                  <div className="border border-slate-100 bg-slate-50/50 p-3 rounded-2xl flex items-center gap-3 h-24">
+                    <div className="p-2 bg-amber-50 rounded-xl text-amber-600 border border-amber-100">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M20 12v10H4V12" />
+                        <path d="M2 7h20v5H2z" />
+                        <path d="M12 22V7" />
+                        <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <span className="text-[7.5px] font-black uppercase tracking-wider text-slate-400 block">REWARD POINTS</span>
+                      <p className="text-base font-black text-slate-800">2,850</p>
+                      <span className="inline-block mt-0.5 text-[6.5px] font-black px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20 uppercase tracking-widest">
+                        Redeem Rewards
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Metric 5: Level Level */}
+                  <div className="border border-slate-100 bg-slate-50/50 p-3 rounded-2xl flex items-center gap-3 h-24">
+                    <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600 border border-indigo-100">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <span className="text-[7.5px] font-black uppercase tracking-wider text-slate-400 block">{brand.logoText} LEVEL</span>
+                      <p className="text-xs font-black text-slate-800">Level 4 Leader</p>
+                      <span className="text-[7px] text-slate-400 font-semibold block leading-tight">Outstanding roadmap progress!</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. 10 Excellence Indices Header */}
+                <div className="text-center relative">
+                  <div className="absolute inset-y-1/2 left-0 right-0 h-px bg-slate-100 z-0"></div>
+                  <span className="relative z-10 px-4 bg-white text-[9px] font-black uppercase tracking-widest text-slate-400 border border-slate-100 rounded-full py-0.5">
+                    10 Excellence Indices
+                  </span>
+                </div>
+
+                {/* 4. Indices Grid */}
+                <div className="grid grid-cols-5 gap-3.5 text-left">
+                  {[
+                    { id: 1, name: "Academic Excellence", keyPrograms: ["Microelectronics Theory", "Device Simulation Lab", "Roadmap Exams"] },
+                    { id: 2, name: "Device Physics & GAA", keyPrograms: ["Sub-micron GAA Modeling", "Quantum Tunneling", "FinFET Architectures"] },
+                    { id: 3, name: "Research & Innovation", keyPrograms: ["High-NA EUV Systems", "Advanced Lithography", "Patterning Innovation"] },
+                    { id: 4, name: "Industry Relevance", keyPrograms: ["Static Timing Slack", "DRC & LVS Rule Checks", "Physical Synthesis"] },
+                    { id: 5, name: "Leadership & Stakeholder", keyPrograms: ["Peer Design Review", "Project Collaboration", "Technical Mentoring"] },
+                    { id: 6, name: "Cleanroom Practice", keyPrograms: ["Particulate Controls", "Wet Chemical Etching", "Safety Protocol Audit"] },
+                    { id: 7, name: "Social Responsibility", keyPrograms: ["Circular Fab Water", "E-Waste Management", "STEM Outreach"] },
+                    { id: 8, name: "Business Acumen", keyPrograms: ["Multi-Project Wafer Costs", "Foundry Supply Risk", "IP Block Integration"] },
+                    { id: 9, name: "Global Readiness", keyPrograms: ["SECS/GEM Standards", "ISO Cleanroom Compliance", "Yield Analysis Tooling"] },
+                    { id: 10, name: "Sustainability Citizenship", keyPrograms: ["Carbon-Neutral Foundry", "Ultra-Low Power Modes", "Clean Energy Sourcing"] },
+                  ].map((idxData) => {
+                    const score = indexScores[idxData.id - 1];
+                    const rating = getRatingText(score);
+                    
+                    return (
+                      <div key={idxData.id} className="border border-slate-100 p-3 rounded-2xl flex flex-col justify-between space-y-2 bg-slate-50/30">
+                        {/* Title and Rating */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-start">
+                            <span className="text-[8px] font-black text-slate-800 leading-tight w-2/3">{idxData.id}. {idxData.name}</span>
+                            <div className="text-right">
+                              <span className="text-xs font-black text-slate-800 block">{score} <span className="text-[8px] text-slate-400">/100</span></span>
+                              <span className="text-[7px] font-bold text-slate-400 block uppercase tracking-wider">{rating}</span>
+                            </div>
+                          </div>
+                          {/* Progress line */}
+                          <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: brand.logoColor }} />
+                          </div>
+                        </div>
+
+                        {/* Key programs */}
+                        <div className="space-y-0.5 border-t border-slate-100/80 pt-1.5">
+                          <span className="text-[6.5px] font-black uppercase tracking-wider text-slate-400 block">Key Programs</span>
+                          <ul className="list-disc pl-2 text-[6.5px] text-slate-500 font-semibold space-y-0.5">
+                            {idxData.keyPrograms.map((prog, pIdx) => (
+                              <li key={pIdx}>{prog}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 5. Bottom row layouts */}
+                <div className="grid grid-cols-4 gap-4 pt-2">
+                  {/* Left: Recent achievements */}
+                  <div className="border border-slate-100 p-4 rounded-2xl flex flex-col justify-between space-y-3 bg-slate-50/20 text-left">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-400 block border-b border-slate-100 pb-1.5">RECENT ACHIEVEMENTS</span>
+                    <ul className="space-y-1.5 flex-1 pt-1">
+                      {[
+                        "CoE Semiconductor Internship - Fab Ecosystem",
+                        "Strategic GAA Program Coordination with TSMC",
+                        "Advanced Lithography Project Presentation",
+                        "Cleanroom Safety Protocol Badge",
+                        "Yield Optimization Case Study"
+                      ].map((ach, aIdx) => (
+                        <li key={aIdx} className="flex items-start gap-1.5 text-[7.5px] font-semibold text-slate-600 leading-snug">
+                          <span className="text-amber-500 text-xs shrink-0 leading-none">🏆</span>
+                          <span>{ach}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Center-Left: Readiness Dashboard */}
+                  <div className="border border-slate-100 p-4 rounded-2xl flex flex-col justify-between space-y-3 bg-slate-50/20 text-left">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-400 block border-b border-slate-100 pb-1.5">CAREER READINESS DASHBOARD</span>
+                    <div className="space-y-2 flex-1 pt-1.5">
+                      {[
+                        { r: "VLSI Design Analyst", p: 92 },
+                        { r: "Physical Layout Specialist", p: 90 },
+                        { r: "Lithography Architect", p: 88 },
+                        { r: "Cleanroom Yield Manager", p: 84 },
+                        { r: "device Physics Specialist", p: 91 },
+                        { r: "Tape-out Program Manager", p: 86 }
+                      ].map((item, iIdx) => (
+                        <div key={iIdx} className="space-y-0.5">
+                          <div className="flex justify-between text-[7px] font-bold text-slate-600">
+                            <span>{item.r}</span>
+                            <span>{item.p}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${item.p}%`, backgroundColor: brand.accentColor }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Center-Right: Next steps */}
+                  <div className="border border-slate-100 p-4 rounded-2xl flex flex-col justify-between space-y-3 bg-slate-50/20 text-left">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-400 block border-b border-slate-100 pb-1.5">RECOMMENDED NEXT STEPS</span>
+                    
+                    <div className="flex-1 space-y-2.5 pt-1 text-[7px] leading-relaxed">
+                      <div>
+                        <strong className="text-slate-800 uppercase block font-black mb-0.5 text-[6.5px]">MICRO CREDENTIALS</strong>
+                        <p className="text-slate-500 font-semibold">GAA Fet Modeling Practitioner | FinFET Specialist | Yield Analytics with AI</p>
+                      </div>
+                      <div className="border-t border-slate-100 pt-1.5">
+                        <strong className="text-slate-800 uppercase block font-black mb-0.5 text-[6.5px]">INDUSTRY CERTIFICATIONS</strong>
+                        <p className="text-slate-500 font-semibold">ASML EUV Lithography certification | IEEE VLSI Professional | ISO Cleanroom Auditor</p>
+                      </div>
+                      <div className="border-t border-slate-100 pt-1.5">
+                        <strong className="text-slate-800 uppercase block font-black mb-0.5 text-[6.5px]">SPECIALIZATION PATHWAY</strong>
+                        <div className="flex justify-between items-center text-[6px] text-slate-400 font-black mt-1 uppercase tracking-wider">
+                          <span className="text-emerald-600">L1: Assoc</span>
+                          <span>➜</span>
+                          <span className="text-emerald-600">L2: Analyst</span>
+                          <span>➜</span>
+                          <span>L3: Cons</span>
+                          <span>➜</span>
+                          <span>L4: Spec</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Score Summary */}
+                  <div className="border border-slate-100 p-4 rounded-2xl flex flex-col justify-between bg-slate-50/25 text-center space-y-3">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-400 block border-b border-slate-100 pb-1.5">SCORE SUMMARY</span>
+                    
+                    {/* Ring and summary */}
+                    <div className="flex-1 flex flex-col justify-center items-center space-y-2">
+                      <div className="relative w-16 h-16 flex items-center justify-center">
+                        <svg className="w-16 h-16 transform -rotate-90">
+                          <circle cx="32" cy="32" r="26" stroke="#f1f5f9" strokeWidth="4.5" fill="transparent" />
+                          <circle cx="32" cy="32" r="26" stroke={brand.logoColor} strokeWidth="4.5" fill="transparent" 
+                                  strokeDasharray="163.3" strokeDashoffset={163.3 - (163.3 * overallAverageScore) / 100} />
+                        </svg>
+                        <div className="absolute text-center leading-none">
+                          <span className="text-xs font-black text-slate-800">{overallAverageScore}%</span>
+                          <span className="text-[6px] text-slate-400 font-bold block uppercase tracking-widest mt-0.5">Indices</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[8px] w-full pt-1.5 text-left">
+                        <div className="border-r border-slate-100 pl-1">
+                          <span className="text-slate-400 font-bold block text-[6.5px] uppercase">TOTAL SCORE</span>
+                          <strong className="text-slate-800 text-sm font-black">{totalScorePoints}/1000</strong>
+                        </div>
+                        <div className="pl-1">
+                          <span className="text-slate-400 font-bold block text-[6.5px] uppercase">CAREER GRADE</span>
+                          <strong className="text-emerald-600 text-sm font-black">{gradeLetter}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6. Footer section with final assessment */}
+                <div className="grid grid-cols-12 gap-4 border-t border-slate-100 pt-4 items-center">
+                  <div className="col-span-5 bg-emerald-950 text-emerald-100 p-3 rounded-2xl text-[7.5px] leading-relaxed text-left">
+                    <strong className="text-emerald-400 uppercase tracking-widest block font-black mb-1 text-[6.5px]">🛡️ FINAL PERFORMANCE ASSESSMENT</strong>
+                    {scorecardData.studentName} demonstrates exceptional potential for physical synthesis, advanced lithography, and CAD/EDA engineering. Their combination of deep VLSI theory, sub-micron physical modeling, and team collaboration reviews places them among the strongest early-career professionals in the industry.
+                  </div>
+
+                  <div className="col-span-4 flex items-center gap-2 px-2 text-left">
+                    <div className="p-2 bg-slate-50 border border-slate-100 rounded-full shrink-0">
+                      🌍
+                    </div>
+                    <p className="text-[7px] text-slate-500 font-semibold leading-relaxed">
+                      You are building a better tomorrow. Keep contributing. Keep inspiring. The world needs engineering and research leaders like you!
+                    </p>
+                  </div>
+
+                  <div className="col-span-3 text-right space-y-0.5">
+                    <span className="text-[7.5px] text-slate-400 font-bold block uppercase tracking-widest">Together, we build a better tomorrow.</span>
+                    <strong className="text-slate-800 text-xs font-bold block" style={{ color: brand.logoColor }}>{brand.domain}</strong>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -29,6 +29,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+debug.log
+ai-debug.log
+
+# scratch / one-off investigation scripts (never commit these)
+/scratch/
+scratch_*.js
+scratch_*.ts
 
 # env files (can opt-in for committing if needed)
 .env*

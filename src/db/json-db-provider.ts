@@ -505,6 +505,11 @@ function getRelationsForTable(tableName: string): any {
     job_applications: schema.jobApplicationsRelations,
     certificates: schema.certificatesRelations,
     audit_logs: schema.auditLogsRelations,
+    digital_library: schema.digitalLibraryRelations,
+    lesson_progress: schema.lessonProgressRelations,
+    course_progress: schema.courseProgressRelations,
+    projects: schema.projectsRelations,
+    project_submissions: schema.projectSubmissionsRelations,
   };
   return mapping[tableName];
 }
@@ -896,7 +901,8 @@ function buildQueryProxy(): Record<string, any> {
     "admissionPayments", "students", "courses", "courseBatches",
     "modules", "lessons", "quizzes", "quizQuestions",
     "quizAttempts", "notifications", "jobPostings", "jobApplications",
-    "certificates", "auditLogs", "digitalLibrary", "lessonProgress",
+    "certificates", "auditLogs", "digitalLibrary",
+    "lessonProgress", "courseProgress",
     "projects", "projectSubmissions",
   ];
 

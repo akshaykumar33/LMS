@@ -24,6 +24,7 @@ export interface TenantContext {
       enablePlacement?: boolean;
       enableProctoring?: boolean;
       enableCertificates?: boolean;
+      enableCapstone?: boolean;
     };
     gateways?: {
       stripe?: boolean;
@@ -168,3 +169,5 @@ export async function getScopedTenantIds(userRole: string, currentTenantId: stri
 
   return [currentTenantId];
 }
+
+

@@ -212,6 +212,56 @@ export function StudentProfileModal({ studentId, isOpen, onClose, primaryColor }
                   </div>
                 </div>
               </div>
+
+              {/* SCORM Compliance Telemetry */}
+              {data.scormTelemetry && data.scormTelemetry.length > 0 && (
+                <div className="space-y-3">
+                  <h5 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5" style={{ color: brandColor }} /> SCORM E-Learning Telemetry
+                  </h5>
+                  <div className="border border-border/60 rounded-xl overflow-hidden">
+                    <div className="max-h-60 overflow-y-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-secondary/40 border-b border-border/60 text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                            <th className="p-3">Module</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3 text-center">Score</th>
+                            <th className="p-3 text-center">Time</th>
+                            <th className="p-3 text-right">Bookmark</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40">
+                          {data.scormTelemetry.map((s: any, idx: number) => (
+                            <tr key={idx} className="hover:bg-secondary/15 transition-colors">
+                              <td className="p-3 font-semibold text-foreground">
+                                <div>{s.lessonTitle}</div>
+                                {s.courseName && <div className="text-[9px] text-muted-foreground">{s.courseName}</div>}
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${
+                                  s.completed
+                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                    : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                }`}>
+                                  {s.status}
+                                </span>
+                              </td>
+                              <td className="p-3 text-center font-mono font-bold">{s.score ?? "—"}</td>
+                              <td className="p-3 text-center font-mono text-muted-foreground">
+                                {s.timeSpentSeconds > 0
+                                  ? `${Math.floor(s.timeSpentSeconds / 60)}m ${s.timeSpentSeconds % 60}s`
+                                  : "—"}
+                              </td>
+                              <td className="p-3 text-right font-mono text-[10px] text-muted-foreground">{s.bookmark || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center text-muted-foreground italic">No data loaded.</div>

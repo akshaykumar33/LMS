@@ -4,7 +4,7 @@ import { requireAuth } from "@/features/auth/services/session";
 import { getAncestorChain } from "@/features/auth/services/is-parent-tenant";
 import { db, dbSubdomainStorage } from "@/db/db";
 import { students, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { DashboardClient } from "@/features/dashboard/components/DashboardClient";
@@ -49,7 +49,7 @@ export default async function DashboardPage() {
   
   if (user.role === "Student") {
     studentProfile = await db.query.students.findFirst({
-      where: eq(students.userId, user.userId),
+      where: and(eq(students.userId, user.userId), eq(students.tenantId, tenant.id)),
       with: {
         batch: true,
       },

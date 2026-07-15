@@ -1,5 +1,5 @@
 import { db } from "@/db/db";
-import { courses, courseBatches, modules, lessons } from "@/db/schema";
+import { courses, courseBatches, modules, lessons, projects } from "@/db/schema";
 import { eq, and, asc, inArray } from "drizzle-orm";
 
 export class CourseRepository {
@@ -65,9 +65,16 @@ export class CourseRepository {
       });
     }
 
+    // Fetch capstone project
+    const [capstone] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.courseId, courseId));
+
     return {
       ...course,
       modules: modulesWithLessons,
+      capstoneProject: capstone || null,
     };
   }
 
@@ -77,9 +84,18 @@ export class CourseRepository {
   static async getLesson(tenantId: string, lessonId: string) {
     const [record] = await db
       .select({
-        lesson: lessons,
-        moduleId: modules.id,
-        courseId: courses.id,
+        id: lessons.id,
+        moduleId: lessons.moduleId,
+        title: lessons.title,
+        content: lessons.content,
+        contentType: lessons.contentType,
+        videoUrl: lessons.videoUrl,
+        fileUrl: lessons.fileUrl,
+        zoomMeetingId: lessons.zoomMeetingId,
+        zoomPasscode: lessons.zoomPasscode,
+        order: lessons.order,
+        createdAt: lessons.createdAt,
+        updatedAt: lessons.updatedAt,
       })
       .from(lessons)
       .innerJoin(modules, eq(lessons.moduleId, modules.id))
@@ -93,7 +109,7 @@ export class CourseRepository {
 
     if (!record) return null;
 
-    return record.lesson;
+    return record;
   }
 
   /**
@@ -139,9 +155,15 @@ export class CourseRepository {
         });
       }
 
+      const [capstone] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.courseId, c.id));
+
       detailedList.push({
         ...c,
         modules: modulesWithLessons,
+        capstoneProject: capstone || null,
       });
     }
 

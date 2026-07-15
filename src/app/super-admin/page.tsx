@@ -1,11 +1,11 @@
 import { requireAuth } from "@/features/auth/services/session";
 import { db, dbSubdomainStorage } from "@/db/db";
 import { tenants, users } from "@/db/schema";
-import { asc, eq, and } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
+import { Suspense } from "react";
 import { SuperAdminConsole } from "./SuperAdminConsole";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { getScopedTenantIds, getTenantContext } from "@/features/auth/services/tenant";
-import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Super Admin Console",
@@ -22,22 +22,14 @@ export default async function SuperAdminPage() {
   );
 
 
-  const tenant = await db.query.tenants.findFirst({
+  const userTenant = await db.query.tenants.findFirst({
     where: eq(tenants.id, dbUser?.tenantId || ""),
   });
 
-  // If user is an Owner, only allow access if their tenant has child sub-tenants
-  if (user.role === "Owner" && tenant) {
-    const childTenants = await db.query.tenants.findMany({
-      where: and(
-        eq(tenants.status, "active"),
-        eq(tenants.parentTenantId, tenant.id)
-      ),
-    });
-    if (childTenants.length === 0) {
-      throw new Error("FORBIDDEN: Leaf-tenant owners are not authorized to access the global super admin registry.");
-    }
-  }
+  const activeTenantCtx = await getTenantContext();
+  const tenant = activeTenantCtx || userTenant;
+
+
 
   let allTenants = await db.query.tenants.findMany({
     orderBy: [asc(tenants.name)],
@@ -70,7 +62,9 @@ export default async function SuperAdminPage() {
 
   return (
     <DashboardLayout user={userData} tenant={globalTenant} isParentOrg={true}>
-      <SuperAdminConsole initialTenants={allTenants} user={userData} />
+      <Suspense fallback={null}>
+        <SuperAdminConsole initialTenants={allTenants} user={userData} />
+      </Suspense>
     </DashboardLayout>
   );
 }

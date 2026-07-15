@@ -1,6 +1,6 @@
 import { db } from "@/db/db";
-import { jobPostings, jobApplications, students, users } from "@/db/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { jobPostings, jobApplications } from "@/db/schema";
+import { eq, and, desc, inArray } from "drizzle-orm";
 
 export class CareerRepository {
   /**
@@ -150,32 +150,34 @@ export class CareerRepository {
    * Get all applications for a specific job posting.
    */
   static async getJobApplicationsForJob(tenantId: string | string[], jobId: string) {
-    const tenantCondition = Array.isArray(tenantId)
-      ? inArray(jobApplications.tenantId, tenantId)
-      : eq(jobApplications.tenantId, tenantId);
+    const tenantIds = Array.isArray(tenantId) ? tenantId : [tenantId];
 
-    return db
-      .select({
-        applicationId: sql<string>`${jobApplications.id}`.as("applicationId"),
-        status: jobApplications.status,
-        resumeUrl: jobApplications.resumeUrl,
-        createdAt: jobApplications.createdAt,
-        studentId: sql<string>`${students.id}`.as("studentId"),
-        rollNumber: students.rollNumber,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        email: users.email,
-      })
-      .from(jobApplications)
-      .innerJoin(students, eq(jobApplications.studentId, students.id))
-      .innerJoin(users, eq(students.userId, users.id))
-      .where(
-        and(
-          tenantCondition,
-          eq(jobApplications.jobId, jobId)
-        )
-      )
-      .orderBy(desc(jobApplications.createdAt));
+    const apps = await db.query.jobApplications.findMany({
+      where: and(
+        inArray(jobApplications.tenantId, tenantIds),
+        eq(jobApplications.jobId, jobId)
+      ),
+      with: {
+        student: {
+          with: {
+            user: true,
+          },
+        },
+      },
+      orderBy: [desc(jobApplications.createdAt)],
+    });
+
+    return apps.map((app: any) => ({
+      applicationId: app.id,
+      status: app.status,
+      resumeUrl: app.resumeUrl,
+      createdAt: app.createdAt,
+      studentId: app.student?.id ?? null,
+      rollNumber: app.student?.rollNumber ?? null,
+      firstName: app.student?.user?.firstName ?? "Unknown",
+      lastName: app.student?.user?.lastName ?? "",
+      email: app.student?.user?.email ?? "",
+    }));
   }
 
   /**

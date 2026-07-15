@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const url = request.nextUrl.clone();
   const hostname = request.headers.get("host") || "";
 
@@ -61,11 +61,6 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Normalize empty subdomain to "wysbryx" as the absolute last fallback
-  if (!subdomain) {
-    subdomain = "wysbryx";
-  }
-
   // Always set the header so getTenantContext() can distinguish root domain (empty) from missing header
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-tenant-subdomain", subdomain);
@@ -108,9 +103,9 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // If logged in and hitting login page via navigation (not a server action POST), redirect to dashboard
+  // If logged in and hitting login page via navigation (not a server action POST), redirect to root
   if (isAuthRoute && accessToken && !isServerAction) {
-    response = NextResponse.redirect(new URL("/dashboard", request.url));
+    response = NextResponse.redirect(new URL("/", request.url));
   }
 
   if (!response) {
