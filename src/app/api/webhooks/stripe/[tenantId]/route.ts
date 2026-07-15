@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, dbSubdomainStorage } from "@/db/db";
 import * as schema from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getStripeClientForTenant } from "@/features/admission/services/stripe-service";
+import { getStripeClientForTenant, getStripeWebhookSecretForTenant } from "@/features/admission/services/stripe-service";
 import { AdmissionRepository } from "@/features/admission/repository/admission-repository";
 
 export const dynamic = "force-dynamic";
@@ -36,18 +36,18 @@ export async function POST(
 
     const rawBody = await req.text();
 
-    const webhookSecret =
-      (tenant.settings as any)?.gateways_config?.stripe?.webhookSecret ||
-      process.env.STRIPE_WEBHOOK_SECRET ||
-      "whsec_mock_stripe_webhook_key";
+    const webhookSecret = getStripeWebhookSecretForTenant(tenant);
+    const isMockSecret = webhookSecret.includes("mock") || webhookSecret.includes("test_mock");
 
     let event: any;
     try {
       event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
     } catch (err: any) {
-      console.error(`Webhook signature verification failed:`, err.message);
-      if (webhookSecret === "whsec_mock_stripe_webhook_key") {
-        console.warn("Using mock Stripe webhook fallback (signature verification bypassed in local dev)");
+      console.error(`Stripe webhook signature verification failed:`, err.message);
+      // In local sandbox dev with mock keys, bypass signature check so you can
+      // test with `stripe trigger payment_intent.succeeded` without a real secret.
+      if (isMockSecret) {
+        console.warn("[Stripe Sandbox] Bypassing signature verification — mock webhook secret in use.");
         event = JSON.parse(rawBody);
       } else {
         return NextResponse.json({ error: `Webhook error: ${err.message}` }, { status: 400 });
