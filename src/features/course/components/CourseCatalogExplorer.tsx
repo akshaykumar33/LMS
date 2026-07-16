@@ -38,6 +38,14 @@ export function CourseCatalogExplorer({
   primaryColor = "#0ea5e9",
 }: CourseCatalogExplorerProps) {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   return (
     <div className="space-y-8 w-full">
@@ -137,11 +145,11 @@ export function CourseCatalogExplorer({
                     onClick={(e) => {
                       if (isLoggedIn) {
                         e.preventDefault();
-                        alert("You are already signed in. Please contact an admin to enroll in this batch course.");
+                        setNotification("You are already signed in. Please contact an admin to enroll in this batch course.");
                       }
                     }}
-                    className={`flex-1 inline-flex items-center justify-center rounded-xl text-xs font-bold h-10 text-white transition-opacity text-center shadow-md ${
-                      isLoggedIn ? "opacity-40 cursor-not-allowed bg-muted text-muted-foreground" : "hover:opacity-90 active:scale-[0.98] cursor-pointer"
+                    className={`flex-1 inline-flex items-center justify-center rounded-xl text-xs font-bold h-10 transition-opacity text-center shadow-md ${
+                      isLoggedIn ? "opacity-40 cursor-not-allowed bg-muted text-muted-foreground" : "text-white hover:opacity-90 active:scale-[0.98] cursor-pointer"
                     }`}
                     style={{ backgroundColor: isLoggedIn ? undefined : primaryColor }}
                   >
@@ -258,11 +266,11 @@ export function CourseCatalogExplorer({
                   onClick={(e) => {
                     if (isLoggedIn) {
                       e.preventDefault();
-                      alert("You are already signed in. Please contact an admin to enroll in this batch course.");
+                      setNotification("You are already signed in. Please contact an admin to enroll in this batch course.");
                     }
                   }}
-                  className={`h-10 px-6 inline-flex items-center justify-center rounded-xl text-xs font-bold text-white shadow-md ${
-                    isLoggedIn ? "opacity-40 cursor-not-allowed bg-muted text-muted-foreground" : "hover:opacity-90 cursor-pointer"
+                  className={`h-10 px-6 inline-flex items-center justify-center rounded-xl text-xs font-bold shadow-md ${
+                    isLoggedIn ? "opacity-40 cursor-not-allowed bg-muted text-muted-foreground" : "text-white hover:opacity-90 cursor-pointer"
                   }`}
                   style={{ backgroundColor: isLoggedIn ? undefined : primaryColor }}
                 >
@@ -271,6 +279,21 @@ export function CourseCatalogExplorer({
               )}
             </div>
           </div>
+        </div>
+      )}
+      {/* Custom Popup Alert */}
+      {notification && (
+        <div className="fixed bottom-5 right-5 z-[100] max-w-sm w-full bg-popover border border-border rounded-xl shadow-2xl p-4 flex gap-3 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="flex-grow text-left">
+            <h4 className="text-xs font-black uppercase text-foreground mb-1 tracking-wider">Admission Info</h4>
+            <p className="text-xs text-muted-foreground font-semibold leading-relaxed">{notification}</p>
+          </div>
+          <button 
+            onClick={() => setNotification(null)}
+            className="text-muted-foreground hover:text-foreground h-5 w-5 flex items-center justify-center rounded-lg hover:bg-secondary/50 transition-colors shrink-0 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>

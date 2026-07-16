@@ -65,9 +65,10 @@ export default async function Home() {
         {/* Global Toolbar Header */}
         <header className="border-b border-border/30 bg-background/45 backdrop-blur-xl relative z-20 sticky top-0">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <BrandLogo subdomain="wysbryx" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded border border-border/40">
+            <div className="flex items-center gap-2">
+              <BrandLogo subdomain="wysbryx" iconOnly className="flex sm:hidden h-8 w-auto" />
+              <BrandLogo subdomain="wysbryx" className="hidden sm:flex h-8 w-auto" />
+              <span className="hidden sm:inline-flex text-[10px] font-black uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded border border-border/40 whitespace-nowrap">
                 Wysbryx Platform
               </span>
             </div>
@@ -221,10 +222,11 @@ export default async function Home() {
         {/* Global Toolbar Header */}
         <header className="border-b border-border/30 bg-background/45 backdrop-blur-xl relative z-20 sticky top-0">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" />
-              <span className="text-border/40">|</span>
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded border border-border/40">
+            <div className="flex items-center gap-2">
+              <BrandLogo subdomain={tenant.subdomain} iconOnly className="flex sm:hidden h-6 w-auto" />
+              <BrandLogo subdomain={tenant.subdomain} className="hidden sm:flex h-6 w-auto" />
+              <span className="hidden sm:inline text-border/40">|</span>
+              <span className="hidden sm:inline-flex text-[10px] font-black uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded border border-border/40 whitespace-nowrap">
                 Network Portal
               </span>
             </div>
@@ -307,10 +309,11 @@ export default async function Home() {
       {/* Header */}
       <header className="border-b border-border/40 bg-background/45 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <BrandLogo subdomain={tenant.subdomain} className="h-7 w-auto" href="/dashboard" />
-            <span className="text-border/40">|</span>
-            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded border border-border/40">
+          <div className="flex items-center gap-2">
+            <BrandLogo subdomain={tenant.subdomain} iconOnly className="flex sm:hidden h-7 w-auto" href="/dashboard" />
+            <BrandLogo subdomain={tenant.subdomain} className="hidden sm:flex h-7 w-auto" href="/dashboard" />
+            <span className="hidden sm:inline text-border/40">|</span>
+            <span className="hidden sm:inline-flex text-[10px] font-black uppercase tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded border border-border/40 whitespace-nowrap">
               Silicon Academy CoE
             </span>
           </div>
