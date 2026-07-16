@@ -2,7 +2,6 @@
 
 import React from "react";
 import {
-  BookOpen,
   ChevronRight,
   Layers,
   FileText,
@@ -20,6 +19,7 @@ interface CourseItem {
   description: string | null;
   moduleCount: number;
   lessonCount: number;
+  completedLessonCount?: number;
   syllabus: string | null;
 }
 
@@ -71,10 +71,10 @@ export function CoursesListClient({
           message: res.error || "Enrollment failed. Please try again.",
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setNotification({
         type: "error",
-        message: err.message || "An unexpected error occurred.",
+        message: err instanceof Error ? err.message : "An unexpected error occurred.",
       });
     } finally {
       setEnrollingId(null);
@@ -187,10 +187,14 @@ export function CoursesListClient({
       {/* Courses Grid */}
       {filteredList.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredList.map((course, idx) => {
-            // Simulated progress for enrolled courses, or 0% for electives
-            const simulatedProgress =
-              activeTab === "cohort" ? Math.min(95, Math.max(5, ((idx * 37 + 15) % 80) + 10)) : 0;
+          {filteredList.map((course) => {
+            // Calculate actual progress based on completed lessons
+            const progress = course.lessonCount > 0 
+              ? Math.round(((course.completedLessonCount || 0) / course.lessonCount) * 100)
+              : 0;
+              
+            const displayProgress = activeTab === "cohort" ? Math.min(100, Math.max(0, progress)) : 0;
+            
             return (
               <div
                 key={course.id}
@@ -245,13 +249,13 @@ export function CoursesListClient({
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-[9px] font-bold text-muted-foreground">
                           <span>Progress</span>
-                          <span>{simulatedProgress}%</span>
+                          <span>{displayProgress}%</span>
                         </div>
                         <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all duration-700"
                             style={{
-                              width: `${simulatedProgress}%`,
+                              width: `${displayProgress}%`,
                               background: `linear-gradient(90deg, ${primaryColor}, ${primaryColor}cc)`,
                             }}
                           />

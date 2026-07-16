@@ -65,6 +65,7 @@ export async function saveScormAttemptAction(lessonId: string, scormData: any) {
 
     revalidatePath(`/courses/[courseId]`, "page");
     revalidatePath("/dashboard");
+    revalidatePath("/courses");
     revalidatePath("/progress");
     return { success: true };
   } catch (error: any) {
@@ -151,6 +152,7 @@ export async function saveScormCourseAttemptAction(courseId: string, scormData: 
 
     revalidatePath(`/courses/[courseId]`, "page");
     revalidatePath("/dashboard");
+    revalidatePath("/courses");
     revalidatePath("/progress");
     return { success: true };
   } catch (error: any) {

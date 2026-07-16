@@ -7,6 +7,9 @@ import { students } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import fs from "fs";
+import path from "path";
+
 
 const jobPostingSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters."),
@@ -32,8 +35,8 @@ export async function applyToJobAction(jobId: string, resumeUrl: string) {
       return { success: false, error: "Only enrolled students can apply for jobs." };
     }
 
-    if (!resumeUrl || !resumeUrl.startsWith("http")) {
-      return { success: false, error: "Please provide a valid resume URL (Google Drive, Dropbox, etc.)." };
+    if (!resumeUrl || (!resumeUrl.startsWith("http") && !resumeUrl.startsWith("/uploads/"))) {
+      return { success: false, error: "Please upload a valid resume file or provide a resume URL." };
     }
 
     await CareerRepository.applyToJob(user.tenantId, student.id, jobId, resumeUrl);
@@ -204,13 +207,18 @@ export async function updateApplicationStatusAction(applicationId: string, statu
   }
 }
 
-export async function updateStudentResumeAction(resumeUrl: string) {
+export async function updateStudentResumeAction(resumeUrl: string | null) {
   try {
     const user = await requireAuth();
     verifyWriteAccess(user);
 
-    if (!resumeUrl || !resumeUrl.startsWith("http")) {
-      return { success: false, error: "Please provide a valid resume URL." };
+    // Accept: null (remove), local upload paths, or external http URLs
+    if (
+      resumeUrl !== null &&
+      !resumeUrl.startsWith("/uploads/") &&
+      !resumeUrl.startsWith("http")
+    ) {
+      return { success: false, error: "Invalid resume reference." };
     }
 
     const [student] = await db
@@ -227,10 +235,149 @@ export async function updateStudentResumeAction(resumeUrl: string) {
       .set({ resumeUrl })
       .where(eq(students.id, student.id));
 
+    revalidatePath("/profile");
     revalidatePath("/dashboard");
     revalidatePath("/career");
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to update resume." };
+  }
+}
+
+// ─── Resume file upload ────────────────────────────────────────────────────
+// Receives a FormData with a "file" entry, validates it, saves it to
+// public/uploads/resumes/, and persists the public path to the DB.
+// No separate API route is needed; this runs entirely as a server action.
+
+const RESUME_ALLOWED_TYPES: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+};
+const RESUME_ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx"];
+const RESUME_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
+export async function uploadStudentResumeAction(formData: FormData) {
+  try {
+    const user = await requireAuth();
+    verifyWriteAccess(user);
+
+    // Resolve the student record
+    const [student] = await db
+      .select({ id: students.id })
+      .from(students)
+      .where(eq(students.userId, user.userId));
+
+    if (!student) {
+      return { success: false, error: "Only enrolled students can upload a resume." };
+    }
+
+    const file = formData.get("file") as File | null;
+    if (!file || file.size === 0) {
+      return { success: false, error: "No file provided." };
+    }
+
+    // ── Validate size ──────────────────────────────────────────────────────
+    if (file.size > RESUME_MAX_BYTES) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      return {
+        success: false,
+        error: `File too large (${sizeMB} MB). Maximum allowed size is 5 MB.`,
+      };
+    }
+
+    // ── Validate type (MIME + extension) ───────────────────────────────────
+    const originalName = file.name || "resume";
+    const ext = path.extname(originalName).toLowerCase();
+    const mimeAllowed = Object.prototype.hasOwnProperty.call(RESUME_ALLOWED_TYPES, file.type);
+    const extAllowed = RESUME_ALLOWED_EXTENSIONS.includes(ext);
+
+    if (!mimeAllowed && !extAllowed) {
+      return {
+        success: false,
+        error: "Invalid file type. Only PDF, DOC, and DOCX files are accepted.",
+      };
+    }
+
+    const resolvedExt = extAllowed ? ext : `.${RESUME_ALLOWED_TYPES[file.type] ?? "pdf"}`;
+
+    // ── Save to disk ───────────────────────────────────────────────────────
+    const safeStudentId = student.id.replace(/[^a-zA-Z0-9-]/g, "");
+    const timestamp = Date.now();
+    const fileName = `${safeStudentId}-${timestamp}${resolvedExt}`;
+    const uploadsDir = path.join(process.cwd(), "public", "uploads", "resumes");
+
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // Remove any previous resume file for this student
+    try {
+      const stale = fs
+        .readdirSync(uploadsDir)
+        .filter((f) => f.startsWith(`${safeStudentId}-`));
+      for (const old of stale) fs.unlinkSync(path.join(uploadsDir, old));
+    } catch {
+      // Non-fatal — proceed even if cleanup fails
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    fs.writeFileSync(path.join(uploadsDir, fileName), buffer);
+
+    const publicPath = `/uploads/resumes/${fileName}`;
+
+    // ── Persist the path to the DB ─────────────────────────────────────────
+    await db
+      .update(students)
+      .set({ resumeUrl: publicPath })
+      .where(eq(students.id, student.id));
+
+    revalidatePath("/profile");
+    revalidatePath("/dashboard");
+    revalidatePath("/career");
+
+    return { success: true, url: publicPath, fileName: originalName };
+  } catch (error: any) {
+    console.error("uploadStudentResumeAction error:", error);
+    return { success: false, error: error.message || "Upload failed." };
+  }
+}
+
+// Clears the resume: deletes the physical file from disk and sets resumeUrl to null.
+export async function removeStudentResumeAction() {
+  try {
+    const user = await requireAuth();
+    verifyWriteAccess(user);
+
+    const [student] = await db
+      .select({ id: students.id, resumeUrl: students.resumeUrl })
+      .from(students)
+      .where(eq(students.userId, user.userId));
+
+    if (!student) {
+      return { success: false, error: "No student profile found." };
+    }
+
+    // Delete the physical file if it's a local upload
+    if (student.resumeUrl?.startsWith("/uploads/")) {
+      try {
+        const filePath = path.join(process.cwd(), "public", student.resumeUrl);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    await db
+      .update(students)
+      .set({ resumeUrl: null })
+      .where(eq(students.id, student.id));
+
+    revalidatePath("/profile");
+    revalidatePath("/dashboard");
+    revalidatePath("/career");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to remove resume." };
   }
 }

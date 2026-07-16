@@ -321,6 +321,7 @@ export async function toggleLessonCompletionAction(lessonId: string, completed: 
 
     revalidatePath(`/courses/[courseId]`, "page");
     revalidatePath("/dashboard");
+    revalidatePath("/courses");
     revalidatePath("/progress");
     return { success: true };
   } catch (error: any) {
