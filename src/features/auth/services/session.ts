@@ -41,7 +41,10 @@ export async function getCurrentUser(): Promise<UserTokenPayload | null> {
     }
 
     return payload;
-  } catch (error) {
+  } catch (error: any) {
+    if (error && (error.digest === "DYNAMIC_SERVER_USAGE" || error.message?.includes("Dynamic server usage"))) {
+      throw error;
+    }
     console.error("Failed to retrieve user session:", error);
     return null;
   }
