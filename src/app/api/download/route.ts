@@ -558,7 +558,7 @@ export async function GET(request: NextRequest) {
       return new Response("Missing resource ID or lesson ID", { status: 400 });
     }
 
-    let item: { title: string; category: string; tenantId: string; author?: string | null } | null = null;
+    let item: { title: string; category: string; tenantId: string; author?: string | null; fileUrl?: string | null } | null = null;
 
     if (lessonId) {
       let resolvedLessonId = lessonId;
@@ -635,6 +635,7 @@ export async function GET(request: NextRequest) {
         category: libItem.category,
         tenantId: libItem.tenantId,
         author: libItem.author,
+        fileUrl: libItem.fileUrl,
       };
     }
 
@@ -650,26 +651,100 @@ export async function GET(request: NextRequest) {
     const tenantSubdomain = tenant?.subdomain || "platform";
     const tenantName = tenant?.name || "LMS Platform";
 
-    // 3. Generate media buffers locally based on the item category
+    // 3. Fetch original or generate locally
     let fileBuffer: Buffer;
     let extension = "pdf";
     let contentType = "application/pdf";
 
-    if (item.category === "excel") {
-      console.log(`[DOWNLOAD API] Generating watermarked Excel spreadsheet locally for: ${item.title}`);
-      fileBuffer = generateMockSpreadsheet(item.title, tenantName);
-      extension = "csv";
-      contentType = "text/csv";
-    } else if (item.category === "audio") {
-      console.log(`[DOWNLOAD API] Packaging audio briefing ZIP locally for: ${item.title}`);
-      fileBuffer = await packageAudioZIP(item.title, tenantName);
-      extension = "zip";
-      contentType = "application/zip";
+    if (item.fileUrl && (item.fileUrl.startsWith("http://") || item.fileUrl.startsWith("https://") || item.fileUrl.startsWith("/materials/") || item.fileUrl.startsWith("materials/"))) {
+      console.log(`[DOWNLOAD API] Fetching original file from: ${item.fileUrl}`);
+      if (item.fileUrl.startsWith("http://") || item.fileUrl.startsWith("https://")) {
+        const fileResponse = await fetch(item.fileUrl);
+        if (!fileResponse.ok) {
+          return new NextResponse("Failed to download original resource file", { status: 502 });
+        }
+        contentType = fileResponse.headers.get("content-type") || "application/octet-stream";
+        const arrayBuffer = await fileResponse.arrayBuffer();
+        fileBuffer = Buffer.from(arrayBuffer);
+        const originalFilename = item.fileUrl.split("/").pop()?.split("?")[0] || "document.pdf";
+        extension = originalFilename.split(".").pop()?.toLowerCase() || "pdf";
+      } else {
+        // Relative local file path (e.g. /materials/weste-harris.pdf)
+        const path = await import("path");
+        const fs = await import("fs");
+        const cleanPath = item.fileUrl.startsWith("/") ? item.fileUrl.substring(1) : item.fileUrl;
+        const filePath = path.join(process.cwd(), "public", cleanPath);
+        if (!fs.existsSync(filePath)) {
+          console.error(`[DOWNLOAD API] Local file not found: ${filePath}`);
+          return new NextResponse("Local resource file not found", { status: 404 });
+        }
+        fileBuffer = fs.readFileSync(filePath);
+        const originalFilename = path.basename(filePath);
+        extension = originalFilename.split(".").pop()?.toLowerCase() || "pdf";
+        contentType = extension === "pdf" ? "application/pdf" : "application/octet-stream";
+      }
+
+      // Perform type-specific watermarking for fetched file
+      if (extension === "pdf") {
+        try {
+          console.log(`[DOWNLOAD API] Watermarking PDF using pdf-lib for tenant: "${tenantName}"`);
+          const pdfDoc = await PDFDocument.load(fileBuffer);
+          const pages = pdfDoc.getPages();
+          const helveticaFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+          const watermarkText = `PROPERTY OF ${tenantName.toUpperCase()} - DO NOT DISTRIBUTE`;
+
+          for (const page of pages) {
+            const { width, height } = page.getSize();
+            page.drawText(watermarkText, {
+              x: width / 12,
+              y: height / 3,
+              size: Math.min(width, height) / 22,
+              font: helveticaFont,
+              color: rgb(0.7, 0.7, 0.7),
+              opacity: 0.18,
+              rotate: degrees(35),
+            });
+            page.drawText(`Downloaded from ${tenantName} LMS. Watermarked copy.`, {
+              x: 20,
+              y: 15,
+              size: 8,
+              font: helveticaFont,
+              color: rgb(0.5, 0.5, 0.5),
+              opacity: 0.5,
+            });
+          }
+          const modifiedBytes = await pdfDoc.save();
+          fileBuffer = Buffer.from(modifiedBytes);
+        } catch (pdfErr) {
+          console.error("[DOWNLOAD API] Error during PDF watermarking:", pdfErr);
+        }
+      } else if (["csv", "txt"].includes(extension)) {
+        try {
+          const text = fileBuffer.toString("utf-8");
+          const watermarkHeader = `[CONFIDENTIAL - PROPERTY OF ${tenantName.toUpperCase()} - FOR AUTHORIZED USE ONLY]\n\n`;
+          fileBuffer = Buffer.from(watermarkHeader + text, "utf-8");
+        } catch (txtErr) {
+          console.error("[DOWNLOAD API] Error watermarking text file:", txtErr);
+        }
+      }
     } else {
-      console.log(`[DOWNLOAD API] Generating watermarked PDF document locally for: ${item.title} (Category: ${item.category})`);
-      fileBuffer = await generateMockPDF(item.title, item.author || "Instructional Faculty Group", tenantName, item.category);
-      extension = "pdf";
-      contentType = "application/pdf";
+      // Generate dynamically based on category
+      if (item.category === "excel") {
+        console.log(`[DOWNLOAD API] Generating watermarked Excel spreadsheet locally for: ${item.title}`);
+        fileBuffer = generateMockSpreadsheet(item.title, tenantName);
+        extension = "csv";
+        contentType = "text/csv";
+      } else if (item.category === "audio") {
+        console.log(`[DOWNLOAD API] Packaging audio briefing ZIP locally for: ${item.title}`);
+        fileBuffer = await packageAudioZIP(item.title, tenantName);
+        extension = "zip";
+        contentType = "application/zip";
+      } else {
+        console.log(`[DOWNLOAD API] Generating watermarked PDF document locally for: ${item.title} (Category: ${item.category})`);
+        fileBuffer = await generateMockPDF(item.title, item.author || "Instructional Faculty Group", tenantName, item.category);
+        extension = "pdf";
+        contentType = "application/pdf";
+      }
     }
 
     const cleanTitle = item.title.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 50);

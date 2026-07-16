@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
+import { useCareerStore } from "@/store";
 import { applyToJobAction } from "../actions/career-actions";
 import { ExternalLink, Briefcase, Search, Compass, KanbanSquare, Sparkles, ChevronRight, CheckCircle2 } from "lucide-react";
 import { formatDate } from "@/utils/date-formatter";
@@ -42,16 +43,26 @@ interface StudentCareerPortalProps {
 }
 
 export function StudentCareerPortal({ jobs, applications: initialApplications, completedCourses = [] }: StudentCareerPortalProps) {
-  const [activeView, setActiveView] = useState<"jobs" | "kanban">("jobs");
-  const [selectedJob, setSelectedJob] = useState<JobPosting | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [opportunityType, setOpportunityType] = useState<"all" | "job" | "internship">("all");
-  const [resumeUrl, setResumeUrl] = useState("");
+  const {
+    activeView, setActiveView,
+    selectedJob, selectJob,
+    searchQuery, setSearchQuery,
+    opportunityType, setOpportunityType,
+    resumeUrl, setResumeUrl,
+    submitting, setSubmitting,
+    message, setMessage,
+    applications, setApplications, addApplication,
+    resetApplyForm,
+    appliedJobIds,
+  } = useCareerStore();
 
-  const [applications, setApplications] = useState<StudentApplication[]>(initialApplications);
-  const appliedJobIds = new Set(applications.map((app) => app.jobId));
+  // Hydrate applications from server on mount
+  React.useEffect(() => {
+    setApplications(initialApplications);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const appliedIds = appliedJobIds();
 
   const onApply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,22 +79,17 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
       const res = await applyToJobAction(selectedJob.id, resumeUrl);
       if (res.success) {
         setMessage({ type: "success", text: `Successfully applied to ${selectedJob.company}!` });
-        const newApp: StudentApplication = {
+        addApplication({
           id: Math.random().toString(),
           jobId: selectedJob.id,
           status: "applied",
           resumeUrl,
           createdAt: new Date().toISOString(),
-          job: {
-            title: selectedJob.title,
-            company: selectedJob.company
-          }
-        };
-        setApplications(prev => [newApp, ...prev]);
-        setResumeUrl("");
+          job: { title: selectedJob.title, company: selectedJob.company },
+        });
         setTimeout(() => {
-          setSelectedJob(null);
-          setMessage(null);
+          selectJob(null);
+          resetApplyForm();
         }, 1200);
       } else {
         setMessage({ type: "error", text: res.error || "Failed to submit application." });
@@ -212,7 +218,7 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
             {filteredJobs.length > 0 ? (
               filteredJobs.map((job) => {
                 const isSelected = selectedJob?.id === job.id;
-                const hasApplied = appliedJobIds.has(job.id);
+                const hasApplied = appliedIds.has(job.id);
                 // Smart matching algorithm based on completed courses
                 const matchedCourse = completedCourses.find(c => 
                   job.requirements.toLowerCase().includes(c.name.toLowerCase()) ||
@@ -225,9 +231,7 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
                   <div 
                     key={job.id} 
                     onClick={() => {
-                      setSelectedJob(job);
-                      setMessage(null);
-                      setResumeUrl("");
+                      selectJob(job);
                     }}
                     className={`sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-5 space-y-4 relative overflow-hidden transition-all duration-300 group hover:shadow-lg cursor-pointer border ${
                       isSelected ? "border-primary/70 shadow-md ring-1 ring-primary/25 bg-secondary/15" : "border-border/40"
@@ -294,8 +298,7 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
             {selectedJob ? (
               (() => {
                 const existingApp = applications.find(a => a.jobId === selectedJob.id);
-                const hasApplied = !!existingApp;
-                const matchedCourse = completedCourses.find(c => 
+                const hasApplied = !!existingApp;                const matchedCourse = completedCourses.find(c => 
                   selectedJob.requirements.toLowerCase().includes(c.name.toLowerCase()) ||
                   selectedJob.requirements.toLowerCase().includes(c.code.toLowerCase())
                 );
@@ -314,7 +317,7 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
                       <Button 
                         variant="ghost"
                         size="sm"
-                        onClick={() => setSelectedJob(null)}
+                        onClick={() => selectJob(null)}
                         className="text-muted-foreground hover:text-foreground text-xs font-black h-7 w-7 p-0 rounded-lg border border-border/50"
                       >
                         ✕
@@ -517,7 +520,7 @@ export function StudentCareerPortal({ jobs, applications: initialApplications, c
                       key={app.id} 
                       onClick={() => {
                         const job = jobs.find(j => j.id === app.jobId);
-                        if (job) setSelectedJob(job);
+                        if (job) selectJob(job as any);
                       }}
                       className="bg-muted/15 border border-border/40 p-3.5 rounded-xl space-y-2 hover:bg-muted/20 transition-all cursor-pointer hover:border-primary/30"
                     >

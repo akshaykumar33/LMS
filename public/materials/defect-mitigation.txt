@@ -1,0 +1,3 @@
+CONFIDENTIAL: Defect mitigation protocols for cleanroom lithography.
+Step 1: Inspect mask blanks.
+Step 2: Calibrate light source.

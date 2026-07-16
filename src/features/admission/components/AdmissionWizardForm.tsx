@@ -48,6 +48,7 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    console.log("change", e.target.name, e.target.value);
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
@@ -58,6 +59,11 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
     if (step === 1) {
       if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.dateOfBirth) {
         setError("Please complete all personal details.");
+        return;
+      }
+      // 🔹 NEW: age validation
+      if (!isOldEnough(formData.dateOfBirth)) {
+        setError(`Applicant must be at least ${MIN_AGE_YEARS} years old.`);
         return;
       }
     } else if (step === 2) {
@@ -170,6 +176,22 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
 
   const brandColor = primaryColor || "#0ea5e9";
 
+  const MIN_AGE_YEARS = 10;
+
+function isOldEnough(dobString: string) {
+  if (!dobString) return false;
+
+  const dob = new Date(dobString);
+  const today = new Date();
+
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+
+  return age >= MIN_AGE_YEARS;
+}
   return (
     <Card className="w-full max-w-xl backdrop-blur-lg shadow-2xl border-border/60">
       <CardContent className="p-8 space-y-6 text-xs">
@@ -290,18 +312,27 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
             
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Select Academic Cohort Batch *</Label>
-              <select
-                name="batchId"
+              <Select
                 value={formData.batchId}
-                onChange={handleChange}
-                className="w-full h-10 px-3 rounded-lg border border-border bg-card text-foreground text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, batchId: value }))
+                }
               >
-                {batches.map((b) => (
-                  <option key={b.id} value={b.id} className="bg-card text-foreground">
-                    {b.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full h-10 px-3 rounded-lg border border-border bg-card text-xs text-foreground shadow-sm focus:border-sky-500 focus:outline-none">
+                  <SelectValue placeholder="Select cohort batch" />
+                </SelectTrigger>
+                <SelectContent className="rounded-lg border border-border bg-popover shadow-lg text-popover-foreground">
+                  {batches.map((b) => (
+                    <SelectItem
+                      key={b.id}
+                      value={b.id}
+                      className="text-xs text-popover-foreground py-2 px-3 rounded-md cursor-pointer focus:bg-accent focus:text-accent-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

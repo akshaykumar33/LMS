@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
+import { usePlacementStore } from "@/store";
 import { createJobPostingAction, updateJobPostingAction, deleteJobPostingAction, updateApplicationStatusAction } from "../actions/career-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface JobPosting {
@@ -16,7 +18,7 @@ interface JobPosting {
   company: string;
   description: string;
   requirements: string;
-  salary: string | null;
+  salary: string;
   location: string;
   isActive: boolean;
   createdAt: Date | string;
@@ -41,32 +43,21 @@ interface PlacementConsoleProps {
 }
 
 export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementConsoleProps) {
-  const [activeTab, setActiveTab] = useState<"list" | "create">("list");
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(jobs[0]?.id || null);
-  
-  // Create Job form states
-  const [title, setTitle] = useState("");
-  const [company, setCompany] = useState("");
-  const [description, setDescription] = useState("");
-  const [requirements, setRequirements] = useState("");
-  const [salary, setSalary] = useState("");
-  const [location, setLocation] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [formMsg, setFormMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
-  // Edit Job form states
-  const [editingJob, setEditingJob] = useState<JobPosting | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editCompany, setEditCompany] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editRequirements, setEditRequirements] = useState("");
-  const [editSalary, setEditSalary] = useState("");
-  const [editLocation, setEditLocation] = useState("");
-
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const {
+    activeTab, setActiveTab,
+    selectedJobId, setSelectedJobId,
+    createForm, setCreateField, resetCreateForm,
+    formMsg, setFormMsg,
+    editingJob, editForm, openEditJob, setEditField, closeEditForm,
+    appSearch, setAppSearch,
+    appStatusFilter, setAppStatusFilter,
+    loading, setLoading,
+    updatingId, setUpdatingId,
+  } = usePlacementStore();
 
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
+    const { title, company, description, requirements, salary, location } = createForm;
     if (!title || !company || !description || !requirements || !location) {
       setFormMsg({ type: "error", text: "Please fill in all required fields." });
       return;
@@ -87,12 +78,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
 
       if (res.success) {
         setFormMsg({ type: "success", text: "Job posting created successfully!" });
-        setTitle("");
-        setCompany("");
-        setDescription("");
-        setRequirements("");
-        setSalary("");
-        setLocation("");
+        resetCreateForm();
         setTimeout(() => {
           window.location.reload();
         }, 1500);
@@ -109,20 +95,22 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
   const handleUpdateJob = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingJob) return;
+    const { title, company, description, requirements, salary, location } = editForm;
 
     setLoading(true);
     try {
       const res = await updateJobPostingAction(editingJob.id, {
-        title: editTitle,
-        company: editCompany,
-        description: editDescription,
-        requirements: editRequirements,
-        salary: editSalary || undefined,
-        location: editLocation,
+        title,
+        company,
+        description,
+        requirements,
+        salary: salary || null,
+        location,
       });
+      console.log("updateJobPostingAction result", res);
 
       if (res.success) {
-        setEditingJob(null);
+        closeEditForm();
         window.location.reload();
       } else {
         alert(res.error || "Failed to update job posting.");
@@ -168,17 +156,13 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
   const selectedJob = jobs.find((j) => j.id === selectedJobId);
   const selectedApplicants = selectedJobId ? applicantsMap[selectedJobId] || [] : [];
 
-  // Applicant filter states
-  const [appSearch, setAppSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-
   const filteredApplicants = selectedApplicants.filter((app) => {
     const fullName = `${app.firstName} ${app.lastName || ""}`.toLowerCase();
     const query = appSearch.toLowerCase();
     const matchesSearch = fullName.includes(query) || 
       app.rollNumber.toLowerCase().includes(query) ||
       app.email.toLowerCase().includes(query);
-    const matchesStatus = statusFilter === "all" || app.status === statusFilter;
+    const matchesStatus = appStatusFilter === "all" || app.status === appStatusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -270,7 +254,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   <div className="absolute -top-12 -right-12 w-24 h-24 rounded-full blur-3xl bg-primary/5 pointer-events-none" />
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                     <div className="space-y-1">
-                    <h2 className="text-base font-extrabold text-foreground leading-tight">{selectedJob.title}</h2>
+                      <h2 className="text-base font-extrabold text-white leading-tight">{selectedJob.title}</h2>
                       <p className="text-[11px] font-semibold text-muted-foreground">
                         {selectedJob.company} <span className="text-border">|</span> <span className="font-normal text-muted-foreground">{selectedJob.location}</span>
                       </p>
@@ -282,13 +266,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                         size="sm"
                         disabled={userRole === "Guest"}
                         onClick={() => {
-                          setEditingJob(selectedJob);
-                          setEditTitle(selectedJob.title);
-                          setEditCompany(selectedJob.company);
-                          setEditDescription(selectedJob.description);
-                          setEditRequirements(selectedJob.requirements);
-                          setEditSalary(selectedJob.salary || "");
-                          setEditLocation(selectedJob.location);
+                          openEditJob(selectedJob);
                         }}
                         className="h-8 text-[10px] font-black uppercase tracking-widest px-3 rounded-lg"
                       >
@@ -310,7 +288,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   
                   <div className="space-y-1.5 bg-muted/15 p-4 rounded-xl border border-border/40">
                     <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground block">Candidate Requirements</span>
-                    <p className="text-foreground/90 font-medium leading-relaxed text-[11px]">{selectedJob.requirements}</p>
+                    <p className="text-slate-200 font-medium leading-relaxed text-[11px]">{selectedJob.requirements}</p>
                   </div>
                 </div>
 
@@ -329,15 +307,14 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                           type="text"
                           placeholder="Search candidates..."
                           value={appSearch}
-                          onChange={(e) => setAppSearch(e.target.value)}
-                          className="w-full h-8 pl-3 pr-3 text-[10px] bg-muted/20 border border-border/60 rounded-lg focus:outline-none focus:border-primary/50 text-foreground"
+                          onChange={(e) => setAppSearch(e.target.value)}                          className="w-full h-8 pl-3 pr-3 text-[10px] bg-muted/20 border border-border/60 rounded-lg focus:outline-none focus:border-primary/50 text-foreground"
                         />
                       </div>
                       
                       {/* Stage dropdown */}
                       <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
+                        value={appStatusFilter}
+                        onChange={(e) => setAppStatusFilter(e.target.value)}
                         className="h-8 bg-card border border-border/60 rounded-lg text-[10px] text-foreground px-2 focus:outline-none focus:border-primary/50"
                       >
                         <option value="all" className="bg-card text-foreground">All Stages</option>
@@ -454,8 +431,8 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   <Input
                     type="text"
                     placeholder="e.g. Physical Design Engineer"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
+                    value={createForm.title}
+                    onChange={(e) => setCreateField("title", e.target.value)}
                     className="h-10 text-xs"
                     required
                   />
@@ -465,8 +442,8 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   <Input
                     type="text"
                     placeholder="e.g. Intel Corporation"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
+                    value={createForm.company}
+                    onChange={(e) => setCreateField("company", e.target.value)}
                     className="h-10 text-xs"
                     required
                   />
@@ -479,8 +456,8 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   <Input
                     type="text"
                     placeholder="e.g. Hsinchu, Taiwan / Remote"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
+                    value={createForm.location}
+                    onChange={(e) => setCreateField("location", e.target.value)}
                     className="h-10 text-xs"
                     required
                   />
@@ -490,8 +467,8 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   <Input
                     type="text"
                     placeholder="e.g. $120,000 - $140,000"
-                    value={salary}
-                    onChange={(e) => setSalary(e.target.value)}
+                    value={createForm.salary}
+                    onChange={(e) => setCreateField("salary", e.target.value)}
                     className="h-10 text-xs"
                   />
                 </div>
@@ -501,8 +478,8 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                 <Label className="text-muted-foreground font-bold uppercase tracking-wider">Job Description *</Label>
                 <textarea
                   placeholder="Provide a comprehensive description of the role, responsibilities, and team scope."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  value={createForm.description}
+                  onChange={(e) => setCreateField("description", e.target.value)}
                   rows={4}
                   className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
                   required
@@ -513,8 +490,8 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                 <Label className="text-muted-foreground font-bold uppercase tracking-wider">Requirements *</Label>
                 <textarea
                   placeholder="List required technical skills (e.g. SystemVerilog, UVM, DRC/LVS, FinFET fabrication)."
-                  value={requirements}
-                  onChange={(e) => setRequirements(e.target.value)}
+                  value={createForm.requirements}
+                  onChange={(e) => setCreateField("requirements", e.target.value)}
                   rows={3}
                   className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
                   required
@@ -544,84 +521,52 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="block text-muted-foreground font-bold uppercase tracking-wider">Job Title</Label>
-                <Input
-                  type="text"
-                  required
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="h-10 text-xs text-foreground"
-                />
+                <Input type="text" required value={editForm.title}
+                  onChange={(e) => setEditField("title", e.target.value)}
+                  className="h-10 text-xs text-foreground" />
               </div>
               <div className="space-y-2">
                 <Label className="block text-muted-foreground font-bold uppercase tracking-wider">Company Name</Label>
-                <Input
-                  type="text"
-                  required
-                  value={editCompany}
-                  onChange={(e) => setEditCompany(e.target.value)}
-                  className="h-10 text-xs text-foreground"
-                />
+                <Input type="text" required value={editForm.company}
+                  onChange={(e) => setEditField("company", e.target.value)}
+                  className="h-10 text-xs text-foreground" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="block text-muted-foreground font-bold uppercase tracking-wider">Location</Label>
-                <Input
-                  type="text"
-                  required
-                  value={editLocation}
-                  onChange={(e) => setEditLocation(e.target.value)}
-                  className="h-10 text-xs text-foreground"
-                />
+                <Input type="text" required value={editForm.location}
+                  onChange={(e) => setEditField("location", e.target.value)}
+                  className="h-10 text-xs text-foreground" />
               </div>
               <div className="space-y-2">
                 <Label className="block text-muted-foreground font-bold uppercase tracking-wider">Estimated Salary</Label>
-                <Input
-                  type="text"
-                  value={editSalary}
-                  onChange={(e) => setEditSalary(e.target.value)}
-                  className="h-10 text-xs text-foreground"
-                />
+                <Input type="text" value={editForm.salary}
+                  onChange={(e) => setEditField("salary", e.target.value)}
+                  className="h-10 text-xs text-foreground" />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label className="block text-muted-foreground font-bold uppercase tracking-wider">Job Description</Label>
-              <textarea
-                required
-                rows={4}
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
-              />
+              <textarea required rows={4} value={editForm.description}
+                onChange={(e) => setEditField("description", e.target.value)}
+                className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none" />
             </div>
 
             <div className="space-y-2">
               <Label className="block text-muted-foreground font-bold uppercase tracking-wider">Requirements</Label>
-              <textarea
-                required
-                rows={3}
-                value={editRequirements}
-                onChange={(e) => setEditRequirements(e.target.value)}
-                className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
-              />
+              <textarea required rows={3} value={editForm.requirements}
+                onChange={(e) => setEditField("requirements", e.target.value)}
+                className="w-full bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none" />
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setEditingJob(null)}
-                className="text-xs font-bold"
-              >
+              <Button type="button" variant="ghost" onClick={closeEditForm} className="text-xs font-bold">
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={loading}
-                className="text-xs font-bold"
-              >
+              <Button type="submit" disabled={loading} className="text-xs font-bold">
                 {loading ? "Saving..." : "Save Changes"}
               </Button>
             </div>

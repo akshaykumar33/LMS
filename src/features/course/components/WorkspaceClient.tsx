@@ -5,7 +5,7 @@ import {
   BookOpen, Video, FileText, ChevronLeft, ChevronRight, Sparkles, 
   Edit3, HelpCircle, MessageSquare, Award, Play, CheckCircle, 
   Send, RefreshCw, Download, Award as BadgeIcon, BrainCircuit, ShieldAlert,
-  HelpCircle as QuestionIcon
+  HelpCircle as QuestionIcon, Volume2, VolumeX, Pause, RotateCcw, RotateCw, Maximize
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { QuizWorkspace } from "@/features/quiz/components/QuizWorkspace";
@@ -503,16 +503,23 @@ export function WorkspaceClient({
 
   // Video progress tracking refs & handlers
   const lastSavedTimeRef = useRef(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
 
   const handleVideoLoadedMetadata = async (e: React.SyntheticEvent<HTMLVideoElement>) => {
-    if (user.role !== "Student" || !activeLesson) return;
     const video = e.currentTarget;
+    setVideoDuration(video.duration || 0);
+    if (user.role !== "Student" || !activeLesson) return;
     try {
       const { getVideoProgressAction } = await import("../actions/course-actions");
       const res = await getVideoProgressAction(activeLesson.id);
       if (res.success && res.currentSeconds) {
         video.currentTime = res.currentSeconds;
         lastSavedTimeRef.current = res.currentSeconds;
+        setVideoCurrentTime(res.currentSeconds);
       }
     } catch (err) {
       console.error("Failed to resume video progress:", err);
@@ -520,22 +527,71 @@ export function WorkspaceClient({
   };
 
   const handleVideoTimeUpdate = async (e: React.SyntheticEvent<HTMLVideoElement>) => {
-    if (user.role !== "Student" || !activeLesson) return;
     const video = e.currentTarget;
-    const currentTime = video.currentTime;
-    const duration = video.duration;
-    if (!duration || isNaN(duration)) return;
+    const curTime = video.currentTime;
+    const dur = video.duration;
+    setVideoCurrentTime(curTime);
+    if (dur && !isNaN(dur)) {
+      setVideoDuration(dur);
+    }
 
-    if (Math.abs(currentTime - lastSavedTimeRef.current) >= 8 || currentTime === duration) {
-      lastSavedTimeRef.current = currentTime;
+    if (user.role !== "Student" || !activeLesson) return;
+    if (!dur || isNaN(dur)) return;
+
+    if (Math.abs(curTime - lastSavedTimeRef.current) >= 8 || curTime === dur) {
+      lastSavedTimeRef.current = curTime;
       try {
         const { saveVideoProgressAction } = await import("../actions/course-actions");
-        await saveVideoProgressAction(activeLesson.id, currentTime, duration);
+        await saveVideoProgressAction(activeLesson.id, curTime, dur);
       } catch (err) {
         console.error("Failed to auto-save video progress:", err);
       }
     }
   };
+
+  const playPauseVideo = () => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
+    }
+  };
+
+  const skipVideo = (seconds: number) => {
+    if (!videoRef.current) return;
+    const newTime = Math.max(0, Math.min(videoRef.current.duration || 0, videoRef.current.currentTime + seconds));
+    videoRef.current.currentTime = newTime;
+    setVideoCurrentTime(newTime);
+  };
+
+  const toggleMuteVideo = () => {
+    if (!videoRef.current) return;
+    videoRef.current.muted = !isMuted;
+    setIsMuted(!isMuted);
+  };
+
+  const handleProgressBarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!videoRef.current) return;
+    const newTime = parseFloat(e.target.value);
+    videoRef.current.currentTime = newTime;
+    setVideoCurrentTime(newTime);
+  };
+
+  const formatVideoTime = (secs: number) => {
+    if (isNaN(secs)) return "00:00";
+    const minutes = Math.floor(secs / 60);
+    const seconds = Math.floor(secs % 60);
+    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  };
+
+  useEffect(() => {
+    setIsPlaying(false);
+    setIsMuted(false);
+    setVideoCurrentTime(0);
+    setVideoDuration(0);
+  }, [activeLesson]);
 
   // Capstone submission local states
   const [isResubmitting, setIsResubmitting] = useState(false);
@@ -575,8 +631,49 @@ export function WorkspaceClient({
   const [aiLoading, setAiLoading] = useState(false);
   const [flashcards, setFlashcards] = useState<Array<{ q: string; a: string; showAnswer?: boolean }>>([]);
   const [customQuiz, setCustomQuiz] = useState<Array<{ q: string; opts: string[]; answer: number; selected?: number }>>([]);
+  
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
+
+  const toggleSpeak = (text: string, index: number) => {
+    if (typeof window === "undefined") return;
+
+    if (speakingIndex === index) {
+      window.speechSynthesis.cancel();
+      setSpeakingIndex(null);
+    } else {
+      window.speechSynthesis.cancel();
+      
+      const cleanText = text
+        .replace(/\*\*|__|\*|_|`|#|🔗/g, "")
+        .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1");
+        
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      
+      utterance.onend = () => {
+        setSpeakingIndex(null);
+      };
+      utterance.onerror = () => {
+        setSpeakingIndex(null);
+      };
+
+      setSpeakingIndex(index);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined") {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.speechSynthesis.cancel();
+    }
+    setSpeakingIndex(null);
     if (activeBot === "tutor") {
       setAiMessages([
         { sender: "ai", text: "Hello! I am your AI Semiconductor Assistant. Ask me anything about today's lesson, or use the shortcuts below to summarize or quiz yourself." }
@@ -1292,20 +1389,127 @@ export function WorkspaceClient({
                 {/* Viewport: Video, PDF text, or Zoom */}
                 <div className="bg-card/35 border-b border-border shrink-0">
               {activeLesson.contentType === "video" && activeLesson.videoUrl && (
-                <div className="aspect-video max-h-[38vh] mx-auto bg-black relative flex items-center justify-center">
+                <div className="aspect-video max-h-[38vh] mx-auto bg-black relative flex items-center justify-center group overflow-hidden rounded-xl border border-border/40 shadow-2xl">
                   <video 
+                    ref={videoRef}
                     key={activeLesson.videoUrl}
-                    controls 
                     className="w-full h-full object-contain"
                     poster="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=1200"
                     onLoadedMetadata={handleVideoLoadedMetadata}
                     onTimeUpdate={handleVideoTimeUpdate}
+                    onClick={playPauseVideo}
                     playsInline
                   >
                     {activeLesson.videoUrl && <source src={activeLesson.videoUrl} type="video/mp4" />}
                     <source src="/sample-video.mp4" type="video/mp4" />
                     Your browser does not support the video tag.
                   </video>
+
+                  {/* Top Header Overlay: Displays the Lesson Title */}
+                  <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex flex-col justify-start z-10">
+                    <span className="text-[9px] font-black text-primary tracking-widest uppercase" style={{ color: primaryColor }}>
+                      Now Playing
+                    </span>
+                    <h4 className="text-white text-xs font-black drop-shadow truncate">
+                      {activeLesson.title}
+                    </h4>
+                  </div>
+
+                  {/* Center Play/Pause Overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                    <button 
+                      onClick={playPauseVideo}
+                      className="w-12 h-12 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto hover:scale-105 hover:bg-black/85 cursor-pointer shadow-lg border border-white/10"
+                    >
+                      {isPlaying ? (
+                        <Pause className="w-5 h-5 fill-white text-white" />
+                      ) : (
+                        <Play className="w-5 h-5 fill-white text-white ml-0.5" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Custom Controls Bar Overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2 pointer-events-auto z-10">
+                    {/* Progress Slider */}
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="range"
+                        min={0}
+                        max={videoDuration || 100}
+                        value={videoCurrentTime}
+                        onChange={handleProgressBarChange}
+                        className="flex-1 accent-primary h-1 bg-white/20 rounded-lg appearance-none cursor-pointer hover:h-1.5 transition-all"
+                        style={{ '--c': primaryColor } as any}
+                      />
+                    </div>
+
+                    {/* Bottom Control buttons */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3.5">
+                        {/* Play/Pause */}
+                        <button 
+                          onClick={playPauseVideo}
+                          className="text-white hover:text-primary transition-colors cursor-pointer"
+                          style={isPlaying ? { color: primaryColor } : undefined}
+                          title={isPlaying ? "Pause" : "Play"}
+                        >
+                          {isPlaying ? <Pause className="w-4 h-4 fill-current text-white" /> : <Play className="w-4 h-4 fill-current text-white" />}
+                        </button>
+
+                        {/* Back 10s */}
+                        <button 
+                          onClick={() => skipVideo(-10)}
+                          className="text-white hover:text-primary transition-colors cursor-pointer"
+                          title="Rewind 10s"
+                        >
+                          <RotateCcw className="w-4 h-4 text-white" />
+                        </button>
+
+                        {/* Forward 10s */}
+                        <button 
+                          onClick={() => skipVideo(10)}
+                          className="text-white hover:text-primary transition-colors cursor-pointer"
+                          title="Forward 10s"
+                        >
+                          <RotateCw className="w-4 h-4 text-white" />
+                        </button>
+
+                        {/* Time display */}
+                        <span className="text-[10px] text-white/90 font-mono select-none">
+                          {formatVideoTime(videoCurrentTime)} / {formatVideoTime(videoDuration)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3.5">
+                        {/* Mute/Unmute */}
+                        <button 
+                          onClick={toggleMuteVideo}
+                          className="text-white hover:text-primary transition-colors cursor-pointer"
+                          title={isMuted ? "Unmute" : "Mute"}
+                        >
+                          {isMuted ? <VolumeX className="w-4 h-4 text-rose-500 fill-current" /> : <Volume2 className="w-4 h-4 text-white" />}
+                        </button>
+
+                        {/* Fullscreen */}
+                        <button 
+                          onClick={() => {
+                            if (videoRef.current) {
+                              if (document.fullscreenElement) {
+                                document.exitFullscreen().catch(console.error);
+                              } else {
+                                videoRef.current.requestFullscreen().catch(console.error);
+                              }
+                            }
+                          }}
+                          className="text-white hover:text-primary transition-colors cursor-pointer"
+                          title="Fullscreen"
+                        >
+                          <Maximize className="w-4 h-4 text-white" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1997,6 +2201,28 @@ export function WorkspaceClient({
                             ))}
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {msg.sender === "ai" && activeBot === "book" && (
+                      <div className="mt-2 flex items-center justify-end border-t border-primary/10 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleSpeak(msg.text, idx)}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded bg-secondary/30 hover:bg-secondary/50 text-[9px] font-bold text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                        >
+                          {speakingIndex === idx ? (
+                            <>
+                              <VolumeX className="w-3 h-3 text-rose-500 animate-pulse" />
+                              <span>Stop Reading</span>
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="w-3 h-3 text-primary" style={{ color: primaryColor }} />
+                              <span>Read Aloud</span>
+                            </>
+                          )}
+                        </button>
                       </div>
                     )}
                   </div>

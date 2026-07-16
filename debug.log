@@ -1,0 +1,21 @@
+[ADMISSION ACTION] starting submission with: {"batchId":"a52ead8e-b466-49f2-987c-ebd7786064f3","email":"two@mail.in","firstName":"two","lastName":"in","phone":"436346","dateOfBirth":"2015-02-13","academicHistory":{"highestDegree":"B.Tech","institution":"IIT","gpaOrPercentage":"9","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 4491103f-37e0-44bd-9458-acde5af99a18 (amd)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 56dcda72-5854-4fea-b9e5-b386960060f3
+[ADMISSION DOCUMENT] starting doc submit: 56dcda72-5854-4fea-b9e5-b386960060f3, Undergraduate Degree Transcript, /uploads/4491103f-37e0-44bd-9458-acde5af99a18/1784057858960-LMS - Bug Report.pdf
+[ADMISSION DOCUMENT] invalid schema
+{
+  "timestamp": "2026-07-14T21:49:01.093Z",
+  "studentId": "8e16bcb2-ce4d-4125-bebd-2495f967ae33",
+  "userRole": "Faculty",
+  "userTenantId": "4491103f-37e0-44bd-9458-acde5af99a18",
+  "resolvedTenantId": "4491103f-37e0-44bd-9458-acde5af99a18",
+  "resolvedTenantSubdomain": "amd"
+}
+---
+[ADMISSION ACTION] starting submission with: {"batchId":"ac98845c-86d0-43b0-ad62-3b15328bb609","email":"two@mail.in","firstName":"wddefqw","lastName":"feefq","phone":"25432562562","dateOfBirth":"2013-05-06","academicHistory":{"highestDegree":"B.Tech","institution":"MIT","gpaOrPercentage":"9","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 3c1598f4-6e79-4dc5-96c1-e10f1beff95d (nvidia-graphics)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 334c4405-d765-49f1-8491-9f3341a1c593
+[ADMISSION DOCUMENT] starting doc submit: 334c4405-d765-49f1-8491-9f3341a1c593, Undergraduate Degree Transcript, /uploads/3c1598f4-6e79-4dc5-96c1-e10f1beff95d/1784120249894-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
+[ADMISSION DOCUMENT] invalid schema

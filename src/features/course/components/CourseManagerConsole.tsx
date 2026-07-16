@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useEffect, useRef } from "react";
+import { useCourseManagerStore } from "@/store";
 import { updateCourseAction, updateModuleAction, updateLessonAction, updateCapstoneProjectAction } from "../actions/course-actions";
 import { getPresignedUrlAction } from "@/features/admission/actions/admission-actions";
 import { Button } from "@/components/ui/button";
@@ -8,46 +9,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-
-interface Lesson {
-  id: string;
-  title: string;
-  contentType: string;
-  content: string | null;
-  videoUrl: string | null;
-  fileUrl?: string | null;
-  order: number;
-}
-
-interface Module {
-  id: string;
-  name: string;
-  description: string | null;
-  order: number;
-  lessons: Lesson[];
-}
-
-interface Course {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  tenantName?: string;
-  scormEnabled?: boolean;
-  scormPackageUrl?: string | null;
-  capstoneProject?: {
-    id: string;
-    title: string;
-    description: string;
-    difficulty: string;
-    durationWeeks: number;
-  } | null;
-  modules: Module[];
-}
 
 interface CourseManagerConsoleProps {
-  initialCourses: Course[];
+  initialCourses: any[];
   primaryColor?: string;
   userRole?: string;
   enableCapstone?: boolean;
@@ -57,22 +21,36 @@ function cleanModuleName(name: string): string {
   return name.replace(/^module\s+\d+[\s:-]*/i, "").trim();
 }
 
-export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7", userRole, enableCapstone = true }: CourseManagerConsoleProps) {
-  const [courses, setCourses] = useState<Course[]>(initialCourses);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(initialCourses[0] || null);
-  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-  const [editingModule, setEditingModule] = useState<Module | null>(null);
-  const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
-  const [editingCapstone, setEditingCapstone] = useState<any | null>(null);
+export function CourseManagerConsole({
+  initialCourses,
+  primaryColor = "#0284c7",
+  userRole,
+  enableCapstone = true,
+}: CourseManagerConsoleProps) {
+  const {
+    courses, setCourses,
+    selectedCourse, setSelectedCourse, updateCourseInList,
+    editingCourse, openEditCourse, patchEditingCourse, closeEditCourse,
+    editingModule, openEditModule, patchEditingModule, closeEditModule,
+    editingLesson, openEditLesson, patchEditingLesson, closeEditLesson,
+    editingCapstone, openEditCapstone, patchEditingCapstone, closeEditCapstone,
+    closeAllEditors,
+    isSubmitting, setIsSubmitting,
+    feedback, showFeedback,
+    scormUploading, setScormUploading,
+    courseScormUploading, setCourseScormUploading,
+  } = useCourseManagerStore();
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [scormUploading, setScormUploading] = useState(false);
+  // Seed store from server props on first mount
+  useEffect(() => {
+    setCourses(initialCourses);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const scormFileRef = useRef<HTMLInputElement>(null);
-
-  const [courseScormUploading, setCourseScormUploading] = useState(false);
   const courseScormFileRef = useRef<HTMLInputElement>(null);
 
+  // ── Upload handlers ────────────────────────────────────────────────────────
   const handleScormZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !editingLesson) return;
@@ -84,7 +62,7 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
       if (!uploadRes.ok) throw new Error("Upload failed.");
       const uploadJson = await uploadRes.json();
       const launchUrl = uploadJson?.url || res.fileUrl;
-      setEditingLesson({ ...editingLesson, fileUrl: launchUrl });
+      patchEditingLesson({ fileUrl: launchUrl });
       showFeedback(`SCORM package "${file.name}" extracted and ready.`);
     } catch (err: any) {
       showFeedback(err.message || "SCORM upload failed.", "error");
@@ -104,7 +82,7 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
       if (!uploadRes.ok) throw new Error("Upload failed.");
       const uploadJson = await uploadRes.json();
       const launchUrl = uploadJson?.url || res.fileUrl;
-      setEditingCourse({ ...editingCourse, scormPackageUrl: launchUrl });
+      patchEditingCourse({ scormPackageUrl: launchUrl });
       showFeedback(`SCORM package "${file.name}" extracted and ready.`);
     } catch (err: any) {
       showFeedback(err.message || "SCORM upload failed.", "error");
@@ -113,11 +91,7 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
     }
   };
 
-  const showFeedback = (text: string, type: "success" | "error" = "success") => {
-    setFeedback({ text, type });
-    setTimeout(() => setFeedback(null), 4000);
-  };
-
+  // ── Submit handlers ────────────────────────────────────────────────────────
   const handleUpdateCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCourse) return;
@@ -130,11 +104,9 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
       scormPackageUrl: editingCourse.scormPackageUrl || null,
     });
     setIsSubmitting(false);
-
     if (res.success) {
-      setCourses(courses.map(c => c.id === editingCourse.id ? { ...c, ...editingCourse } : c));
-      setSelectedCourse(editingCourse);
-      setEditingCourse(null);
+      updateCourseInList(editingCourse);
+      closeEditCourse();
       showFeedback("Course details updated successfully.");
     } else {
       showFeedback(res.error || "Failed to update course.", "error");
@@ -150,13 +122,12 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
       description: editingModule.description || "",
     });
     setIsSubmitting(false);
-
     if (res.success) {
-      const updatedModules = selectedCourse.modules.map(m => m.id === editingModule.id ? { ...m, ...editingModule } : m);
-      const updatedCourse = { ...selectedCourse, modules: updatedModules };
-      setCourses(courses.map(c => c.id === selectedCourse.id ? updatedCourse : c));
-      setSelectedCourse(updatedCourse);
-      setEditingModule(null);
+      const updatedModules = selectedCourse.modules.map((m: any) =>
+        m.id === editingModule.id ? { ...m, ...editingModule } : m
+      );
+      updateCourseInList({ ...selectedCourse, modules: updatedModules });
+      closeEditModule();
       showFeedback("Module updated successfully.");
     } else {
       showFeedback(res.error || "Failed to update module.", "error");
@@ -175,16 +146,15 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
       contentType: editingLesson.contentType,
     });
     setIsSubmitting(false);
-
     if (res.success) {
-      const updatedModules = selectedCourse.modules.map(m => {
-        const updatedLessons = m.lessons.map(l => l.id === editingLesson.id ? { ...l, ...editingLesson } : l);
-        return { ...m, lessons: updatedLessons };
-      });
-      const updatedCourse = { ...selectedCourse, modules: updatedModules };
-      setCourses(courses.map(c => c.id === selectedCourse.id ? updatedCourse : c));
-      setSelectedCourse(updatedCourse);
-      setEditingLesson(null);
+      const updatedModules = selectedCourse.modules.map((m: any) => ({
+        ...m,
+        lessons: m.lessons.map((l: any) =>
+          l.id === editingLesson.id ? { ...l, ...editingLesson } : l
+        ),
+      }));
+      updateCourseInList({ ...selectedCourse, modules: updatedModules });
+      closeEditLesson();
       showFeedback("Lesson & transcript updated successfully.");
     } else {
       showFeedback(res.error || "Failed to update lesson.", "error");
@@ -202,18 +172,9 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
       durationWeeks: Number(editingCapstone.durationWeeks) || 4,
     });
     setIsSubmitting(false);
-
     if (res.success) {
-      const updatedCourse = {
-        ...selectedCourse,
-        capstoneProject: {
-          ...selectedCourse.capstoneProject,
-          ...editingCapstone,
-        },
-      };
-      setCourses(courses.map(c => c.id === selectedCourse.id ? updatedCourse : c));
-      setSelectedCourse(updatedCourse);
-      setEditingCapstone(null);
+      updateCourseInList({ ...selectedCourse, capstoneProject: { ...selectedCourse.capstoneProject, ...editingCapstone } });
+      closeEditCapstone();
       showFeedback("Capstone project updated successfully.");
     } else {
       showFeedback(res.error || "Failed to update capstone project.", "error");
@@ -228,25 +189,13 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
           <CardContent className="p-6 space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold text-foreground">Course Catalog</h2>
-              <Badge
-                variant="outline"
-                className="text-[10px] font-mono"
-                style={{
-                  backgroundColor: `${primaryColor}15`,
-                  color: primaryColor,
-                  borderColor: `${primaryColor}40`,
-                }}
-              >
+              <Badge variant="outline" className="text-[10px] font-mono" style={{ backgroundColor: `${primaryColor}15`, color: primaryColor, borderColor: `${primaryColor}40` }}>
                 CMS Mode
               </Badge>
             </div>
 
             {feedback && (
-              <div
-                className={`p-3 rounded-lg text-xs font-bold ${
-                  feedback.type === "success" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"
-                }`}
-              >
+              <div className={`p-3 rounded-lg text-xs font-bold ${feedback.type === "success" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
                 {feedback.text}
               </div>
             )}
@@ -258,47 +207,22 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                   <Button
                     key={c.id}
                     variant={isSel ? "secondary" : "ghost"}
-                    onClick={() => {
-                      setSelectedCourse(c);
-                      setEditingCourse(null);
-                      setEditingModule(null);
-                      setEditingLesson(null);
-                    }}
-                    className={`w-full text-left justify-start h-auto p-4 rounded-xl border flex flex-col items-start gap-2 ${
-                      isSel ? "bg-secondary/80" : "border-border hover:border-muted-foreground/30 bg-transparent"
-                    }`}
-                    style={{
-                      borderColor: isSel ? primaryColor : undefined,
-                    }}
+                    onClick={() => { setSelectedCourse(c); closeAllEditors(); }}
+                    className={`w-full text-left justify-start h-auto p-4 rounded-xl border flex flex-col items-start gap-2 ${isSel ? "bg-secondary/80" : "border-border hover:border-muted-foreground/30 bg-transparent"}`}
+                    style={{ borderColor: isSel ? primaryColor : undefined }}
                   >
                     <div className="flex justify-between items-center w-full">
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] font-bold"
-                        style={{
-                          backgroundColor: `${primaryColor}15`,
-                          color: primaryColor,
-                          borderColor: `${primaryColor}40`,
-                        }}
-                      >
-                        {c.code}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground">
-                        {c.modules.length} Modules
-                      </span>
+                      <Badge variant="outline" className="text-[10px] font-bold" style={{ backgroundColor: `${primaryColor}15`, color: primaryColor, borderColor: `${primaryColor}40` }}>{c.code}</Badge>
+                      <span className="text-[10px] text-muted-foreground">{c.modules.length} Modules</span>
                     </div>
                     <h3 className="text-sm font-bold text-foreground truncate w-full text-left">{c.name}</h3>
                     {c.tenantName && (
-                      <span className="text-[9px] text-muted-foreground/80 font-bold bg-secondary/40 px-1.5 py-0.5 rounded-md border border-border/40 mt-1">
-                        🏢 {c.tenantName}
-                      </span>
+                      <span className="text-[9px] text-muted-foreground/80 font-bold bg-secondary/40 px-1.5 py-0.5 rounded-md border border-border/40 mt-1">🏢 {c.tenantName}</span>
                     )}
                   </Button>
                 );
               })}
-              {courses.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-6">No courses created yet.</p>
-              )}
+              {courses.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">No courses created yet.</p>}
             </div>
           </CardContent>
         </Card>
@@ -309,190 +233,71 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
         {selectedCourse ? (
           <Card className="border-border">
             <CardContent className="p-6 space-y-8">
-              {/* Course Details Header */}
               <div className="flex justify-between items-start border-b border-border pb-6">
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <Badge
-                      variant="outline"
-                      className="text-xs font-bold"
-                      style={{
-                        backgroundColor: `${primaryColor}15`,
-                        color: primaryColor,
-                        borderColor: `${primaryColor}40`,
-                      }}
-                    >
-                      {selectedCourse.code}
-                    </Badge>
+                    <Badge variant="outline" className="text-xs font-bold" style={{ backgroundColor: `${primaryColor}15`, color: primaryColor, borderColor: `${primaryColor}40` }}>{selectedCourse.code}</Badge>
                     <h2 className="text-xl font-extrabold text-foreground">{selectedCourse.name}</h2>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
-                    {selectedCourse.description || "No description provided."}
-                  </p>
+                  <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">{selectedCourse.description || "No description provided."}</p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={userRole === "Guest"}
-                  onClick={() => {
-                    setEditingCourse(selectedCourse);
-                    setEditingModule(null);
-                    setEditingLesson(null);
-                  }}
-                  className="text-xs font-bold border"
-                  style={{
-                    borderColor: `${primaryColor}30`,
-                    backgroundColor: `${primaryColor}0c`,
-                    color: primaryColor,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = `${primaryColor}1a`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = `${primaryColor}0c`;
-                  }}
-                >
+                <Button size="sm" variant="outline" disabled={userRole === "Guest"} onClick={() => openEditCourse(selectedCourse)} className="text-xs font-bold border" style={{ borderColor: `${primaryColor}30`, backgroundColor: `${primaryColor}0c`, color: primaryColor }}>
                   {userRole === "Guest" ? "Read Only" : "Edit Details"}
                 </Button>
               </div>
 
-              {/* Modules list */}
               <div className="space-y-6">
-                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
-                  Syllabus Structure
-                </h3>
-
+                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">Syllabus Structure</h3>
                 <div className="space-y-4">
-                  {selectedCourse.modules.map((mod, mIdx) => (
+                  {selectedCourse.modules.map((mod: any, mIdx: number) => (
                     <div key={mod.id} className="border border-border/80 p-4 rounded-xl space-y-4 bg-muted/5">
                       <div className="flex justify-between items-center border-b border-border/40 pb-2">
-                        <h4 className="text-sm font-extrabold text-foreground">
-                          Module {mIdx + 1}: {cleanModuleName(mod.name)}
-                        </h4>
-                        <Button
-                          variant="link"
-                          disabled={userRole === "Guest"}
-                          onClick={() => {
-                            setEditingModule(mod);
-                            setEditingCourse(null);
-                            setEditingLesson(null);
-                          }}
-                          className="text-[11px] h-auto p-0"
-                          style={{ color: primaryColor }}
-                        >
-                          Rename Module
-                        </Button>
+                        <h4 className="text-sm font-extrabold text-foreground">Module {mIdx + 1}: {cleanModuleName(mod.name)}</h4>
+                        <Button variant="link" disabled={userRole === "Guest"} onClick={() => openEditModule(mod)} className="text-[11px] h-auto p-0" style={{ color: primaryColor }}>Rename Module</Button>
                       </div>
-
-                      {/* Lessons list */}
                       <div className="space-y-2">
-                        {mod.lessons.map((les) => (
-                          <div
-                            key={les.id}
-                            className="flex justify-between items-center p-3 bg-muted/10 border border-border/60 rounded-lg hover:border-muted-foreground/30 transition-colors"
-                          >
+                        {mod.lessons.map((les: any) => (
+                          <div key={les.id} className="flex justify-between items-center p-3 bg-muted/10 border border-border/60 rounded-lg hover:border-muted-foreground/30 transition-colors">
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-foreground font-bold">📄 {les.title}</span>
-                                <Badge variant="secondary" className="text-[9px] font-bold font-mono uppercase px-1.5 h-4">
-                                  {les.contentType}
-                                </Badge>
+                                <Badge variant="secondary" className="text-[9px] font-bold font-mono uppercase px-1.5 h-4">{les.contentType}</Badge>
                               </div>
-                              {les.videoUrl && (
-                                <p className="text-[10px] text-muted-foreground">
-                                  📹 Video: <code style={{ color: primaryColor }}>{les.videoUrl}</code>
-                                </p>
-                              )}
+                              {les.videoUrl && <p className="text-[10px] text-muted-foreground">📹 Video: <code style={{ color: primaryColor }}>{les.videoUrl}</code></p>}
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={userRole === "Guest"}
-                              onClick={() => {
-                                setEditingLesson(les);
-                                setEditingCourse(null);
-                                setEditingModule(null);
-                              }}
-                              className="text-xs font-semibold text-muted-foreground transition-colors"
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.color = primaryColor;
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.color = "";
-                              }}
-                            >
+                            <Button variant="ghost" size="sm" disabled={userRole === "Guest"} onClick={() => openEditLesson(les)} className="text-xs font-semibold text-muted-foreground transition-colors" onMouseEnter={(e) => { e.currentTarget.style.color = primaryColor; }} onMouseLeave={(e) => { e.currentTarget.style.color = ""; }}>
                               Configure Transcript &rarr;
                             </Button>
                           </div>
                         ))}
-                        {mod.lessons.length === 0 && (
-                          <p className="text-xs text-muted-foreground italic">No lessons inside this module.</p>
-                        )}
+                        {mod.lessons.length === 0 && <p className="text-xs text-muted-foreground italic">No lessons inside this module.</p>}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Capstone Project Section */}
               {enableCapstone && (
                 <div className="border-t border-border/80 pt-6 space-y-4">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
-                      Capstone Project
-                    </h3>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={userRole === "Guest"}
-                      onClick={() => {
-                        setEditingCapstone(selectedCourse.capstoneProject || {
-                          title: `${selectedCourse.name} - Capstone Project`,
-                          description: "",
-                          difficulty: "Intermediate",
-                          durationWeeks: 4
-                        });
-                      }}
-                      className="text-xs font-bold border"
-                      style={{
-                        borderColor: `${primaryColor}30`,
-                        backgroundColor: `${primaryColor}0c`,
-                        color: primaryColor,
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = `${primaryColor}1a`;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = `${primaryColor}0c`;
-                      }}
-                    >
+                    <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">Capstone Project</h3>
+                    <Button size="sm" variant="outline" disabled={userRole === "Guest"} onClick={() => openEditCapstone(selectedCourse.capstoneProject || { title: `${selectedCourse.name} - Capstone Project`, description: "", difficulty: "Intermediate", durationWeeks: 4 })} className="text-xs font-bold border" style={{ borderColor: `${primaryColor}30`, backgroundColor: `${primaryColor}0c`, color: primaryColor }}>
                       {selectedCourse.capstoneProject ? "Edit Capstone" : "Assign Capstone"}
                     </Button>
                   </div>
-
                   {selectedCourse.capstoneProject ? (
                     <div className="p-4 rounded-xl border border-border/60 bg-muted/5 space-y-3">
                       <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-extrabold text-foreground">
-                          🏆 {selectedCourse.capstoneProject.title}
-                        </h4>
+                        <h4 className="text-sm font-extrabold text-foreground">🏆 {selectedCourse.capstoneProject.title}</h4>
                         <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-[9px] font-bold font-mono uppercase px-1.5 h-4">
-                            {selectedCourse.capstoneProject.difficulty}
-                          </Badge>
-                          <Badge variant="secondary" className="text-[9px] font-bold font-mono uppercase px-1.5 h-4">
-                            {selectedCourse.capstoneProject.durationWeeks} Weeks
-                          </Badge>
+                          <Badge variant="secondary" className="text-[9px] font-bold font-mono uppercase px-1.5 h-4">{selectedCourse.capstoneProject.difficulty}</Badge>
+                          <Badge variant="secondary" className="text-[9px] font-bold font-mono uppercase px-1.5 h-4">{selectedCourse.capstoneProject.durationWeeks} Weeks</Badge>
                         </div>
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                        {selectedCourse.capstoneProject.description}
-                      </p>
+                      <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{selectedCourse.capstoneProject.description}</p>
                     </div>
                   ) : (
-                    <div className="p-6 text-center border border-dashed border-border/60 rounded-xl text-xs text-muted-foreground">
-                      No capstone project assigned to this course. Trainees will not be prompted to submit a final project.
-                    </div>
+                    <div className="p-6 text-center border border-dashed border-border/60 rounded-xl text-xs text-muted-foreground">No capstone project assigned to this course.</div>
                   )}
                 </div>
               )}
@@ -500,115 +305,52 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
           </Card>
         ) : (
           <Card className="border-border">
-            <CardContent className="p-12 text-center text-muted-foreground">
-              Select a course to inspect its modules and content structure.
-            </CardContent>
+            <CardContent className="p-12 text-center text-muted-foreground">Select a course to inspect its modules and content structure.</CardContent>
           </Card>
         )}
       </div>
 
-      {/* Editing Course Modal */}
+      {/* ── Edit Course Modal ─────────────────────────────────────────────── */}
       {editingCourse && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form
-            onSubmit={handleUpdateCourse}
-            className="bg-slate-950 border border-border p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl"
-          >
+          <form onSubmit={handleUpdateCourse} className="bg-slate-950 border border-border p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
             <h3 className="text-lg font-bold text-foreground">Edit Course Properties</h3>
-
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground font-bold uppercase">Course Code</Label>
-              <Input
-                type="text"
-                required
-                value={editingCourse.code}
-                onChange={(e) => setEditingCourse({ ...editingCourse, code: e.target.value })}
-                className="h-10 text-xs"
-              />
+              <Input type="text" required value={editingCourse.code} onChange={(e) => patchEditingCourse({ code: e.target.value })} className="h-10 text-xs" />
             </div>
-
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground font-bold uppercase">Course Name</Label>
-              <Input
-                type="text"
-                required
-                value={editingCourse.name}
-                onChange={(e) => setEditingCourse({ ...editingCourse, name: e.target.value })}
-                className="h-10 text-xs"
-              />
+              <Input type="text" required value={editingCourse.name} onChange={(e) => patchEditingCourse({ name: e.target.value })} className="h-10 text-xs" />
             </div>
-
             <div className="space-y-2">
               <Label className="text-xs text-slate-400 font-bold uppercase">Description</Label>
-              <textarea
-                value={editingCourse.description || ""}
-                onChange={(e) => setEditingCourse({ ...editingCourse, description: e.target.value })}
-                className="w-full h-24 bg-transparent border border-input rounded-lg p-2.5 text-xs text-white resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
-              />
+              <textarea value={editingCourse.description || ""} onChange={(e) => patchEditingCourse({ description: e.target.value })} className="w-full h-24 bg-transparent border border-input rounded-lg p-2.5 text-xs text-white resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none" />
             </div>
-
             <div className="space-y-3 pt-2 border-t border-border/40">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-xs font-bold text-foreground">Deliver via SCORM Package</Label>
                   <p className="text-[10px] text-muted-foreground">Bypasses curriculum roadmap lessons with a single SCORM zip.</p>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={editingCourse.scormEnabled || false}
-                  onChange={(e) => setEditingCourse({ ...editingCourse, scormEnabled: e.target.checked })}
-                  className="w-4 h-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
-                />
+                <input type="checkbox" checked={editingCourse.scormEnabled || false} onChange={(e) => patchEditingCourse({ scormEnabled: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500" />
               </div>
-
               {editingCourse.scormEnabled && (
                 <div className="space-y-2 bg-slate-900/50 p-3 rounded-xl border border-border/50">
-                  <Label className="text-[10px] text-slate-400 font-bold uppercase block">
-                    SCORM Zip Package (.zip)
-                  </Label>
+                  <Label className="text-[10px] text-slate-400 font-bold uppercase block">SCORM Zip Package (.zip)</Label>
                   <div className="flex gap-2">
-                    <Input
-                      type="text"
-                      value={editingCourse.scormPackageUrl || ""}
-                      placeholder="Upload SCORM zip below"
-                      readOnly
-                      className="h-9 text-[10px] flex-1 bg-slate-950 border-border"
-                    />
-                    <input
-                      type="file"
-                      ref={courseScormFileRef}
-                      accept=".zip"
-                      onChange={handleCourseScormZipUpload}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      disabled={courseScormUploading}
-                      onClick={() => courseScormFileRef.current?.click()}
-                      className="h-9 px-3 text-[10px] font-bold shrink-0 bg-sky-600 hover:bg-sky-500 text-white"
-                    >
+                    <Input type="text" value={editingCourse.scormPackageUrl || ""} placeholder="Upload SCORM zip below" readOnly className="h-9 text-[10px] flex-1 bg-slate-950 border-border" />
+                    <input type="file" ref={courseScormFileRef} accept=".zip" onChange={handleCourseScormZipUpload} className="hidden" />
+                    <Button type="button" disabled={courseScormUploading} onClick={() => courseScormFileRef.current?.click()} className="h-9 px-3 text-[10px] font-bold shrink-0 bg-sky-600 hover:bg-sky-500 text-white">
                       {courseScormUploading ? "Extracting…" : "Upload Zip"}
                     </Button>
                   </div>
                 </div>
               )}
             </div>
-
             <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setEditingCourse(null)}
-                className="text-xs font-bold"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="text-xs font-bold"
-                style={{ backgroundColor: primaryColor, color: "#fff" }}
-              >
+              <Button type="button" variant="ghost" onClick={closeEditCourse} className="text-xs font-bold">Cancel</Button>
+              <Button type="submit" disabled={isSubmitting} className="text-xs font-bold" style={{ backgroundColor: primaryColor, color: "#fff" }}>
                 {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>
@@ -616,50 +358,22 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
         </div>
       )}
 
-      {/* Editing Module Modal */}
+      {/* ── Edit Module Modal ─────────────────────────────────────────────── */}
       {editingModule && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form
-            onSubmit={handleUpdateModule}
-            className="bg-slate-950 border border-border p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl"
-          >
+          <form onSubmit={handleUpdateModule} className="bg-slate-950 border border-border p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
             <h3 className="text-lg font-bold text-foreground">Edit Module Properties</h3>
-
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground font-bold uppercase">Module Title</Label>
-              <Input
-                type="text"
-                required
-                value={editingModule.name}
-                onChange={(e) => setEditingModule({ ...editingModule, name: e.target.value })}
-                className="h-10 text-xs"
-              />
+              <Input type="text" required value={editingModule.name} onChange={(e) => patchEditingModule({ name: e.target.value })} className="h-10 text-xs" />
             </div>
-
             <div className="space-y-2">
               <Label className="text-xs text-slate-400 font-bold uppercase">Description</Label>
-              <textarea
-                value={editingModule.description || ""}
-                onChange={(e) => setEditingModule({ ...editingModule, description: e.target.value })}
-                className="w-full h-24 bg-transparent border border-input rounded-lg p-2.5 text-xs text-white resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
-              />
+              <textarea value={editingModule.description || ""} onChange={(e) => patchEditingModule({ description: e.target.value })} className="w-full h-24 bg-transparent border border-input rounded-lg p-2.5 text-xs text-white resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none" />
             </div>
-
             <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setEditingModule(null)}
-                className="text-xs font-bold"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="text-xs font-bold"
-                style={{ backgroundColor: primaryColor, color: "#fff" }}
-              >
+              <Button type="button" variant="ghost" onClick={closeEditModule} className="text-xs font-bold">Cancel</Button>
+              <Button type="submit" disabled={isSubmitting} className="text-xs font-bold" style={{ backgroundColor: primaryColor, color: "#fff" }}>
                 {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>
@@ -667,33 +381,18 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
         </div>
       )}
 
-      {/* Editing Lesson Modal */}
+      {/* ── Edit Lesson Modal ─────────────────────────────────────────────── */}
       {editingLesson && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form
-            onSubmit={handleUpdateLesson}
-            className="bg-popover border border-border p-6 rounded-2xl max-w-lg w-full space-y-4 shadow-2xl"
-          >
+          <form onSubmit={handleUpdateLesson} className="bg-popover border border-border p-6 rounded-2xl max-w-lg w-full space-y-4 shadow-2xl">
             <h3 className="text-lg font-bold text-foreground">Configure Lesson & Resources</h3>
-
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground font-bold uppercase">Lesson Title</Label>
-              <Input
-                type="text"
-                required
-                value={editingLesson.title}
-                onChange={(e) => setEditingLesson({ ...editingLesson, title: e.target.value })}
-                className="h-10 text-xs"
-              />
+              <Input type="text" required value={editingLesson.title} onChange={(e) => patchEditingLesson({ title: e.target.value })} className="h-10 text-xs" />
             </div>
-
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground font-bold uppercase">Content Type</Label>
-              <select
-                value={editingLesson.contentType}
-                onChange={(e) => setEditingLesson({ ...editingLesson, contentType: e.target.value })}
-                className="w-full h-10 bg-card border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
+              <select value={editingLesson.contentType} onChange={(e) => patchEditingLesson({ contentType: e.target.value })} className="w-full h-10 bg-card border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
                 <option value="video" className="bg-card text-foreground">Video Lesson</option>
                 <option value="text" className="bg-card text-foreground">Text / Notes / PDF</option>
                 <option value="live_class" className="bg-card text-foreground">Live Class / Zoom</option>
@@ -702,72 +401,33 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
                 <option value="scorm" className="bg-card text-foreground">Interactive SCORM Package</option>
               </select>
             </div>
-
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground font-bold uppercase">Video URL (Optional)</Label>
-              <Input
-                type="url"
-                value={editingLesson.videoUrl || ""}
-                placeholder="https://youtube.com/... or cloudflarestream.com/..."
-                onChange={(e) => setEditingLesson({ ...editingLesson, videoUrl: e.target.value })}
-                className="h-10 text-xs"
-              />
+              <Input type="url" value={editingLesson.videoUrl || ""} placeholder="https://youtube.com/..." onChange={(e) => patchEditingLesson({ videoUrl: e.target.value })} className="h-10 text-xs" />
             </div>
-
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground font-bold uppercase">
                 {editingLesson.contentType === "scorm" ? "SCORM Launch URL" : "Worksheet PDF / Document URL (Optional)"}
               </Label>
               <div className="flex gap-2">
-                <Input
-                  type={editingLesson.contentType === "scorm" ? "text" : "url"}
-                  value={editingLesson.fileUrl || ""}
-                  placeholder={editingLesson.contentType === "scorm" ? "Upload a SCORM zip below or paste a launch URL" : "https://example.com/handout.pdf"}
-                  onChange={(e) => setEditingLesson({ ...editingLesson, fileUrl: e.target.value })}
-                  readOnly={editingLesson.contentType === "scorm"}
-                  className="h-10 text-xs flex-1"
-                />
+                <Input type={editingLesson.contentType === "scorm" ? "text" : "url"} value={editingLesson.fileUrl || ""} placeholder={editingLesson.contentType === "scorm" ? "Upload a SCORM zip below or paste a launch URL" : "https://example.com/handout.pdf"} onChange={(e) => patchEditingLesson({ fileUrl: e.target.value })} readOnly={editingLesson.contentType === "scorm"} className="h-10 text-xs flex-1" />
                 {editingLesson.contentType === "scorm" && (
                   <>
                     <input type="file" ref={scormFileRef} accept=".zip" onChange={handleScormZipUpload} className="hidden" />
-                    <Button
-                      type="button"
-                      disabled={scormUploading}
-                      onClick={() => scormFileRef.current?.click()}
-                      className="h-10 px-3 text-xs font-bold shrink-0"
-                    >
+                    <Button type="button" disabled={scormUploading} onClick={() => scormFileRef.current?.click()} className="h-10 px-3 text-xs font-bold shrink-0">
                       {scormUploading ? "Extracting…" : "Upload .zip"}
                     </Button>
                   </>
                 )}
               </div>
             </div>
-
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground font-bold uppercase">Transcript / Core Text Notes</Label>
-              <textarea
-                value={editingLesson.content || ""}
-                placeholder="Add lecture transcripts, code snippets, or notes..."
-                onChange={(e) => setEditingLesson({ ...editingLesson, content: e.target.value })}
-                className="w-full h-40 bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-y focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
-              />
+              <textarea value={editingLesson.content || ""} placeholder="Add lecture transcripts, code snippets, or notes..." onChange={(e) => patchEditingLesson({ content: e.target.value })} className="w-full h-40 bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-y focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none" />
             </div>
-
             <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setEditingLesson(null)}
-                className="text-xs font-bold"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="text-xs font-bold"
-                style={{ backgroundColor: primaryColor, color: "#fff" }}
-              >
+              <Button type="button" variant="ghost" onClick={closeEditLesson} className="text-xs font-bold">Cancel</Button>
+              <Button type="submit" disabled={isSubmitting} className="text-xs font-bold" style={{ backgroundColor: primaryColor, color: "#fff" }}>
                 {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>
@@ -775,82 +435,38 @@ export function CourseManagerConsole({ initialCourses, primaryColor = "#0284c7",
         </div>
       )}
 
-      {/* Editing Capstone Project Modal */}
+      {/* ── Edit Capstone Modal ───────────────────────────────────────────── */}
       {editingCapstone && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form
-            onSubmit={handleUpdateCapstone}
-            className="bg-slate-950 border border-border p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl"
-          >
+          <form onSubmit={handleUpdateCapstone} className="bg-slate-950 border border-border p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
             <h3 className="text-lg font-bold text-foreground">
               {selectedCourse?.capstoneProject ? "Edit Capstone Project" : "Assign Capstone Project"}
             </h3>
-
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground font-bold uppercase">Project Title</Label>
-              <Input
-                type="text"
-                required
-                value={editingCapstone.title}
-                onChange={(e) => setEditingCapstone({ ...editingCapstone, title: e.target.value })}
-                className="h-10 text-xs"
-              />
+              <Input type="text" required value={editingCapstone.title} onChange={(e) => patchEditingCapstone({ title: e.target.value })} className="h-10 text-xs" />
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground font-bold uppercase">Difficulty</Label>
-                <select
-                  value={editingCapstone.difficulty}
-                  onChange={(e) => setEditingCapstone({ ...editingCapstone, difficulty: e.target.value })}
-                  className="w-full h-10 bg-card border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
+                <select value={editingCapstone.difficulty} onChange={(e) => patchEditingCapstone({ difficulty: e.target.value })} className="w-full h-10 bg-card border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
                   <option value="Easy" className="bg-card text-foreground">Easy</option>
                   <option value="Intermediate" className="bg-card text-foreground">Intermediate</option>
                   <option value="Advanced" className="bg-card text-foreground">Advanced</option>
                 </select>
               </div>
-
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground font-bold uppercase">Duration (Weeks)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={52}
-                  required
-                  value={editingCapstone.durationWeeks}
-                  onChange={(e) => setEditingCapstone({ ...editingCapstone, durationWeeks: parseInt(e.target.value) || 4 })}
-                  className="h-10 text-xs"
-                />
+                <Input type="number" min={1} max={52} required value={editingCapstone.durationWeeks} onChange={(e) => patchEditingCapstone({ durationWeeks: parseInt(e.target.value) || 4 })} className="h-10 text-xs" />
               </div>
             </div>
-
             <div className="space-y-2">
               <Label className="text-xs text-slate-400 font-bold uppercase">Description & Guidelines</Label>
-              <textarea
-                required
-                value={editingCapstone.description || ""}
-                onChange={(e) => setEditingCapstone({ ...editingCapstone, description: e.target.value })}
-                placeholder="Detail submission requirements, Git repository guidelines, and PDF report constraints..."
-                className="w-full h-40 bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
-              />
+              <textarea required value={editingCapstone.description || ""} onChange={(e) => patchEditingCapstone({ description: e.target.value })} placeholder="Detail submission requirements, Git repository guidelines, and PDF report constraints..." className="w-full h-40 bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none" />
             </div>
-
             <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setEditingCapstone(null)}
-                className="text-xs font-bold"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="text-xs font-bold"
-                style={{ backgroundColor: primaryColor, color: "#fff" }}
-              >
+              <Button type="button" variant="ghost" onClick={closeEditCapstone} className="text-xs font-bold">Cancel</Button>
+              <Button type="submit" disabled={isSubmitting} className="text-xs font-bold" style={{ backgroundColor: primaryColor, color: "#fff" }}>
                 {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import confetti from "canvas-confetti";
+import { useGamificationStore } from "@/store";
 
 interface Course {
   id: string;
@@ -51,10 +52,8 @@ export function DashboardClient({ user, tenant, studentProfile, courses }: Dashb
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Gamification & Streak Local State
-  const [streak, setStreak] = useState(5);
-  const [xp, setXp] = useState(450);
-  const [level, setLevel] = useState(3);
+  // Gamification & Streak Store State
+  const { xp, level, streakCount: streak, awardXP } = useGamificationStore();
   
   // Pomodoro Local State
   const [pTime, setPTime] = useState(1500); // 25 min default
@@ -74,14 +73,7 @@ export function DashboardClient({ user, tenant, studentProfile, courses }: Dashb
   useEffect(() => {
     setMounted(true);
     if (typeof window !== "undefined") {
-      const savedStreak = localStorage.getItem("student_streak");
-      const savedXp = localStorage.getItem("student_xp");
-      const savedLevel = localStorage.getItem("student_level");
       const savedGoals = localStorage.getItem("student_goals");
-
-      if (savedStreak) setStreak(parseInt(savedStreak));
-      if (savedXp) setXp(parseInt(savedXp));
-      if (savedLevel) setLevel(parseInt(savedLevel));
       if (savedGoals) setGoals(JSON.parse(savedGoals));
     }
   }, []);
@@ -126,22 +118,10 @@ export function DashboardClient({ user, tenant, studentProfile, courses }: Dashb
     if (pMode === "work") {
       // Award XP
       const addedXp = 50;
-      const newXp = xp + addedXp;
-      let newLevel = level;
-      let levelUp = false;
+      const newLevel = Math.floor((xp + addedXp) / 100) + 1;
+      const levelUp = newLevel > level;
 
-      // Simple level check (e.g. 500 XP per level)
-      const xpNeeded = level * 200;
-      if (newXp >= xpNeeded) {
-        newLevel += 1;
-        levelUp = true;
-      }
-
-      setXp(newXp);
-      setLevel(newLevel);
-      localStorage.setItem("student_xp", newXp.toString());
-      localStorage.setItem("student_level", newLevel.toString());
-      window.dispatchEvent(new Event("gamification-update"));
+      awardXP(addedXp);
 
       if (levelUp) {
         setTimeout(() => {
@@ -187,10 +167,7 @@ export function DashboardClient({ user, tenant, studentProfile, courses }: Dashb
     // Add micro XP for completing goal
     const goal = goals.find(g => g.id === id);
     if (goal && !goal.done) {
-      const newXp = xp + 15;
-      setXp(newXp);
-      localStorage.setItem("student_xp", newXp.toString());
-      window.dispatchEvent(new Event("gamification-update"));
+      awardXP(15);
       confetti({ particleCount: 20, spread: 30, origin: { y: 0.8 } });
     }
   };

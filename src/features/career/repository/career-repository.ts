@@ -132,8 +132,7 @@ export class CareerRepository {
         location: updates.location,
         updatedAt: new Date(),
       })
-      .where(and(eq(jobPostings.id, jobId), eq(jobPostings.tenantId, tenantId)))
-      .returning();
+      
     return updatedJob;
   }
 

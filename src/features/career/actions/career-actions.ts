@@ -13,7 +13,7 @@ const jobPostingSchema = z.object({
   company: z.string().min(2, "Company name is required."),
   description: z.string().min(10, "Description must be detailed."),
   requirements: z.string().min(10, "Requirements must be detailed."),
-  salary: z.string().optional(),
+  salary: z.string().nullable().optional(),
   location: z.string().min(2, "Location is required."),
 });
 
@@ -86,7 +86,7 @@ export async function createJobPostingAction(formData: {
       parsed.data.company,
       parsed.data.description,
       parsed.data.requirements,
-      parsed.data.salary || "",
+      parsed.data.salary ?? "",
       parsed.data.location
     );
 
@@ -113,13 +113,15 @@ export async function updateJobPostingAction(jobId: string, formData: any) {
     }
 
     const job = await CareerRepository.updateJobPosting(user.tenantId, jobId, {
+    
       title: parsed.data.title,
       company: parsed.data.company,
       description: parsed.data.description,
       requirements: parsed.data.requirements,
-      salary: parsed.data.salary || "",
+      salary: parsed.data.salary ?? "",
       location: parsed.data.location,
     });
+    console.log("DB job after update", job);
 
     revalidatePath("/career");
     revalidatePath("/admin/placement");
