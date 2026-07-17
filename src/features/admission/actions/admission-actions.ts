@@ -693,3 +693,59 @@ export async function verifyAndCompleteRazorpayPaymentAction(
     return { success: false, error: error.message || "Failed to complete Razorpay checkout." };
   }
 }
+
+/**
+ * Protected Admin Action: Verify or reject admission documents.
+ */
+export async function updateDocumentStatusAction(
+  documentId: string,
+  status: "verified" | "rejected",
+  reason?: string
+) {
+  const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
+  verifyWriteAccess(user);
+
+  try {
+    const [doc] = await db
+      .update(schema.admissionDocuments)
+      .set({ status, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.admissionDocuments.id, documentId),
+          eq(schema.admissionDocuments.tenantId, user.tenantId)
+        )
+      )
+      .returning();
+
+    if (!doc) {
+      return { success: false, error: "Document not found." };
+    }
+
+    // Fetch applicant details
+    const app = await db.query.admissionApplications.findFirst({
+      where: eq(schema.admissionApplications.id, doc.applicationId),
+    });
+
+    if (app && status === "rejected") {
+      try {
+        const { sendTenantEmail } = require("@/features/notification/services/mail-service");
+        await sendTenantEmail(user.tenantId, {
+          to: app.email,
+          subject: `Admission Document Rejected - ${doc.documentName}`,
+          html: `<p>Hi ${app.firstName},</p>
+                 <p>Your uploaded document <strong>${doc.documentName}</strong> has been rejected during review.</p>
+                 ${reason ? `<p><strong>Reason for rejection:</strong> ${reason}</p>` : ""}
+                 <p>Please log in to your application portal and upload a valid document to continue your onboarding process.</p>
+                 <p>Best regards,<br/>Admissions Team</p>`
+        });
+      } catch (mailErr) {
+        console.error("Failed to send document rejection email:", mailErr);
+      }
+    }
+
+    revalidatePath("/admin/admissions");
+    return { success: true, data: doc };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to update document status." };
+  }
+}
