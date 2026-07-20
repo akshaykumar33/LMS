@@ -1406,7 +1406,7 @@ export function WorkspaceClient({
                   </video>
 
                   {/* Top Header Overlay: Displays the Lesson Title */}
-                  <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex flex-col justify-start z-10">
+                  <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex flex-col justify-start z-10">
                     <span className="text-[9px] font-black text-primary tracking-widest uppercase" style={{ color: primaryColor }}>
                       Now Playing
                     </span>
@@ -1419,7 +1419,7 @@ export function WorkspaceClient({
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                     <button 
                       onClick={playPauseVideo}
-                      className="w-12 h-12 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto hover:scale-105 hover:bg-black/85 cursor-pointer shadow-lg border border-white/10"
+                      className="w-12 h-12 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto hover:scale-105 hover:bg-black/85 cursor-pointer shadow-lg border border-white/10"
                     >
                       {isPlaying ? (
                         <Pause className="w-5 h-5 fill-white text-white" />
@@ -1430,7 +1430,7 @@ export function WorkspaceClient({
                   </div>
 
                   {/* Custom Controls Bar Overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2 pointer-events-auto z-10">
+                  <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2 pointer-events-auto z-10">
                     {/* Progress Slider */}
                     <div className="flex items-center gap-2">
                       <input 
@@ -1675,7 +1675,8 @@ export function WorkspaceClient({
               
               {/* Tab Navigation header */}
               <div className="h-11 border-b border-border bg-card/25 flex items-center justify-between px-6 shrink-0">
-                <div className="flex gap-2">
+                <div className="flex-1 overflow-x-auto scrollbar-none flex items-center mr-4">
+                  <div className="flex gap-2 min-w-max">
                   {((): any[] => {
                     const list = [
                       { id: "material", label: "Study Materials", icon: FileText },
@@ -1707,6 +1708,7 @@ export function WorkspaceClient({
                     );
                   })}
                 </div>
+              </div>
                 
                 {activeTab === "notes" && notesSaving && (
                   <span className="text-[9px] text-muted-foreground font-semibold flex items-center gap-1.5">

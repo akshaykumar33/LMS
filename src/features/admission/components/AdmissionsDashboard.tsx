@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useAdmissionsStore } from "@/store";
-import { approveApplicationAction, rejectApplicationAction, getApplicationDetailsAction, updateTenantPaymentSettingsAction } from "../actions/admission-actions";
+import { approveApplicationAction, rejectApplicationAction, getApplicationDetailsAction, updateTenantPaymentSettingsAction, updateDocumentStatusAction } from "../actions/admission-actions";
 import { formatReadableDate } from "@/utils/date-formatter";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { LogOut, Search, Filter, X } from "lucide-react";
@@ -137,6 +137,38 @@ export function AdmissionsDashboard({
       }
     } catch (err) {
       alert("Failed to load application details.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUpdateDocStatus = async (docId: string, status: "verified" | "rejected") => {
+    let reason = "";
+    if (status === "rejected") {
+      reason = prompt("Please enter the reason for rejecting this document:") || "";
+      if (!reason) {
+        alert("Rejection reason is required.");
+        return;
+      }
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await updateDocumentStatusAction(docId, status, reason);
+      if (res.success) {
+        if (selectedApp) {
+          setSelectedApp({
+            ...selectedApp,
+            documents: (selectedApp.documents || []).map((d: any) =>
+              d.id === docId ? { ...d, status } : d
+            ),
+          });
+        }
+      } else {
+        alert(res.error || "Failed to update document status.");
+      }
+    } catch (err: any) {
+      alert(err.message || "An unexpected error occurred.");
     } finally {
       setActionLoading(false);
     }
@@ -562,11 +594,31 @@ export function AdmissionsDashboard({
                             View File Link &rarr;
                           </a>
                         </div>
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                          doc.status === "verified" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                        }`}>
-                          {doc.status}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                            doc.status === "verified" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                            doc.status === "rejected" ? "bg-rose-500/10 text-rose-500 border border-rose-500/20" :
+                            "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                          }`}>
+                            {doc.status}
+                          </span>
+                          {doc.status !== "verified" && doc.status !== "rejected" && userRole !== "Guest" && (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleUpdateDocStatus(doc.id, "verified")}
+                                className="px-2 py-1 text-[9px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded cursor-pointer transition-colors"
+                              >
+                                Verify
+                              </button>
+                              <button
+                                onClick={() => handleUpdateDocStatus(doc.id, "rejected")}
+                                className="px-2 py-1 text-[9px] font-bold bg-rose-600 hover:bg-rose-500 text-white rounded cursor-pointer transition-colors"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))
                   ) : (

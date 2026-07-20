@@ -535,6 +535,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
               <span>{streakCount}d</span>
             </div>
           )}
+          <ThemeSwitcher />
           <NotificationBell />
         </div>
       </header>

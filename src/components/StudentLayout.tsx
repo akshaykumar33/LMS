@@ -258,6 +258,7 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
           <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href="/dashboard" />
         </div>
         <div className="flex items-center gap-2">
+          <ThemeSwitcher />
           <div className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/10 border border-amber-500/25 rounded-lg text-amber-500 text-xs font-black">
             <Flame className="w-3.5 h-3.5 text-amber-500 fill-amber-500 animate-pulse" />
             <span>{streakCount}d</span>
