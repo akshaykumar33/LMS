@@ -11,6 +11,8 @@ interface SignupPageProps {
 }
 
 export default async function SignupPage({ searchParams }: SignupPageProps) {
+  redirect("/login?error=self_signup_disabled");
+  /*
   const tenant = await getTenantContext();
 
   if (!tenant) {
@@ -61,7 +63,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
 
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-background p-6 relative overflow-hidden min-h-screen">
-      {/* Background decoration */}
+      {/* Background decoration }
       <div 
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[140px] pointer-events-none opacity-10"
         style={{ backgroundColor: primaryColor }}
@@ -83,4 +85,5 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
       </div>
     </div>
   );
+  */
 }

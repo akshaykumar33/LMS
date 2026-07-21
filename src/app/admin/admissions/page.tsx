@@ -5,7 +5,7 @@ import { AdmissionRepository } from "@/features/admission/repository/admission-r
 import { AdmissionsDashboard } from "@/features/admission/components/AdmissionsDashboard";
 import { logoutAction } from "@/features/auth/actions/auth-actions";
 import { db, dbSubdomainStorage } from "@/db/db";
-import { batches, users } from "@/db/schema";
+import { batches, users, courses } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { DashboardLayout } from "@/components/DashboardLayout";
 
@@ -28,6 +28,11 @@ export default async function AdminAdmissionsPage() {
   // 5. Load batches list
   const batchesList = await db.query.batches.findMany({
     where: inArray(batches.tenantId, scopedTenantIds),
+  });
+
+  // Load courses list
+  const coursesList = await db.query.courses.findMany({
+    where: inArray(courses.tenantId, scopedTenantIds),
   });
 
   // Action wrapper for logout
@@ -73,6 +78,7 @@ export default async function AdminAdmissionsPage() {
           })),
         }))}
         batches={batchesList.map((b: any) => ({ id: b.id, name: b.name }))}
+        courses={coursesList.map((c: any) => ({ id: c.id, name: c.name, code: c.code }))}
         primaryColor={tenant.branding?.primaryColor}
         logoutHandler={handleLogout}
         userRole={user.role}
