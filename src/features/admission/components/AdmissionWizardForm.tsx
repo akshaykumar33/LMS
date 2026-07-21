@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { submitAdmissionApplicationAction, submitDocumentAction } from "../actions/admission-actions";
-import { AlertCircle, CheckCircle, ArrowLeft, ArrowRight, Upload, CreditCard, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle, ArrowLeft, ArrowRight, Upload, CreditCard, Loader2, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,7 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   // Form Fields State
   const [formData, setFormData] = useState({
@@ -43,8 +44,8 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
     gpaOrPercentage: "",
     graduationYear: new Date().getFullYear().toString(),
     experienceMonths: "0",
-    documentName: "Undergraduate Degree Transcript",
-    fileUrl: "",
+    selectedDocType: "Undergraduate Degree Transcript",
+    uploadedDocs: [] as { documentName: string; fileUrl: string }[],
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -87,6 +88,18 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (formData.uploadedDocs.length >= 3) {
+      setError("You can only upload up to 3 documents.");
+      return;
+    }
+
+    // Check if document type is already uploaded
+    const isAlreadyUploaded = formData.uploadedDocs.some(d => d.documentName === formData.selectedDocType);
+    if (isAlreadyUploaded) {
+      setError(`You have already uploaded a document for '${formData.selectedDocType}'.`);
+      return;
+    }
+
     setError(null);
     setUploading(true);
 
@@ -98,37 +111,53 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
         throw new Error(res.error || "Failed to generate presigned upload URL.");
       }
 
-      if (res.uploadUrl.startsWith("/")) {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-      } else {
-        const uploadRes = await fetch(res.uploadUrl, {
-          method: "PUT",
-          body: file,
-          headers: {
-            "Content-Type": file.type,
-          },
-        });
+      const uploadRes = await fetch(res.uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": file.type,
+        },
+      });
 
-        if (!uploadRes.ok) {
-          throw new Error(`S3 upload failed: ${uploadRes.statusText}`);
-        }
+      if (!uploadRes.ok) {
+        throw new Error(`Upload failed: ${uploadRes.statusText}`);
       }
 
-      setFormData({
-        ...formData,
-        fileUrl: res.fileUrl,
-      });
+      setFormData(prev => ({
+        ...prev,
+        uploadedDocs: [
+          ...prev.uploadedDocs,
+          { documentName: prev.selectedDocType, fileUrl: res.fileUrl }
+        ]
+      }));
     } catch (err: any) {
-      setError(err.message || "Failed to upload document to S3.");
+      setError(err.message || "Failed to upload document.");
     } finally {
       setUploading(false);
+      e.target.value = "";
     }
+  };
+
+  const handleRemoveDoc = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      uploadedDocs: prev.uploadedDocs.filter((_, i) => i !== index)
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.fileUrl) {
-      setError("Please upload your transcripts file to proceed.");
+    
+    // Require at least one document
+    if (formData.uploadedDocs.length === 0) {
+      setError("Please upload at least one document (e.g. Undergraduate Degree Transcript) to proceed.");
+      return;
+    }
+
+    // Require transcript specifically as P0
+    const hasTranscript = formData.uploadedDocs.some(d => d.documentName === "Undergraduate Degree Transcript");
+    if (!hasTranscript) {
+      setError("Undergraduate Degree Transcript is required.");
       return;
     }
 
@@ -159,15 +188,15 @@ export function AdmissionWizardForm({ batches, tenantName, primaryColor }: Admis
 
       const appId = appResult.applicationId!;
 
-      // 2. Submit Document
-      const docResult = await submitDocumentAction(appId, formData.documentName, formData.fileUrl);
-
-      if (!docResult.success) {
-        console.warn("Document submission failed:", docResult.error);
+      // 2. Submit all uploaded documents
+      for (const doc of formData.uploadedDocs) {
+        const docResult = await submitDocumentAction(appId, doc.documentName, doc.fileUrl);
+        if (!docResult.success) {
+          console.warn(`Failed to submit document ${doc.documentName}:`, docResult.error);
+        }
       }
 
-      // Redirect immediately to payment screen
-      router.push(`/checkout?appId=${appId}`);
+      setSubmitted(true);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred during submission.");
       setLoading(false);
@@ -192,6 +221,37 @@ function isOldEnough(dobString: string) {
 
   return age >= MIN_AGE_YEARS;
 }
+
+  if (submitted) {
+    return (
+      <Card className="w-full max-w-xl backdrop-blur-lg shadow-2xl border-border/60">
+        <CardContent className="p-8 space-y-6 text-center text-xs">
+          <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <CheckCircle className="w-10 h-10" />
+          </div>
+          <div className="space-y-2">
+            <CardTitle className="text-xl font-bold text-foreground">Application Submitted!</CardTitle>
+            <CardDescription className="text-sm text-muted-foreground leading-normal">
+              Your application has been successfully recorded and is now under review.
+            </CardDescription>
+          </div>
+          <div className="p-4 rounded-xl border border-border bg-background/30 text-left space-y-2 text-xs">
+            <p><strong>Applicant Name:</strong> {formData.firstName} {formData.lastName}</p>
+            <p><strong>Email Address:</strong> {formData.email}</p>
+            <p><strong>Next Steps:</strong> The admissions team will review your transcripts and academic details. Once approved, your student credentials will be shared manually by the administration. No payment is required for this phase.</p>
+          </div>
+          <Button
+            onClick={() => router.push("/login")}
+            className="w-full h-10 text-xs font-bold shadow-md"
+            style={{ backgroundColor: brandColor, color: "#fff" }}
+          >
+            Return to Sign In
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="w-full max-w-xl backdrop-blur-lg shadow-2xl border-border/60">
       <CardContent className="p-8 space-y-6 text-xs">
@@ -404,50 +464,79 @@ function isOldEnough(dobString: string) {
         {/* Step 3: Document Upload */}
         {step === 3 && (
           <div className="space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground border-b border-border pb-2">3. Transcript Upload (S3 Sandbox)</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground border-b border-border pb-2">3. Document Upload (S3 Sandbox)</h3>
             
-            <div className="space-y-4 p-6 border-2 border-dashed border-border bg-background/30 rounded-2xl flex flex-col items-center justify-center text-center">
-              <div className="space-y-1">
-                <p className="text-xs font-bold text-foreground">
-                  {formData.documentName}
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  Upload your consolidated academic transcripts (PDF, max 5MB).
-                </p>
-              </div>
-
-              {uploading ? (
-                <div className="flex flex-col items-center gap-2 p-4">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                  <span className="text-[10px] text-muted-foreground font-mono">Uploading securely to S3...</span>
-                </div>
-              ) : formData.fileUrl ? (
-                <div className="space-y-3 w-full">
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-2.5 rounded-lg text-[10px] w-full flex items-center justify-between">
-                    <span className="truncate max-w-[200px] font-mono">{formData.fileUrl}</span>
-                    <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[9px]">
-                      ✓ Uploaded
-                    </Badge>
+            <div className="space-y-4">
+              {/* Uploaded Documents List */}
+              {formData.uploadedDocs.length > 0 && (
+                <div className="space-y-2 w-full text-left">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Uploaded Documents ({formData.uploadedDocs.length}/3)</p>
+                  <div className="grid gap-2">
+                    {formData.uploadedDocs.map((doc, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 border border-border bg-card/25 backdrop-blur-sm rounded-xl text-xs">
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-foreground">{doc.documentName}</p>
+                          <p className="text-[9px] text-muted-foreground font-mono truncate max-w-[260px]">{doc.fileUrl}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDoc(idx)}
+                          className="p-1.5 hover:bg-rose-500/10 rounded-lg text-rose-400 hover:text-rose-300 transition-colors cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                  <button 
-                    type="button" 
-                    onClick={() => setFormData({ ...formData, fileUrl: "" })}
-                    className="text-[9px] text-slate-400 hover:text-white underline block mx-auto cursor-pointer"
-                  >
-                    Clear and upload another file
-                  </button>
+                </div>
+              )}
+
+              {/* Upload Selector and Zone */}
+              {formData.uploadedDocs.length < 3 ? (
+                <div className="space-y-4 w-full text-left mt-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Select Document Type</Label>
+                    <Select
+                      value={formData.selectedDocType}
+                      onValueChange={(val) => setFormData(prev => ({ ...prev, selectedDocType: val }))}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Select document type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Undergraduate Degree Transcript">Undergraduate Degree Transcript *</SelectItem>
+                        <SelectItem value="Identity Proof (Passport/National ID)">Identity Proof (Passport/National ID)</SelectItem>
+                        <SelectItem value="High School Certificate">High School Certificate</SelectItem>
+                        <SelectItem value="Resume / CV">Resume / CV</SelectItem>
+                        <SelectItem value="Experience Certificate">Experience Certificate</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="p-6 border-2 border-dashed border-border bg-background/30 rounded-2xl flex flex-col items-center justify-center text-center">
+                    {uploading ? (
+                      <div className="flex flex-col items-center gap-2 py-4">
+                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground font-mono">Uploading to server...</span>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center gap-2 cursor-pointer hover:border-slate-500 py-4 px-6 rounded-xl transition-all w-full">
+                        <Upload className="w-5 h-5 text-muted-foreground" />
+                        <span className="text-[10px] font-bold text-muted-foreground">Choose Document File (PDF/Image)</span>
+                        <input
+                          type="file"
+                          accept="application/pdf,image/*"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
               ) : (
-                <label className="flex flex-col items-center gap-2 cursor-pointer border border-dashed border-border/80 hover:border-slate-500 p-6 rounded-xl transition-all w-full">
-                  <Upload className="w-5 h-5 text-muted-foreground" />
-                  <span className="text-[10px] font-bold text-muted-foreground">Choose Transcript Document</span>
-                  <input
-                    type="file"
-                    accept="application/pdf,image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </label>
+                <div className="p-4 border border-emerald-500/20 bg-emerald-500/5 rounded-xl text-center text-xs text-emerald-400 font-semibold">
+                  ✓ Maximum document limit of 3 files reached. Please review or submit.
+                </div>
               )}
             </div>
           </div>
@@ -484,7 +573,7 @@ function isOldEnough(dobString: string) {
             <Button
               type="button"
               onClick={handleSubmit}
-              disabled={loading || !formData.fileUrl}
+              disabled={loading || formData.uploadedDocs.length === 0}
               className="h-10 px-6 text-xs font-bold shadow-md"
               style={{ backgroundColor: brandColor, color: "#fff" }}
             >
@@ -492,7 +581,7 @@ function isOldEnough(dobString: string) {
                 <><Loader2 className="w-4 h-4 animate-spin mr-1.5" /> Submitting...</>
               ) : (
                 <>
-                  Submit Application & Proceed to Payment <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                  Submit Application <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                 </>
               )}
             </Button>

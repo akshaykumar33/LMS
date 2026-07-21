@@ -413,14 +413,44 @@ input:-webkit-autofill:active {
 
 /* Invert date picker calendar icon for dark background visibility */
 input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.85);
   cursor: pointer;
-  opacity: 0.7;
+  opacity: 0.85 !important;
+  filter: brightness(0.3) contrast(1.2) !important;
   transition: opacity 0.15s ease, filter 0.15s ease;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator:hover {
-  filter: invert(1);
+  opacity: 1 !important;
+  filter: brightness(0) !important;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85) brightness(1) !important;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  filter: invert(1) brightness(1.2) !important;
+}
+
+/* Ensure native input controls (spinners, calendars) align with light/dark themes */
+input, select, textarea {
+  color-scheme: light;
+}
+
+.dark input, .dark select, .dark textarea {
+  color-scheme: dark;
+}
+
+/* Stylize webkit number inputs spinner buttons for responsive pointer indicators */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+input[type="number"]::-webkit-inner-spin-button:hover,
+input[type="number"]::-webkit-outer-spin-button:hover {
   opacity: 1;
 }
 
