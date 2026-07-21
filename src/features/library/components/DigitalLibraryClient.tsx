@@ -17,6 +17,18 @@ interface LibraryItem {
   fileUrl: string;
   category: string;
   createdAt: Date | string;
+  // ── Metadata fields (nullable — existing rows won't have these) ────────
+  tags?: string[] | null;
+  targetCourseIds?: string[] | null;
+  format?: string | null;
+  metadata?: {
+    readingLevel?: "beginner" | "intermediate" | "advanced";
+    language?: string;
+    pageCount?: number;
+    aiIndexed?: boolean;
+    aiSummary?: string;
+    aiKeywords?: string[];
+  } | null;
 }
 
 interface DigitalLibraryClientProps {
@@ -45,6 +57,9 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
   const [description, setDescription] = useState("");
   const [fileUrl, setFileUrl] = useState("");
   const [category, setCategory] = useState("worksheet");
+  const [format, setFormat] = useState("");
+  // Tags stored as a comma-separated string in the input; split on submit
+  const [tagsInput, setTagsInput] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const isStaff = userRole && ["Owner", "Admin", "Faculty", "Program Manager"].includes(userRole);
@@ -66,8 +81,14 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
     setDescription("");
     setFileUrl("");
     setCategory("worksheet");
+    setFormat("");
+    setTagsInput("");
     setErrorMessage(null);
   };
+
+  /** Parse comma-separated tags string into a cleaned string[] */
+  const parseTags = (raw: string): string[] =>
+    raw.split(",").map(t => t.trim()).filter(Boolean);
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +106,8 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
         description: description.trim() || "",
         fileUrl,
         category,
+        format: format || undefined,
+        tags: parseTags(tagsInput).length ? parseTags(tagsInput) : undefined,
       });
 
       if (res.success) {
@@ -113,6 +136,8 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
         description: description.trim() || "",
         fileUrl,
         category,
+        format: format || undefined,
+        tags: parseTags(tagsInput).length ? parseTags(tagsInput) : undefined,
       });
 
       if (res.success) {
@@ -142,10 +167,12 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
   };
 
   const filteredItems = items.filter(item => {
-    const matchesSearch = 
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.author && item.author.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      item.title.toLowerCase().includes(q) ||
+      (item.author && item.author.toLowerCase().includes(q)) ||
+      (item.description && item.description.toLowerCase().includes(q)) ||
+      (item.tags && item.tags.some(tag => tag.toLowerCase().includes(q)));
 
     const matchesCategory = selectedCategory === "all" || item.category === selectedCategory;
 
@@ -303,6 +330,8 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
                           setDescription(item.description || "");
                           setFileUrl(item.fileUrl);
                           setCategory(item.category);
+                          setFormat(item.format || "");
+                          setTagsInput(item.tags ? item.tags.join(", ") : "");
                           setEditingItem(item);
                           setIsEditDialogOpen(true);
                         }}
@@ -390,22 +419,52 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="add-category" className="text-xs font-bold text-muted-foreground uppercase">Category</Label>
+                <select
+                  id="add-category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="book" className="bg-card text-foreground">Textbook</option>
+                  <option value="research_paper" className="bg-card text-foreground">Research Paper</option>
+                  <option value="manual" className="bg-card text-foreground">Reference Manual</option>
+                  <option value="worksheet" className="bg-card text-foreground">Practice Sheet / Worksheet</option>
+                  <option value="excel" className="bg-card text-foreground">Excel Spreadsheet</option>
+                  <option value="ppt" className="bg-card text-foreground">Presentation Slide</option>
+                  <option value="audio" className="bg-card text-foreground">Audio Briefing</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="add-format" className="text-xs font-bold text-muted-foreground uppercase">Format</Label>
+                <select
+                  id="add-format"
+                  value={format}
+                  onChange={(e) => setFormat(e.target.value)}
+                  className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="" className="bg-card text-foreground">— Select —</option>
+                  <option value="pdf" className="bg-card text-foreground">PDF</option>
+                  <option value="epub" className="bg-card text-foreground">EPUB</option>
+                  <option value="docx" className="bg-card text-foreground">DOCX</option>
+                  <option value="video" className="bg-card text-foreground">Video</option>
+                  <option value="audio" className="bg-card text-foreground">Audio</option>
+                  <option value="scorm" className="bg-card text-foreground">SCORM</option>
+                </select>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
-              <Label htmlFor="add-category" className="text-xs font-bold text-muted-foreground uppercase">Category</Label>
-              <select
-                id="add-category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="book" className="bg-card text-foreground">Textbook</option>
-                <option value="research_paper" className="bg-card text-foreground">Research Paper</option>
-                <option value="manual" className="bg-card text-foreground">Reference Manual</option>
-                <option value="worksheet" className="bg-card text-foreground">Practice Sheet / Worksheet</option>
-                <option value="excel" className="bg-card text-foreground">Excel Spreadsheet</option>
-                <option value="ppt" className="bg-card text-foreground">Presentation Slide</option>
-                <option value="audio" className="bg-card text-foreground">Audio Briefing</option>
-              </select>
+              <Label htmlFor="add-tags" className="text-xs font-bold text-muted-foreground uppercase">Tags <span className="normal-case font-normal">(comma-separated)</span></Label>
+              <Input
+                id="add-tags"
+                value={tagsInput}
+                onChange={(e) => setTagsInput(e.target.value)}
+                placeholder="e.g. VLSI, CMOS, beginner, digital-design"
+                className="bg-secondary/40 border border-border rounded-xl text-xs"
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -503,22 +562,52 @@ export function DigitalLibraryClient({ items, userRole, primaryColor = "#0284c7"
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-category" className="text-xs font-bold text-muted-foreground uppercase">Category</Label>
+                <select
+                  id="edit-category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="book" className="bg-card text-foreground">Textbook</option>
+                  <option value="research_paper" className="bg-card text-foreground">Research Paper</option>
+                  <option value="manual" className="bg-card text-foreground">Reference Manual</option>
+                  <option value="worksheet" className="bg-card text-foreground">Practice Sheet / Worksheet</option>
+                  <option value="excel" className="bg-card text-foreground">Excel Spreadsheet</option>
+                  <option value="ppt" className="bg-card text-foreground">Presentation Slide</option>
+                  <option value="audio" className="bg-card text-foreground">Audio Briefing</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-format" className="text-xs font-bold text-muted-foreground uppercase">Format</Label>
+                <select
+                  id="edit-format"
+                  value={format}
+                  onChange={(e) => setFormat(e.target.value)}
+                  className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="" className="bg-card text-foreground">— Select —</option>
+                  <option value="pdf" className="bg-card text-foreground">PDF</option>
+                  <option value="epub" className="bg-card text-foreground">EPUB</option>
+                  <option value="docx" className="bg-card text-foreground">DOCX</option>
+                  <option value="video" className="bg-card text-foreground">Video</option>
+                  <option value="audio" className="bg-card text-foreground">Audio</option>
+                  <option value="scorm" className="bg-card text-foreground">SCORM</option>
+                </select>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
-              <Label htmlFor="edit-category" className="text-xs font-bold text-muted-foreground uppercase">Category</Label>
-              <select
-                id="edit-category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="book" className="bg-card text-foreground">Textbook</option>
-                <option value="research_paper" className="bg-card text-foreground">Research Paper</option>
-                <option value="manual" className="bg-card text-foreground">Reference Manual</option>
-                <option value="worksheet" className="bg-card text-foreground">Practice Sheet / Worksheet</option>
-                <option value="excel" className="bg-card text-foreground">Excel Spreadsheet</option>
-                <option value="ppt" className="bg-card text-foreground">Presentation Slide</option>
-                <option value="audio" className="bg-card text-foreground">Audio Briefing</option>
-              </select>
+              <Label htmlFor="edit-tags" className="text-xs font-bold text-muted-foreground uppercase">Tags <span className="normal-case font-normal">(comma-separated)</span></Label>
+              <Input
+                id="edit-tags"
+                value={tagsInput}
+                onChange={(e) => setTagsInput(e.target.value)}
+                placeholder="e.g. VLSI, CMOS, beginner, digital-design"
+                className="bg-secondary/40 border border-border rounded-xl text-xs"
+              />
             </div>
 
             <div className="space-y-1.5">

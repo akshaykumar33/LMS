@@ -506,6 +506,7 @@ function getRelationsForTable(tableName: string): any {
     certificates: schema.certificatesRelations,
     audit_logs: schema.auditLogsRelations,
     digital_library: schema.digitalLibraryRelations,
+    library_ai_contexts: schema.libraryAiContextRelations,
     lesson_progress: schema.lessonProgressRelations,
     course_progress: schema.courseProgressRelations,
     projects: schema.projectsRelations,
