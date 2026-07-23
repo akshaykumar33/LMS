@@ -19,3 +19,81 @@
 [ADMISSION ACTION] submitApplication success: 334c4405-d765-49f1-8491-9f3341a1c593
 [ADMISSION DOCUMENT] starting doc submit: 334c4405-d765-49f1-8491-9f3341a1c593, Undergraduate Degree Transcript, /uploads/3c1598f4-6e79-4dc5-96c1-e10f1beff95d/1784120249894-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
 [ADMISSION DOCUMENT] invalid schema
+[ADMISSION ACTION] starting submission with: {"batchId":"52168b76-d408-457b-ad22-94565b84100b","email":"abc@mail.in","firstName":"fewef","lastName":"eefqfe","phone":"34246566","dateOfBirth":"2015-02-02","academicHistory":{"highestDegree":"B Tech","institution":"IIT","gpaOrPercentage":"9","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 03e6d706-6e79-4dc5-96c1-e10f1beff95c (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 42dbab1a-d2ec-40e7-9f88-70116962a149
+[ADMISSION DOCUMENT] starting doc submit: 42dbab1a-d2ec-40e7-9f88-70116962a149, Undergraduate Degree Transcript, /uploads/03e6d706-6e79-4dc5-96c1-e10f1beff95c/1784150655514-LMS - Bug Report.pdf
+[ADMISSION DOCUMENT] invalid schema
+[ADMISSION ACTION] starting submission with: {"batchId":"1afe3569-0590-4172-a79a-866ec53e611b","email":"in@mail.in","firstName":"eee","lastName":"err","phone":"52626767","dateOfBirth":"2014-03-17","academicHistory":{"highestDegree":"eee","institution":"IIT","gpaOrPercentage":"9","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 03e6d706-6e79-4dc5-96c1-e10f1beff95c (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 286e7692-7ed4-4e4b-b18f-bfe3229ff2a9
+[ADMISSION DOCUMENT] starting doc submit: 286e7692-7ed4-4e4b-b18f-bfe3229ff2a9, Undergraduate Degree Transcript, /uploads/03e6d706-6e79-4dc5-96c1-e10f1beff95c/1784183740965-[intel_watermarked]_Intel_-_EDA_Tools_and_Synthesis_Lab.pdf
+[ADMISSION DOCUMENT] invalid schema
+[ADMISSION ACTION] starting submission with: {"batchId":"1afe3569-0590-4172-a79a-866ec53e611b","email":"ij@mail.in","firstName":"gwfwefgwg","lastName":"fqf","phone":"455155","dateOfBirth":"2015-02-09","academicHistory":{"highestDegree":"B Tech","institution":"IIT","gpaOrPercentage":"6","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 03e6d706-6e79-4dc5-96c1-e10f1beff95c (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 761a433b-6190-45f1-bdf1-b9f10c66ab4f
+[ADMISSION DOCUMENT] starting doc submit: 761a433b-6190-45f1-bdf1-b9f10c66ab4f, Undergraduate Degree Transcript, /uploads/03e6d706-6e79-4dc5-96c1-e10f1beff95c/1784183861299-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles (1).pdf
+[ADMISSION DOCUMENT] invalid schema
+[ADMISSION ACTION] starting submission with: {"batchId":"1afe3569-0590-4172-a79a-866ec53e611b","email":"dinesh@student.com","firstName":"Dinesh","lastName":"Account","phone":"1111111111","dateOfBirth":"2013-06-04","academicHistory":{"highestDegree":"b tech","institution":"iit","gpaOrPercentage":"7","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 03e6d706-6e79-4dc5-96c1-e10f1beff95c (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: cb6097e2-a37a-4ed0-b9a3-952b55e3ff45
+[ADMISSION DOCUMENT] starting doc submit: cb6097e2-a37a-4ed0-b9a3-952b55e3ff45, Undergraduate Degree Transcript, /uploads/03e6d706-6e79-4dc5-96c1-e10f1beff95c/1784639352867-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
+[ADMISSION DOCUMENT] invalid schema
+[ADMISSION ACTION] starting submission with: {"batchId":"1afe3569-0590-4172-a79a-866ec53e611b","email":"dineshdk70707@gmail.com","firstName":"Dinesh","lastName":"test account","phone":"1111111111","dateOfBirth":"2014-01-07","academicHistory":{"highestDegree":"b tech","institution":"iit","gpaOrPercentage":"9","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 03e6d706-6e79-4dc5-96c1-e10f1beff95c (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: ddfb2b60-4994-4bda-8ef6-c23098e25073
+[ADMISSION DOCUMENT] starting doc submit: ddfb2b60-4994-4bda-8ef6-c23098e25073, Undergraduate Degree Transcript, /uploads/03e6d706-6e79-4dc5-96c1-e10f1beff95c/1784640833650-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
+[ADMISSION DOCUMENT] invalid schema
+[ADMISSION ACTION] starting submission with: {"batchId":"1afe3569-0590-4172-a79a-866ec53e611b","email":"sample@test.com","firstName":"Sample ","lastName":"Account","phone":"32","dateOfBirth":"2008-12-29","academicHistory":{"highestDegree":"b tech","institution":"iit","gpaOrPercentage":"8","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 03e6d706-6e79-4dc5-96c1-e10f1beff95c (intel)
+[ADMISSION ACTION] Zod validation failed: Phone number is required
+[ADMISSION ACTION] starting submission with: {"batchId":"1afe3569-0590-4172-a79a-866ec53e611b","email":"sample@test.com","firstName":"Sample ","lastName":"Account","phone":"3297423","dateOfBirth":"2008-12-29","academicHistory":{"highestDegree":"b tech","institution":"iit","gpaOrPercentage":"8","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 03e6d706-6e79-4dc5-96c1-e10f1beff95c (intel)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: c1e89446-ef1c-4dde-8699-8b07a53a2555
+[ADMISSION DOCUMENT] starting doc submit: c1e89446-ef1c-4dde-8699-8b07a53a2555, Undergraduate Degree Transcript, /uploads/03e6d706-6e79-4dc5-96c1-e10f1beff95c/1784641650508-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
+[ADMISSION DOCUMENT] invalid schema
+[ADMISSION ACTION] starting submission with: {"batchId":"f16e02c5-c6ba-4f8b-8c96-8a20f805fe8f","email":"Dinesh@nv-stu.com","firstName":"Dinesh","lastName":"Student","phone":"1111111111","dateOfBirth":"2015-01-07","academicHistory":{"highestDegree":"b tech","institution":"IIT","gpaOrPercentage":"9","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 3c1598f4-6e79-4dc5-96c1-e10f1beff95d (nvidia-graphics)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 4cec631a-175d-41b7-9489-809efc71536f
+[ADMISSION DOCUMENT] starting doc submit: 4cec631a-175d-41b7-9489-809efc71536f, Undergraduate Degree Transcript, /uploads/3c1598f4-6e79-4dc5-96c1-e10f1beff95d/1784643259114-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
+[ADMISSION DOCUMENT] invalid schema
+[ADMISSION ACTION] starting submission with: {"batchId":"568fdf82-b93d-4c17-9531-a788dc06ec5e","email":"sample@example.com","firstName":"Sample","lastName":"Account","phone":"3435546","dateOfBirth":"2015-12-28","academicHistory":{"highestDegree":"b tech","institution":"IIT","gpaOrPercentage":"9","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 3c1598f4-6e79-4dc5-96c1-e10f1beff95d (nvidia-graphics)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 3e3c03f5-a111-4d36-b422-692ceb4a87b1
+[ADMISSION DOCUMENT] starting doc submit: 3e3c03f5-a111-4d36-b422-692ceb4a87b1, Undergraduate Degree Transcript, /uploads/3c1598f4-6e79-4dc5-96c1-e10f1beff95d/1784643572220-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: 1bcdecd0-d07d-4a83-ac84-5ae74b3a39db
+[ADMISSION ACTION] starting submission with: {"batchId":"568fdf82-b93d-4c17-9531-a788dc06ec5e","email":"admin@synergy.com","firstName":"Dinesh","lastName":"Kumar","phone":"97823983298","dateOfBirth":"2013-02-06","academicHistory":{"highestDegree":"b tech","institution":"iit","gpaOrPercentage":"9","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 3c1598f4-6e79-4dc5-96c1-e10f1beff95d (nvidia-graphics)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: 7712dad3-7ecd-4d57-9e4b-9759c1b383a0
+[ADMISSION DOCUMENT] starting doc submit: 7712dad3-7ecd-4d57-9e4b-9759c1b383a0, Resume / CV, /uploads/3c1598f4-6e79-4dc5-96c1-e10f1beff95d/1784644145083-DINESH-Updated-SE_Resume.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: 4fd5197d-8e66-4da5-904c-f0759e4e3eeb
+[ADMISSION DOCUMENT] starting doc submit: 7712dad3-7ecd-4d57-9e4b-9759c1b383a0, Identity Proof (Passport/National ID), /uploads/3c1598f4-6e79-4dc5-96c1-e10f1beff95d/1784644164346-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: c9fb0241-e72a-4164-8894-63783ac7e35b
+[ADMISSION DOCUMENT] starting doc submit: 7712dad3-7ecd-4d57-9e4b-9759c1b383a0, Undergraduate Degree Transcript, /uploads/3c1598f4-6e79-4dc5-96c1-e10f1beff95d/1784644172327-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: dba87a62-dc9c-492a-9cf6-0c45e0a6665d
+[ADMISSION ACTION] starting submission with: {"batchId":"568fdf82-b93d-4c17-9531-a788dc06ec5e","email":"krishna+superadmin@wysbryx.com","firstName":"User","lastName":"Kumar","phone":"97823983298","dateOfBirth":"2010-02-10","academicHistory":{"highestDegree":"b tech","institution":"IIT","gpaOrPercentage":"9","graduationYear":2026,"experienceMonths":0}}
+[ADMISSION ACTION] resolved tenant: 3c1598f4-6e79-4dc5-96c1-e10f1beff95d (nvidia-graphics)
+[ADMISSION ACTION] Zod validated, calling AdmissionService.submitApplication
+[ADMISSION ACTION] submitApplication success: d57e992a-cb1b-47bc-a509-1a5215d82c80
+[ADMISSION DOCUMENT] starting doc submit: d57e992a-cb1b-47bc-a509-1a5215d82c80, Undergraduate Degree Transcript, /uploads/3c1598f4-6e79-4dc5-96c1-e10f1beff95d/1784645871200-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: 8f201be4-dcfe-401b-9217-184981ebcfc1
+[ADMISSION DOCUMENT] starting doc submit: d57e992a-cb1b-47bc-a509-1a5215d82c80, Resume / CV, /uploads/3c1598f4-6e79-4dc5-96c1-e10f1beff95d/1784645877854-DINESH-Updated-SE_Resume.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: 0d3bb4b4-f017-4596-a913-ee7d5658fb0a
+[ADMISSION DOCUMENT] starting doc submit: d57e992a-cb1b-47bc-a509-1a5215d82c80, Identity Proof (Passport/National ID), /uploads/3c1598f4-6e79-4dc5-96c1-e10f1beff95d/1784645885736-[amd_watermarked]_AMD_-_CMOS_VLSI_Design___Layout_Principles.pdf
+[ADMISSION DOCUMENT] calling AdmissionService.uploadDocument
+[ADMISSION DOCUMENT] uploadDocument success: 871128a0-9508-4aac-ad70-38dafd93484b
