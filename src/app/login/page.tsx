@@ -5,6 +5,8 @@ import { getCurrentUser } from "@/features/auth/services/session";
 import { isParentTenant, getAncestorChain } from "@/features/auth/services/is-parent-tenant";
 import { ArrowLeft } from "lucide-react";
 
+import { headers } from "next/headers";
+
 export default async function LoginPage() {
   const tenant = await getTenantContext();
   const sessionUser = await getCurrentUser();
@@ -12,6 +14,24 @@ export default async function LoginPage() {
   // If already logged in, redirect to dashboard (which handles role-based routing)
   if (sessionUser) {
     redirect("/dashboard");
+  }
+
+  // If not on the VT domain (wysbryx root or subtenants like Intel), redirect to VT login page
+  if (!tenant || tenant.subdomain !== "vt") {
+    const headersList = await headers();
+    const host = headersList.get("host") || "localhost:3000";
+    const port = host.split(":")[1] || "";
+    const portSuffix = port ? `:${port}` : "";
+    const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+    const isVercel = host.endsWith(".vercel.app");
+
+    const vtLoginUrl = isLocal
+      ? `http://vt.localhost${portSuffix}/login`
+      : isVercel
+      ? `/login?tenant=vt`
+      : `https://vt.${host}/login`;
+
+    redirect(vtLoginUrl);
   }
 
   // Allow root-domain login for SuperAdmin

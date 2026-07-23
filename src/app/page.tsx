@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers, cookies } from "next/headers";
-import { getTenantContext } from "@/features/auth/services/tenant";
+import { getTenantContext, getScopedTenantIds } from "@/features/auth/services/tenant";
 import { getShortTenantName } from "@/utils/tenant-formatter";
 import { BrandLogo } from "@/components/BrandLogo";
 import { getCurrentUser } from "@/features/auth/services/session";
@@ -18,7 +18,7 @@ import { getAncestorChain } from "@/features/auth/services/is-parent-tenant";
 
 import { OrganizationHubExplorer } from "@/components/OrganizationHubExplorer";
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<any> }) {
   const tenant = await getTenantContext();
   const headersList = await headers();
   const host = headersList.get("host") || "localhost:3000";
@@ -26,6 +26,36 @@ export default async function Home() {
   const portSuffix = port ? `:${port}` : "";
   const sessionUser = await getCurrentUser();
   const cookieStore = await cookies();
+
+  const resolvedParams = await searchParams;
+  const hasCheckedParam = resolvedParams.checked === "true";
+  const sessionChecked = cookieStore.get("session_checked")?.value;
+
+  // Set local session_checked cookie if we just returned from a check
+  if (hasCheckedParam) {
+    cookieStore.set("session_checked", "true", { path: "/" });
+  }
+
+  // Trigger silent session check for sub-tenants on first visit if not logged in
+  if (
+    !sessionUser &&
+    !sessionChecked &&
+    !hasCheckedParam &&
+    tenant &&
+    tenant.subdomain !== "vt" &&
+    tenant.subdomain !== "wysbryx"
+  ) {
+    const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+    const isVercel = host.endsWith(".vercel.app");
+
+    const parentCheckUrl = isLocal
+      ? `http://vt.localhost${portSuffix}/api/auth/check-session?subdomain=${tenant.subdomain}&returnTo=/`
+      : isVercel
+      ? `/api/auth/check-session?subdomain=${tenant.subdomain}&returnTo=/`
+      : `https://vt.${host.replace(/^[^.]+\./, "")}/api/auth/check-session?subdomain=${tenant.subdomain}&returnTo=/`;
+
+    redirect(parentCheckUrl);
+  }
 
   let themeMode = cookieStore.get("theme_mode")?.value;
   if (!themeMode) {
@@ -185,13 +215,24 @@ export default async function Home() {
   });
 
   if (chain.length === 2 && childAcademies.length > 0) {
-    // Auth Guard: Only SuperAdmin/Owner of this tenant can view the sub-tenant directory
-    if (!sessionUser || !["SuperAdmin", "Owner"].includes(sessionUser.role)) {
+    // Auth Guard: any logged-in user can view this page if they belong to this tenant or any child.
+    if (!sessionUser) {
       redirect(`/login?tenant=${tenant.subdomain}`);
     }
 
+    const allowedTenantIds = await getScopedTenantIds(sessionUser.role, sessionUser.tenantId || tenant.id);
+    const hasAccess = allowedTenantIds.includes(tenant.id) || childAcademies.some((a: any) => allowedTenantIds.includes(a.id));
+    if (!hasAccess) {
+      redirect(`/login?tenant=${tenant.subdomain}`);
+    }
+
+    // Filter child academies based on allowedTenantIds, except for SuperAdmin who sees all active
+    const filteredAcademies = sessionUser.role === "SuperAdmin"
+      ? childAcademies
+      : childAcademies.filter((a: any) => allowedTenantIds.includes(a.id));
+
     // Fetch per-tenant stats for info badges
-    const tenantIds = childAcademies.map((a: any) => a.id);
+    const tenantIds = filteredAcademies.map((a: any) => a.id);
     const statsMap: Record<string, { courseCount: number; studentCount: number; batchCount: number }> = {};
 
     for (const tid of tenantIds) {
@@ -260,12 +301,13 @@ export default async function Home() {
           </div>
 
           <OrganizationHubExplorer
-            childAcademies={childAcademies}
+            childAcademies={filteredAcademies}
             statsMap={statsMap}
             primaryColor={primaryColor}
             host={host}
             portSuffix={portSuffix}
             parentSubdomain={tenant.subdomain}
+            isLoggedIn={!!sessionUser}
           />
         </div>
       </div>

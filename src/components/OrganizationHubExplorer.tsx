@@ -28,6 +28,7 @@ interface OrganizationHubExplorerProps {
   host: string;
   portSuffix: string;
   parentSubdomain?: string;
+  isLoggedIn?: boolean;
 }
 
 export function OrganizationHubExplorer({
@@ -37,6 +38,7 @@ export function OrganizationHubExplorer({
   host,
   portSuffix,
   parentSubdomain,
+  isLoggedIn,
 }: OrganizationHubExplorerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "courses" | "students">("name");
@@ -113,11 +115,22 @@ export function OrganizationHubExplorer({
           {sortedAcademies.map((org) => {
             const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
             const isVercel = host.endsWith(".vercel.app");
-            const devUrl = isLocal
+            
+            const parentSub = parentSubdomain || "vt";
+            const checkPath = `/api/auth/check-session?subdomain=${org.subdomain}&returnTo=/`;
+            const checkUrl = isLocal
+              ? `http://${parentSub}.localhost${portSuffix}${checkPath}`
+              : isVercel
+              ? checkPath
+              : `https://${parentSub}.${host.replace(/^[^.]+\./, "")}${checkPath}`;
+
+            const standardUrl = isLocal
               ? `http://${org.subdomain}.localhost${portSuffix}`
               : isVercel
               ? `/?tenant=${org.subdomain}`
               : `https://${org.subdomain}.${host}`;
+
+            const devUrl = isLoggedIn ? checkUrl : standardUrl;
             const pColor = org.branding?.primaryColor || primaryColor;
             const stats = statsMap[org.id] || { courseCount: 0, studentCount: 0, batchCount: 0 };
 
