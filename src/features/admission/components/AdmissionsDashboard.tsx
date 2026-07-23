@@ -512,7 +512,14 @@ export function AdmissionsDashboard({
                         <span className="group-hover:text-primary transition-colors">{app.firstName} {app.lastName}</span>
                       </td>
                       <td className="py-4 px-6 text-muted-foreground">{app.email}</td>
-                      <td className="py-4 px-6 font-semibold text-foreground">{app.batch.name}</td>
+                      <td className="py-4 px-6 font-semibold text-foreground">
+                        <div>{app.batch.name}</div>
+                        {(app.batch as any).status && (
+                          <span className={`inline-flex items-center text-[8.5px] font-black uppercase px-1 rounded bg-secondary text-muted-foreground mt-1`}>
+                            {(app.batch as any).status}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-4 px-6 text-muted-foreground">
                         {formatReadableDate(app.createdAt)}
                       </td>

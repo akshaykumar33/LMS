@@ -25,7 +25,8 @@ export type FacultyTab =
   | "submissions"
   | "proctoring"
   | "schedule"
-  | "curriculum";
+  | "curriculum"
+  | "subjective";
 
 export interface ProctorEvent {
   type: string;

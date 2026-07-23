@@ -185,20 +185,21 @@ export class FacultyRepository {
       }
     });
 
-    const scormTelemetry = scormProgressRows
-      .filter((p: any) => p.lesson?.contentType === "scorm")
-      .map((p: any) => {
-        const data = (p.scormData || {}) as Record<string, string>;
-        return {
-          lessonTitle: p.lesson?.title || "Unknown Lesson",
-          courseName: p.lesson?.module?.course?.name || "",
-          completed: p.completed,
-          score: data["cmi.core.score.raw"] || data["cmi.score.raw"] || null,
-          timeSpentSeconds: parseInt(data["_total_time_seconds"] || "0", 10),
-          bookmark: data["cmi.core.lesson_location"] || data["cmi.location"] || null,
-          status: data["cmi.core.lesson_status"] || data["cmi.completion_status"] || "not attempted",
-        };
-      });
+    const scormTelemetry = scormProgressRows.map((p: any) => {
+      const data = (p.scormData || {}) as Record<string, string>;
+      return {
+        lessonTitle: p.lesson?.title || "Unknown Lesson",
+        contentType: p.lesson?.contentType || "text",
+        courseName: p.lesson?.module?.course?.name || "",
+        completed: p.completed,
+        score: data["cmi.core.score.raw"] || data["cmi.score.raw"] || null,
+        timeSpentSeconds: p.totalTimeSpentSeconds || parseInt(data["_total_time_seconds"] || "0", 10),
+        bookmark: data["cmi.core.lesson_location"] || data["cmi.location"] || (p.videoResumeOffsetSeconds ? `${p.videoResumeOffsetSeconds}s` : null),
+        status: p.completed ? "completed" : data["cmi.core.lesson_status"] || data["cmi.completion_status"] || "in progress",
+        videoMaxWatchedPercent: p.videoMaxWatchedPercent || 0,
+        zoomAttendanceLogs: p.zoomAttendanceLogs || [],
+      };
+    });
 
     // Fetch course-level SCORM progress
     const courseProgressRows = await db.query.courseProgress.findMany({
@@ -212,12 +213,15 @@ export class FacultyRepository {
       const data = (p.scormData || {}) as Record<string, string>;
       return {
         lessonTitle: "SCORM Course Package",
+        contentType: "scorm",
         courseName: p.course?.name || "",
         completed: p.completed,
         score: data["cmi.core.score.raw"] || data["cmi.score.raw"] || null,
         timeSpentSeconds: parseInt(data["_total_time_seconds"] || "0", 10),
         bookmark: data["cmi.core.lesson_location"] || data["cmi.location"] || null,
         status: data["cmi.core.lesson_status"] || data["cmi.completion_status"] || "not attempted",
+        videoMaxWatchedPercent: 0,
+        zoomAttendanceLogs: [],
       };
     });
 
