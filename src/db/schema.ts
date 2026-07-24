@@ -106,6 +106,7 @@ export const batches = pgTable("batches", {
   capacity: integer("capacity").notNull().default(50),
   startDate: timestamp("start_date", { withTimezone: true }),
   endDate: timestamp("end_date", { withTimezone: true }),
+  status: varchar("status", { length: 50 }).notNull().default("upcoming"), // upcoming, ongoing, completed, cancelled
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -113,6 +114,29 @@ export const batches = pgTable("batches", {
   return {
     tenantBatchIdx: index("batches_tenant_idx").on(table.tenantId),
   };
+});
+
+// 6b. BATCH INSTRUCTORS TABLE
+export const batchInstructors = pgTable("batch_instructors", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  batchId: uuid("batch_id").notNull().references(() => batches.id, { onDelete: "cascade" }),
+  instructorId: uuid("instructor_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// 6c. BATCH SESSIONS TABLE (Timetable / Calendar)
+export const batchSessions = pgTable("batch_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  batchId: uuid("batch_id").notNull().references(() => batches.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  instructorId: uuid("instructor_id").references(() => users.id, { onDelete: "set null" }),
+  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+  endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+  meetingUrl: text("meeting_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // 7. ADMISSION APPLICATIONS TABLE
@@ -183,6 +207,7 @@ export const students = pgTable("students", {
   rollNumber: varchar("roll_number", { length: 100 }).notNull(),
   admissionNumber: varchar("admission_number", { length: 100 }).notNull(),
   resumeUrl: text("resume_url"),
+  competencyLevel: varchar("competency_level", { length: 50 }).notNull().default("Beginner"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => {
@@ -207,6 +232,7 @@ export const courses = pgTable("courses", {
   syllabus: text("syllabus"),
   scormEnabled: boolean("scorm_enabled").notNull().default(false),
   scormPackageUrl: text("scorm_package_url"),
+  unlockPolicy: varchar("unlock_policy", { length: 50 }).notNull().default("free"), // free, sequential, competency
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -247,6 +273,7 @@ export const lessons = pgTable("lessons", {
   fileUrl: text("file_url"),
   zoomMeetingId: varchar("zoom_meeting_id", { length: 100 }),
   zoomPasscode: varchar("zoom_passcode", { length: 100 }),
+  difficulty: varchar("difficulty", { length: 50 }).notNull().default("Beginner"), // Beginner, Advanced
   order: integer("order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -335,6 +362,19 @@ export const batchesRelations = relations(batches, ({ one, many }) => ({
   applications: many(admissionApplications),
   students: many(students),
   courseBatches: many(courseBatches),
+  instructors: many(batchInstructors),
+  sessions: many(batchSessions),
+}));
+
+export const batchInstructorsRelations = relations(batchInstructors, ({ one }) => ({
+  batch: one(batches, { fields: [batchInstructors.batchId], references: [batches.id] }),
+  instructor: one(users, { fields: [batchInstructors.instructorId], references: [users.id] }),
+}));
+
+export const batchSessionsRelations = relations(batchSessions, ({ one }) => ({
+  tenant: one(tenants, { fields: [batchSessions.tenantId], references: [tenants.id] }),
+  batch: one(batches, { fields: [batchSessions.batchId], references: [batches.id] }),
+  instructor: one(users, { fields: [batchSessions.instructorId], references: [users.id] }),
 }));
 
 export const admissionApplicationsRelations = relations(admissionApplications, ({ one, many }) => ({
@@ -509,11 +549,64 @@ export const digitalLibrary = pgTable("digital_library", {
   description: text("description"),
   fileUrl: text("file_url").notNull(),
   category: varchar("category", { length: 100 }).notNull().default("book"), // book, research_paper, manual, worksheet
+  // ── Metadata Extension ──────────────────────────────────────────────────
+  // Free-form tags for search and filtering (e.g. ["VLSI", "CMOS", "beginner"])
+  tags: jsonb("tags").$type<string[]>(),
+  // Course IDs this resource is relevant to — enables per-course library views
+  targetCourseIds: jsonb("target_course_ids").$type<string[]>(),
+  // Physical file format: pdf | video | epub | docx | audio | scorm
+  format: varchar("format", { length: 50 }),
+  // Extensible bag for AI Book Bot context: readingLevel, language, aiIndexed, summary, etc.
+  metadata: jsonb("metadata").$type<{
+    readingLevel?: "beginner" | "intermediate" | "advanced";
+    language?: string;
+    pageCount?: number;
+    aiIndexed?: boolean;   // true once AI Bot has parsed and indexed this resource
+    aiSummary?: string;    // AI-generated abstract for semantic search context
+    aiKeywords?: string[]; // AI-extracted keywords for retrieval
+  }>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const digitalLibraryRelations = relations(digitalLibrary, ({ one }) => ({
+export const digitalLibraryRelations = relations(digitalLibrary, ({ one, many }) => ({
   tenant: one(tenants, { fields: [digitalLibrary.tenantId], references: [tenants.id] }),
+  // Parsed context chunks for AI Book Bot retrieval
+  aiContexts: many(libraryAiContext),
+}));
+
+// 23b. LIBRARY AI CONTEXT TABLE
+// Stores parsed document chunks for AI Book Bot context retrieval.
+// One digital_library item → many chunks (one-to-many).
+// Design decisions:
+//   - chunkText: the raw text segment extracted from the document
+//   - tokenCount: pre-computed for LLM context-window budget planning
+//   - embedding: jsonb placeholder for a float[] vector (swap in pgvector when ready)
+//   - parseJobId: external job queue ID for async parsing pipelines
+//   - status: tracks per-chunk lifecycle (pending → processing → completed | failed)
+export const libraryAiContext = pgTable("library_ai_contexts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  libraryItemId: uuid("library_item_id").notNull().references(() => digitalLibrary.id, { onDelete: "cascade" }),
+  // Ordinal position of this chunk within the document (0-based)
+  chunkIndex: integer("chunk_index").notNull().default(0),
+  // The actual parsed text content of this chunk
+  chunkText: text("chunk_text").notNull(),
+  // Number of tokens in this chunk (useful for LLM context window budgeting)
+  tokenCount: integer("token_count"),
+  // Embedding vector placeholder — store as float[] for future pgvector migration
+  embedding: jsonb("embedding").$type<number[]>(),
+  // External job ID for async parse pipelines (e.g. Celery task ID, queue message ID)
+  parseJobId: varchar("parse_job_id", { length: 255 }),
+  // Per-chunk parse lifecycle status
+  status: varchar("status", { length: 50 }).notNull().default("pending"),
+  // Timestamp when this chunk was successfully parsed
+  parsedAt: timestamp("parsed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const libraryAiContextRelations = relations(libraryAiContext, ({ one }) => ({
+  tenant: one(tenants, { fields: [libraryAiContext.tenantId], references: [tenants.id] }),
+  libraryItem: one(digitalLibrary, { fields: [libraryAiContext.libraryItemId], references: [digitalLibrary.id] }),
 }));
 
 // 24. LESSON PROGRESS TABLE (Real progress tracking)
@@ -523,6 +616,10 @@ export const lessonProgress = pgTable("lesson_progress", {
   lessonId: uuid("lesson_id").notNull().references(() => lessons.id, { onDelete: "cascade" }),
   completed: boolean("completed").notNull().default(false),
   scormData: jsonb("scorm_data").$type<any>(),
+  videoResumeOffsetSeconds: integer("video_resume_offset_seconds").default(0),
+  videoMaxWatchedPercent: integer("video_max_watched_percent").default(0),
+  totalTimeSpentSeconds: integer("total_time_spent_seconds").default(0),
+  zoomAttendanceLogs: jsonb("zoom_attendance_logs").$type<{ joinedAt: string; leftAt: string; durationSeconds: number }[]>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => {
   return {
@@ -579,6 +676,7 @@ export const courseProgress = pgTable("course_progress", {
   id: uuid("id").defaultRandom().primaryKey(),
   studentId: uuid("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
   courseId: uuid("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
+  lastVisitedLessonId: uuid("last_visited_lesson_id").references(() => lessons.id, { onDelete: "set null" }),
   completed: boolean("completed").notNull().default(false),
   scormData: jsonb("scorm_data").$type<any>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -591,7 +689,38 @@ export const courseProgress = pgTable("course_progress", {
 export const courseProgressRelations = relations(courseProgress, ({ one }) => ({
   student: one(students, { fields: [courseProgress.studentId], references: [students.id] }),
   course: one(courses, { fields: [courseProgress.courseId], references: [courses.id] }),
+  lastVisitedLesson: one(lessons, { fields: [courseProgress.lastVisitedLessonId], references: [lessons.id] }),
 }));
+
+// 28. SUBJECTIVE SUBMISSIONS TABLE
+export const subjectiveSubmissions = pgTable("subjective_submissions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  courseId: uuid("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
+  lessonId: uuid("lesson_id").references(() => lessons.id, { onDelete: "cascade" }),
+  studentId: uuid("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  questionText: text("question_text").notNull(),
+  studentAnswer: text("student_answer").notNull(),
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, graded
+  score: integer("score"),
+  rubrics: jsonb("rubrics").$type<{ criteria: string; score: number; maxScore: number; feedback?: string }[]>(),
+  feedback: text("feedback"),
+  evaluatedBy: uuid("evaluated_by").references(() => users.id, { onDelete: "set null" }),
+  evaluatedAt: timestamp("evaluated_at", { withTimezone: true }),
+  history: jsonb("history").$type<{ score: number; feedback?: string; rubrics?: any; evaluatedBy?: string; evaluatedAt: string }[]>(),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const subjectiveSubmissionsRelations = relations(subjectiveSubmissions, ({ one }) => ({
+  tenant: one(tenants, { fields: [subjectiveSubmissions.tenantId], references: [tenants.id] }),
+  course: one(courses, { fields: [subjectiveSubmissions.courseId], references: [courses.id] }),
+  lesson: one(lessons, { fields: [subjectiveSubmissions.lessonId], references: [lessons.id] }),
+  student: one(students, { fields: [subjectiveSubmissions.studentId], references: [students.id] }),
+  evaluator: one(users, { fields: [subjectiveSubmissions.evaluatedBy], references: [users.id] }),
+}));
+
 
 
 

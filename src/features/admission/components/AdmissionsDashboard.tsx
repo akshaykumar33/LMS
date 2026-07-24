@@ -2,17 +2,19 @@
 
 import React, { useState } from "react";
 import { useAdmissionsStore } from "@/store";
-import { approveApplicationAction, rejectApplicationAction, getApplicationDetailsAction, updateTenantPaymentSettingsAction } from "../actions/admission-actions";
+import { approveApplicationAction, rejectApplicationAction, getApplicationDetailsAction, updateTenantPaymentSettingsAction, updateDocumentStatusAction, manualSignUpStudentAction } from "../actions/admission-actions";
+import { StudentImportModal } from "./StudentImportModal";
 import { formatReadableDate } from "@/utils/date-formatter";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
-import { LogOut, Search, Filter, X } from "lucide-react";
+import { LogOut, Search, Filter, X, ShieldAlert } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { NotificationBell } from "@/features/notification/components/NotificationBell";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
@@ -36,11 +38,15 @@ interface Application {
     paymentMethod: string;
     transactionId: string | null;
   }[];
+  isEnrolled?: boolean;
+  academicHistory?: any;
+  documents?: any[];
 }
 
 interface AdmissionsDashboardProps {
   initialApplications: Application[];
   batches: { id: string; name: string }[];
+  courses?: { id: string; name: string; code: string }[];
   primaryColor?: string;
   logoutHandler: () => Promise<void>;
   userRole?: string;
@@ -59,6 +65,7 @@ interface AdmissionsDashboardProps {
 export function AdmissionsDashboard({ 
   initialApplications, 
   batches, 
+  courses = [],
   primaryColor, 
   logoutHandler, 
   userRole,
@@ -79,12 +86,20 @@ export function AdmissionsDashboard({
     filteredApplications,
   } = useAdmissionsStore();
 
-  // Tenant payment settings state variables
   const [settingsPayRequired, setSettingsPayRequired] = useState(initialSettings?.paymentRequired !== false);
   const [settingsFee, setSettingsFee] = useState(initialSettings?.tuitionFee || "1500.00");
   const [settingsGateways, setSettingsGateways] = useState(initialSettings?.gateways || { stripe: true, razorpay: true, paypal: true });
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Manual signup states
+  const [manualPassword, setManualPassword] = useState("Password123");
+  const [manualSignupSuccess, setManualSignupSuccess] = useState(false);
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [docToRejectId, setDocToRejectId] = useState<string | null>(null);
+  const [rejectReasonText, setRejectReasonText] = useState("");
+  const [showDocRejectModal, setShowDocRejectModal] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const handleSavePaymentSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,6 +157,36 @@ export function AdmissionsDashboard({
     }
   };
 
+  const handleUpdateDocStatus = async (docId: string, status: "verified" | "rejected", reasonText?: string) => {
+    const reason = reasonText || "";
+    if (status === "rejected" && !reason.trim()) {
+      setErrorState("Rejection reason is required.");
+      return;
+    }
+
+    setActionLoading(true);
+    setErrorState(null);
+    try {
+      const res = await updateDocumentStatusAction(docId, status, reason);
+      if (res.success) {
+        if (selectedApp) {
+          setSelectedApp({
+            ...selectedApp,
+            documents: (selectedApp.documents || []).map((d: any) =>
+              d.id === docId ? { ...d, status } : d
+            ),
+          });
+        }
+      } else {
+        setErrorState(res.error || "Failed to update document status.");
+      }
+    } catch (err: any) {
+      setErrorState(err.message || "An unexpected error occurred.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleApprove = async () => {
     if (!selectedApp) return;
     setActionLoading(true);
@@ -150,8 +195,11 @@ export function AdmissionsDashboard({
     try {
       const result = await approveApplicationAction(selectedApp.id);
       if (result.success) {
-        setEnrollmentResult(result);
         updateApplicationStatus(selectedApp.id, "approved");
+        setSelectedApp({
+          ...selectedApp,
+          status: "approved",
+        } as any);
       } else {
         setErrorState(result.error || "Approval failed.");
       }
@@ -162,10 +210,40 @@ export function AdmissionsDashboard({
     }
   };
 
-  const handleReject = async () => {
+  const handleManualSignUp = async () => {
     if (!selectedApp) return;
-    if (!confirm("Are you sure you want to reject this application?")) return;
+    if (!manualPassword.trim()) {
+      setErrorState("Please enter a password.");
+      return;
+    }
     setActionLoading(true);
+    setErrorState(null);
+
+    try {
+      const result = await manualSignUpStudentAction(selectedApp.id, manualPassword);
+      if (result.success) {
+        setEnrollmentResult(result);
+        setManualSignupSuccess(true);
+        setSelectedApp({
+          ...selectedApp,
+          isEnrolled: true,
+        } as any);
+        updateApplicationStatus(selectedApp.id, "approved");
+      } else {
+        setErrorState(result.error || "Manual signup failed.");
+      }
+    } catch (err: any) {
+      setErrorState(err.message || "An error occurred.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!selectedApp) return;
+    setActionLoading(true);
+    setShowRejectConfirm(false);
+    setErrorState(null);
 
     try {
       const result = await rejectApplicationAction(selectedApp.id);
@@ -173,10 +251,10 @@ export function AdmissionsDashboard({
         updateApplicationStatus(selectedApp.id, "rejected");
         clearSelection();
       } else {
-        alert(result.error || "Rejection failed.");
+        setErrorState(result.error || "Rejection failed.");
       }
     } catch (err: any) {
-      alert(err.message || "An error occurred.");
+      setErrorState(err.message || "An error occurred.");
     } finally {
       setActionLoading(false);
     }
@@ -196,15 +274,26 @@ export function AdmissionsDashboard({
           </div>
 
           {(userRole === "Owner" || userRole === "Admin" || userRole === "SuperAdmin") && (
-            <button
-              onClick={() => {
-                const el = document.getElementById("payment-settings-panel");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="inline-flex h-9 items-center justify-center rounded-xl bg-card border border-border px-4 text-xs font-bold text-foreground hover:bg-muted/50 cursor-pointer shadow-sm transition-all"
-            >
-              ⚙️ Payment Settings
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setIsImportModalOpen(true)}
+                className="inline-flex h-9 items-center justify-center rounded-xl text-white px-4 text-xs font-bold hover:opacity-90 cursor-pointer shadow-sm transition-all"
+                style={{ backgroundColor: brandColor }}
+              >
+                📥 Bulk Import Students
+              </button>
+              {/* DISABLED: Payment Settings button — kept for future use
+              <button
+                onClick={() => {
+                  const el = document.getElementById("payment-settings-panel");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="inline-flex h-9 items-center justify-center rounded-xl bg-card border border-border px-4 text-xs font-bold text-foreground hover:bg-muted/50 cursor-pointer shadow-sm transition-all"
+              >
+                ⚙️ Payment Settings
+              </button>
+              */}
+            </div>
           )}
         </div>
         
@@ -224,7 +313,7 @@ export function AdmissionsDashboard({
           ))}
         </div>
 
-        {/* Payment Configuration Card */}
+        {/* DISABLED: Payment Configuration Card — kept for future use
         {(userRole === "Owner" || userRole === "Admin" || userRole === "SuperAdmin") && (
           <div id="payment-settings-panel" className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-6 shadow-sm border border-border/40 space-y-5">
             <div className="space-y-1.5 border-b border-border pb-3">
@@ -337,6 +426,7 @@ export function AdmissionsDashboard({
             </form>
           </div>
         )}
+        */}
 
         {/* Filters and Controls */}
         <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-4 flex flex-col md:flex-row gap-4 justify-between items-center shadow-sm">
@@ -425,7 +515,14 @@ export function AdmissionsDashboard({
                         <span className="group-hover:text-primary transition-colors">{app.firstName} {app.lastName}</span>
                       </td>
                       <td className="py-4 px-6 text-muted-foreground">{app.email}</td>
-                      <td className="py-4 px-6 font-semibold text-foreground">{app.batch.name}</td>
+                      <td className="py-4 px-6 font-semibold text-foreground">
+                        <div>{app.batch.name}</div>
+                        {(app.batch as any).status && (
+                          <span className={`inline-flex items-center text-[8.5px] font-black uppercase px-1 rounded bg-secondary text-muted-foreground mt-1`}>
+                            {(app.batch as any).status}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-4 px-6 text-muted-foreground">
                         {formatReadableDate(app.createdAt)}
                       </td>
@@ -562,11 +659,35 @@ export function AdmissionsDashboard({
                             View File Link &rarr;
                           </a>
                         </div>
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                          doc.status === "verified" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                        }`}>
-                          {doc.status}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                            doc.status === "verified" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                            doc.status === "rejected" ? "bg-rose-500/10 text-rose-500 border border-rose-500/20" :
+                            "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                          }`}>
+                            {doc.status}
+                          </span>
+                          {doc.status !== "verified" && doc.status !== "rejected" && userRole !== "Guest" && (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleUpdateDocStatus(doc.id, "verified")}
+                                className="px-2 py-1 text-[9px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded cursor-pointer transition-colors"
+                              >
+                                Verify
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setDocToRejectId(doc.id);
+                                  setRejectReasonText("");
+                                  setShowDocRejectModal(true);
+                                }}
+                                className="px-2 py-1 text-[9px] font-bold bg-rose-600 hover:bg-rose-500 text-white rounded cursor-pointer transition-colors"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))
                   ) : (
@@ -577,6 +698,7 @@ export function AdmissionsDashboard({
                 {/* Payments */}
                 <div className="space-y-3">
                   <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-b border-border pb-1">Admissions Payment Details</h4>
+                  {/* Commented out payment details tracking for manual phase
                   {selectedApp.payments?.length > 0 ? (
                     selectedApp.payments.map((pay: any) => (
                       <div key={pay.id} className="flex items-center justify-between p-3 border border-border rounded-xl text-xs bg-surface">
@@ -594,8 +716,56 @@ export function AdmissionsDashboard({
                   ) : (
                     <p className="text-xs text-muted-foreground">No transaction records found.</p>
                   )}
+                  */}
+                  <div className="p-3 border border-dashed border-amber-500/20 bg-amber-500/5 rounded-xl text-xs text-muted-foreground flex flex-col gap-1">
+                    <p className="font-extrabold text-[10px] text-amber-500 uppercase tracking-wider">Manual Phase Enabled</p>
+                    <p className="text-[10px]">Admission applications do not require online checkouts in this phase.</p>
+                  </div>
                 </div>
               </div>
+
+              {/* Manual Student Sign Up Section */}
+              {selectedApp.status === "approved" && (
+                <div className="space-y-3 p-4 bg-primary/5 border border-primary/20 rounded-xl mt-4 shrink-0">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-primary" style={{ color: brandColor }}>
+                    🔑 Manual Student Account Provisioning (Sign Up)
+                  </h4>
+                  {(selectedApp as any).isEnrolled ? (
+                    <div className="text-xs space-y-1">
+                      <p className="text-emerald-500 font-bold">✓ Student account has been provisioned.</p>
+                      <p className="text-muted-foreground text-[10px]">Credentials have been shared manually or via email notification.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-[11px] text-muted-foreground leading-normal">
+                        This application is approved. Set a custom password below to manually create the student profile and user credentials.
+                      </p>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground" htmlFor="manual-password-input">
+                          Set Student Password
+                        </Label>
+                        <Input
+                          id="manual-password-input"
+                          type="text"
+                          placeholder="Password123"
+                          value={manualPassword}
+                          onChange={(e) => setManualPassword(e.target.value)}
+                          className="h-9 text-xs bg-background"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleManualSignUp}
+                        disabled={actionLoading || (userRole as string) === "Guest"}
+                        className="w-full h-9 text-xs font-bold shadow-md cursor-pointer"
+                        style={{ backgroundColor: brandColor, color: "#fff" }}
+                      >
+                        {actionLoading ? "Signing Up..." : "Sign Up Student Account"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Modal Actions Footer */}
               {selectedApp.status !== "approved" && selectedApp.status !== "rejected" && (
@@ -603,7 +773,7 @@ export function AdmissionsDashboard({
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={handleReject}
+                    onClick={() => setShowRejectConfirm(true)}
                     disabled={actionLoading || (userRole as string) === "Guest"}
                     className="h-10 text-xs font-bold border-red-500/30 text-red-400 hover:bg-red-950/20"
                   >
@@ -616,7 +786,7 @@ export function AdmissionsDashboard({
                     className="h-10 text-xs font-bold shadow-md"
                     style={{ backgroundColor: brandColor, color: "#fff" }}
                   >
-                    {actionLoading ? "Processing..." : (userRole as string) === "Guest" ? "Read Only" : "Approve & Enroll"}
+                    {actionLoading ? "Processing..." : (userRole as string) === "Guest" ? "Read Only" : "Approve Candidate"}
                   </Button>
                 </div>
               )}
@@ -624,6 +794,113 @@ export function AdmissionsDashboard({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Custom Rejection Confirmation Dialog */}
+      <Dialog open={showRejectConfirm} onOpenChange={setShowRejectConfirm}>
+        <DialogContent className="max-w-md p-6 bg-background text-foreground border border-border shadow-2xl rounded-2xl">
+          <DialogHeader className="space-y-3">
+            <div className="mx-auto w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
+              <ShieldAlert className="w-6 h-6 animate-bounce" />
+            </div>
+            <DialogTitle className="text-lg font-black text-center text-foreground">
+              Confirm Rejection
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground text-center leading-relaxed">
+              Are you sure you want to reject the application of <strong className="text-foreground">{selectedApp?.firstName} {selectedApp?.lastName}</strong>? This action is permanent and will notify the candidate.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="grid grid-cols-2 gap-3 mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowRejectConfirm(false)}
+              disabled={actionLoading}
+              className="h-10 text-xs font-bold"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleRejectConfirm}
+              disabled={actionLoading}
+              className="h-10 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-md transition-colors"
+            >
+              {actionLoading ? "Processing..." : "Yes, Reject Candidate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom Document Rejection Dialog */}
+      <Dialog open={showDocRejectModal} onOpenChange={setShowDocRejectModal}>
+        <DialogContent className="max-w-md p-6 bg-background text-foreground border border-border shadow-2xl rounded-2xl">
+          <DialogHeader className="space-y-3">
+            <div className="mx-auto w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
+              <ShieldAlert className="w-6 h-6 animate-bounce" />
+            </div>
+            <DialogTitle className="text-lg font-black text-center text-foreground">
+              Reject Transcript/Document
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground text-center leading-relaxed">
+              Please enter the reason for rejecting this document. This feedback will be visible to the applicant.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 mt-4">
+            <Label htmlFor="reject-reason-textarea" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Rejection Reason
+            </Label>
+            <Input
+              id="reject-reason-textarea"
+              placeholder="e.g. The transcript is blurry or missing the graduation date."
+              value={rejectReasonText}
+              onChange={(e) => setRejectReasonText(e.target.value)}
+              className="w-full text-xs bg-background h-10"
+            />
+          </div>
+
+          <DialogFooter className="grid grid-cols-2 gap-3 mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowDocRejectModal(false);
+                setDocToRejectId(null);
+              }}
+              disabled={actionLoading}
+              className="h-10 text-xs font-bold"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={async () => {
+                if (docToRejectId) {
+                  await handleUpdateDocStatus(docToRejectId, "rejected", rejectReasonText);
+                  setShowDocRejectModal(false);
+                  setDocToRejectId(null);
+                }
+              }}
+              disabled={actionLoading || !rejectReasonText.trim()}
+              className="h-10 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-md transition-colors"
+            >
+              {actionLoading ? "Processing..." : "Reject Document"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <StudentImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        batches={batches}
+        primaryColor={brandColor}
+        onImportSuccess={() => {
+          // reload the page to show newly onboarded students
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }

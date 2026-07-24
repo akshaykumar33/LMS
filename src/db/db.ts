@@ -55,12 +55,19 @@ if (useJsonDb) {
     }
   });
 } else {
-  // Base connection URL
-  const connectionStringBase = process.env.DATABASE_URL || "postgresql://postgres:postgres123@127.0.0.1:5432/postgres";
+  // Base connection URL from environment variable
+  const connectionStringBase = process.env.DATABASE_URL;
+  if (!connectionStringBase) {
+    throw new Error("DATABASE_URL environment variable is required.");
+  }
 
   // Connection registry for all active database instances
-  const dbClients = new Map<string, postgres.Sql>();
-  const subdomainDbCache = new Map<string, string>();
+  const dbClients = globalThis.dbClientsMap || new Map<string, postgres.Sql>();
+  const subdomainDbCache = globalThis.subdomainDbCacheMap || new Map<string, string>();
+  if (process.env.NODE_ENV !== "production") {
+    globalThis.dbClientsMap = dbClients;
+    globalThis.subdomainDbCacheMap = subdomainDbCache;
+  }
 
   const getDefaultDatabaseName = (): string => {
     try {
@@ -102,12 +109,9 @@ if (useJsonDb) {
     return dbClients.get(key)!;
   };
 
-  // Normalize alias subdomains to their canonical schema name
+  // Normalize subdomains cleanly
   const normalizeSubdomain = (subdomain: string): string => {
-    const s = subdomain.toLowerCase();
-    // Alias mappings
-    if (s === "vti") return "vt";
-    return s;
+    return subdomain.toLowerCase().trim();
   };
 
   const resolveDatabaseForSubdomain = async (subdomain: string): Promise<string> => {
@@ -263,7 +267,7 @@ if (useJsonDb) {
           const dbName = await resolveDatabaseForSubdomain(subdomain);
           const customDbUrl = subdomainCustomUrlCache.get(normalized);
           const activeClient = getDbClientForDatabase(dbName, customDbUrl);
-          const schemaName = `tenant_${normalized.replace(/[^a-zA-Z0-9_]/g, "")}`;
+          const schemaName = `tenant_${normalized.replace(/[^a-zA-Z0-9_]/g, "_")}`;
           
           console.log(`[DB PROXY] ROUTED QUERY -> Subdomain: "${subdomain}" (normalized: "${normalized}") | DB: "${dbName}" | Schema: "${schemaName}"`);
 
@@ -314,7 +318,7 @@ if (useJsonDb) {
             const activeClient = getDbClientForDatabase(dbName, customDbUrl);
 
             if (subdomain && subdomain !== "public") {
-              const schemaName = `tenant_${normalized.replace(/[^a-zA-Z0-9_]/g, "")}`;
+              const schemaName = `tenant_${normalized.replace(/[^a-zA-Z0-9_]/g, "_")}`;
               console.log(`[DB PROXY] ROUTED UNSAFE -> Subdomain: "${subdomain}" (normalized: "${normalized}") | DB: "${dbName}" | Schema: "${schemaName}"`);
               return await activeClient.begin(async (sql) => {
                 await sql.unsafe(`SET LOCAL search_path TO "${schemaName}", public`);
@@ -351,7 +355,7 @@ if (useJsonDb) {
             const activeClient = getDbClientForDatabase(dbName, customDbUrl);
 
             if (subdomain && subdomain !== "public") {
-              const schemaName = `tenant_${normalized.replace(/[^a-zA-Z0-9_]/g, "")}`;
+              const schemaName = `tenant_${normalized.replace(/[^a-zA-Z0-9_]/g, "_")}`;
               const originalCallback = args[0];
               console.log(`[DB PROXY] ROUTED TRANSACTION -> Subdomain: "${subdomain}" (normalized: "${normalized}") | DB: "${dbName}" | Schema: "${schemaName}"`);
               return await (activeClient as any).begin((sql: any) => {

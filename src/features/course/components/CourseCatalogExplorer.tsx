@@ -38,6 +38,21 @@ export function CourseCatalogExplorer({
   primaryColor = "#0ea5e9",
 }: CourseCatalogExplorerProps) {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
+  const [expandedCourseIds, setExpandedCourseIds] = useState<string[]>([]);
+
+  const toggleExpand = (courseId: string) => {
+    setExpandedCourseIds((prev) =>
+      prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId]
+    );
+  };
+
+  React.useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   return (
     <div className="space-y-8 w-full">
@@ -54,14 +69,19 @@ export function CourseCatalogExplorer({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {courses.map((course) => {
           const isEnrolled = enrolledCourseIds.includes(course.id);
+          const hasLiveClass = course.modules.some((mod) =>
+            mod.lessons?.some((les) => les.contentType === "live_class")
+          );
+          const isExpanded = expandedCourseIds.includes(course.id);
+          const visibleModules = isExpanded ? course.modules : course.modules.slice(0, 3);
           
           return (
             <div
               key={course.id}
-              className="bg-card border border-border/80 rounded-2xl p-6 shadow-lg transition-all flex flex-col justify-between group"
+              className="bg-card/40 backdrop-blur-sm border border-border/80 rounded-2xl p-6 shadow-lg transition-all duration-300 ease-out hover:scale-[1.02] flex flex-col justify-between group"
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = primaryColor;
-                e.currentTarget.style.boxShadow = `0 10px 30px -10px ${primaryColor}20`;
+                e.currentTarget.style.boxShadow = `0 10px 30px -10px ${primaryColor}40`;
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = "";
@@ -69,18 +89,31 @@ export function CourseCatalogExplorer({
               }}
             >
               <div className="space-y-4">
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-start flex-wrap gap-2">
                   <span 
                     className="text-[10px] font-bold px-2 py-0.5 rounded font-mono uppercase border"
                     style={{ backgroundColor: primaryColor + "10", borderColor: primaryColor + "25", color: primaryColor }}
                   >
                     {course.code}
                   </span>
-                  {isEnrolled && (
-                    <span className="bg-emerald-500/10 text-emerald-400 text-[9px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Active Enrollment
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="bg-secondary text-[9px] font-semibold px-1.5 py-0.5 rounded text-muted-foreground">
+                      {course.modules.length} mod
                     </span>
-                  )}
+                    <span className="bg-secondary text-[9px] font-semibold px-1.5 py-0.5 rounded text-muted-foreground">
+                      {course.modules.reduce((acc, mod) => acc + (mod.lessons?.length || 0), 0)} les
+                    </span>
+                    {hasLiveClass && (
+                      <span className="bg-rose-500/10 text-rose-500 dark:text-rose-400 text-[9px] font-bold px-2 py-0.5 rounded flex items-center gap-1 animate-pulse border border-rose-500/20">
+                        <span className="h-1 w-1 rounded-full bg-rose-500"></span> Live
+                      </span>
+                    )}
+                    {isEnrolled && (
+                      <span className="bg-emerald-500/10 text-emerald-400 text-[9px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Active
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <h3 
@@ -101,16 +134,28 @@ export function CourseCatalogExplorer({
                     Syllabus Outline
                   </span>
                   <div className="space-y-1.5">
-                    {course.modules.slice(0, 3).map((mod) => (
-                      <div key={mod.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {visibleModules.map((mod) => (
+                      <div key={mod.id} className="group/tooltip relative flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-help">
                         <BookOpen className="w-3.5 h-3.5 shrink-0" style={{ color: primaryColor + "cc" }} />
                         <span className="truncate">{mod.name}</span>
+                        {/* Tooltip */}
+                        <div className="absolute bottom-full left-0 mb-2 hidden group-hover/tooltip:block bg-popover text-popover-foreground border border-border text-[10px] rounded-lg p-2.5 shadow-xl max-w-[220px] w-48 z-30 animate-in fade-in duration-150">
+                          <p className="font-bold text-foreground mb-0.5">{mod.name}</p>
+                          <p className="text-muted-foreground leading-normal">{mod.description || `${mod.lessons?.length || 0} lessons included.`}</p>
+                        </div>
                       </div>
                     ))}
                     {course.modules.length > 3 && (
-                      <span className="text-[10px] italic text-muted-foreground/60 block pl-5">
-                        + {course.modules.length - 3} more modules
-                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExpand(course.id);
+                        }}
+                        className="text-[10px] font-bold mt-1.5 cursor-pointer flex items-center gap-0.5 transition-colors hover:opacity-80"
+                        style={{ color: primaryColor }}
+                      >
+                        {isExpanded ? "Collapse Syllabus ▲" : `+ ${course.modules.length - 3} more modules ▼`}
+                      </button>
                     )}
                   </div>
                 </div>
@@ -126,8 +171,7 @@ export function CourseCatalogExplorer({
                 {isEnrolled ? (
                   <a
                     href={`/courses/${course.id}`}
-                    className="flex-1 inline-flex items-center justify-center rounded-xl text-xs font-bold h-10 text-white transition-opacity text-center shadow-md cursor-pointer hover:opacity-90 active:scale-[0.98]"
-                    style={{ backgroundColor: primaryColor }}
+                    className="flex-1 inline-flex items-center justify-center rounded-xl text-xs font-bold h-10 text-white transition-all duration-300 text-center shadow-md hover:shadow-lg hover:shadow-indigo-500/20 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer bg-gradient-to-r from-sky-500 to-indigo-600"
                   >
                     Enter Workspace
                   </a>
@@ -137,13 +181,14 @@ export function CourseCatalogExplorer({
                     onClick={(e) => {
                       if (isLoggedIn) {
                         e.preventDefault();
-                        alert("You are already signed in. Please contact an admin to enroll in this batch course.");
+                        setNotification("You are already signed in. Please contact an admin to enroll in this batch course.");
                       }
                     }}
-                    className={`flex-1 inline-flex items-center justify-center rounded-xl text-xs font-bold h-10 text-white transition-opacity text-center shadow-md ${
-                      isLoggedIn ? "opacity-40 cursor-not-allowed bg-muted text-muted-foreground" : "hover:opacity-90 active:scale-[0.98] cursor-pointer"
+                    className={`flex-1 inline-flex items-center justify-center rounded-xl text-xs font-bold h-10 transition-all duration-300 text-center shadow-md ${
+                      isLoggedIn 
+                        ? "opacity-40 cursor-not-allowed bg-muted text-muted-foreground" 
+                        : "text-white active:scale-[0.98] cursor-pointer hover:-translate-y-0.5 hover:shadow-lg hover:shadow-sky-500/20 bg-gradient-to-r from-sky-500 to-indigo-600"
                     }`}
-                    style={{ backgroundColor: isLoggedIn ? undefined : primaryColor }}
                   >
                     {isLoggedIn ? "Apply Disabled" : "Apply & Buy"}
                   </a>
@@ -247,8 +292,7 @@ export function CourseCatalogExplorer({
               {enrolledCourseIds.includes(selectedCourse.id) ? (
                 <a
                   href={`/courses/${selectedCourse.id}`}
-                  className="h-10 px-6 inline-flex items-center justify-center rounded-xl text-xs font-bold text-white shadow-md cursor-pointer hover:opacity-90"
-                  style={{ backgroundColor: primaryColor }}
+                  className="h-10 px-6 inline-flex items-center justify-center rounded-xl text-xs font-bold text-white shadow-md cursor-pointer active:scale-[0.98] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/20 bg-gradient-to-r from-sky-500 to-indigo-600"
                 >
                   Enter Workspace
                 </a>
@@ -258,19 +302,35 @@ export function CourseCatalogExplorer({
                   onClick={(e) => {
                     if (isLoggedIn) {
                       e.preventDefault();
-                      alert("You are already signed in. Please contact an admin to enroll in this batch course.");
+                      setNotification("You are already signed in. Please contact an admin to enroll in this batch course.");
                     }
                   }}
-                  className={`h-10 px-6 inline-flex items-center justify-center rounded-xl text-xs font-bold text-white shadow-md ${
-                    isLoggedIn ? "opacity-40 cursor-not-allowed bg-muted text-muted-foreground" : "hover:opacity-90 cursor-pointer"
+                  className={`h-10 px-6 inline-flex items-center justify-center rounded-xl text-xs font-bold shadow-md transition-all duration-300 ${
+                    isLoggedIn 
+                      ? "opacity-40 cursor-not-allowed bg-muted text-muted-foreground" 
+                      : "text-white active:scale-[0.98] cursor-pointer hover:-translate-y-0.5 hover:shadow-lg hover:shadow-sky-500/20 bg-gradient-to-r from-sky-500 to-indigo-600"
                   }`}
-                  style={{ backgroundColor: isLoggedIn ? undefined : primaryColor }}
                 >
                   {isLoggedIn ? "Apply Disabled" : "Apply & Buy"}
                 </a>
               )}
             </div>
           </div>
+        </div>
+      )}
+      {/* Custom Popup Alert */}
+      {notification && (
+        <div className="fixed bottom-5 right-5 z-[100] max-w-sm w-full bg-popover border border-border rounded-xl shadow-2xl p-4 flex gap-3 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="flex-grow text-left">
+            <h4 className="text-xs font-black uppercase text-foreground mb-1 tracking-wider">Admission Info</h4>
+            <p className="text-xs text-muted-foreground font-semibold leading-relaxed">{notification}</p>
+          </div>
+          <button 
+            onClick={() => setNotification(null)}
+            className="text-muted-foreground hover:text-foreground h-5 w-5 flex items-center justify-center rounded-lg hover:bg-secondary/50 transition-colors shrink-0 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>

@@ -158,24 +158,62 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab === "permissions") setActiveMainTab("permissions");
-    else if (tab === "health") setActiveMainTab("health");
     else setActiveMainTab("academies");
   }, [searchParams, setActiveMainTab]);
+
+  // Scope available tenants for Permission Matrix based on user role and tenant context
+  const userTenantId = user?.tenantId;
+  const userSubdomain = user?.subdomain;
+
+  const scopedTenantsForMatrix = React.useMemo(() => {
+    if (user?.role === "SuperAdmin") {
+      return tenantsList;
+    }
+
+    const userTenant = tenantsList.find(
+      (t) => (userTenantId && t.id === userTenantId) || (userSubdomain && t.subdomain === userSubdomain)
+    );
+
+    if (!userTenant) {
+      return tenantsList;
+    }
+
+    if (user?.role === "Owner") {
+      const ownId = userTenant.id;
+      return tenantsList.filter(
+        (t) => t.id === ownId || t.parentTenantId === ownId
+      );
+    }
+
+    return tenantsList.filter((t) => t.id === userTenant.id);
+  }, [user, tenantsList, userTenantId, userSubdomain]);
 
   // Load permission matrix when switching to the permissions tab
   useEffect(() => {
     if (activeMainTab !== "permissions" || tenantsList.length === 0) return;
-    const intelTenant = tenantsList.find((t: Tenant) => t.subdomain === "intel");
-    const defaultTenant = intelTenant || tenantsList[0];
-    const targetId = matrixTenantId || defaultTenant.id;
-    if (!matrixTenantId) setMatrixTenantId(targetId);
+
+    const defaultTenant = scopedTenantsForMatrix.find(
+      (t) => (userTenantId && t.id === userTenantId) || (userSubdomain && t.subdomain === userSubdomain)
+    ) || scopedTenantsForMatrix[0] || tenantsList[0];
+
+    const targetId = matrixTenantId && scopedTenantsForMatrix.some(t => t.id === matrixTenantId)
+      ? matrixTenantId
+      : (defaultTenant?.id ?? tenantsList[0].id);
+
+    if (matrixTenantId !== targetId) {
+      setMatrixTenantId(targetId);
+    }
     loadPermissionMatrix(targetId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMainTab]);
+  }, [activeMainTab, scopedTenantsForMatrix]);
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const filteredTenants = getFilteredTenants();
-  const matrixRoles = permissionMatrix?.roles ?? [];
+  const ALLOWED_MATRIX_ROLES = ["Admin", "Faculty", "Student", "Owner", "Program Manager", "PM"];
+  const rawRoles = permissionMatrix?.roles ?? [];
+  const matrixRoles = rawRoles.filter((role) =>
+    ALLOWED_MATRIX_ROLES.some((allowed) => allowed.toLowerCase() === role.name.trim().toLowerCase())
+  );
   const matrixPermissions = permissionMatrix?.permissions ?? [];
   const matrixMappings = permissionMatrix
     ? Object.entries(permissionMatrix.matrix).flatMap(([roleId, perms]) =>
@@ -373,11 +411,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         {children.map((t) => {
           const isLocal = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
           const isVercel = typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app");
-          const portalUrl = isLocal
-            ? `http://${t.subdomain}.localhost:3000`
-            : isVercel
-            ? `/?tenant=${t.subdomain}`
-            : `https://${t.subdomain}.${typeof window !== "undefined" ? window.location.host : ""}`;
+          const portalUrl = "/dashboard";
 
           return (
             <div key={t.id} className="relative group">
@@ -453,13 +487,14 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
       {/* Main Navigation Switcher */}
       {user.role === "SuperAdmin" && (
         <div className="flex border-b border-border/40 gap-4 overflow-x-auto scrollbar-none shrink-0 pb-px">
-          {(["academies", "permissions", "health"] as const).map((tab) => (
+          {(["academies", "permissions"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveMainTab(tab as any)}
               className={`pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 px-2 shrink-0 cursor-pointer ${activeMainTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
             >
-              {tab === "academies" ? `Registered Academies (${tenantsList.length})` : tab === "permissions" ? "Global Permission Matrix" : "Database Health"}            </button>
+              {tab === "academies" ? `Registered Academies (${tenantsList.length})` : "Global Permission Matrix"}
+            </button>
           ))}
         </div>
       )}
@@ -533,9 +568,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                       <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No academies found matching search criteria.</td></tr>
                     ) : (
                       filteredTenants.map((t) => {
-                        const isLocal = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
-                        const isVercel = typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app");
-                        const portalUrl = isLocal ? `http://${t.subdomain}.localhost:3000` : isVercel ? `/?tenant=${t.subdomain}` : `https://${t.subdomain}.${typeof window !== "undefined" ? window.location.host : ""}`;
+                        const portalUrl = "/dashboard";
                         return (
                           <tr key={t.id} className="hover:bg-muted/5 transition-colors">
                             <td className="p-4">
@@ -607,17 +640,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-border/40 pb-5">
             <div className="space-y-1">
               <h3 className="text-sm font-black text-foreground">Global RBAC Permission Matrix</h3>
-              <p className="text-xs text-muted-foreground font-semibold">Configure permission policies for system-seeded roles of specific tenants.</p>
-            </div>
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <label className="text-xs text-muted-foreground shrink-0 font-extrabold uppercase tracking-wider">Select Tenant:</label>
-              <select
-                value={matrixTenantId}
-                onChange={(e) => { setMatrixTenantId(e.target.value); loadPermissionMatrix(e.target.value); }}
-                className="w-full sm:w-64 h-9 px-3 rounded-xl bg-card border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer"
-              >
-                {tenantsList.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.subdomain})</option>)}
-              </select>
+              <p className="text-xs text-muted-foreground font-semibold">Configure fine-grained permission policies for organization roles.</p>
             </div>
           </div>
 
@@ -673,114 +696,6 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
               </table>
             </div>
           )}
-        </div>
-      )}
-
-      {/* ── DB HEALTH TAB ───────────────────────────────────────────────── */}
-      {activeMainTab === "health" && (
-        <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-6 space-y-6 border border-border shadow-sm">
-          <div className="border-b border-border/40 pb-4">
-            <h3 className="text-sm font-black text-foreground flex items-center gap-2">
-              <Activity className="w-4 h-4 text-primary" /> Database Connection Health Monitor
-            </h3>
-            <p className="text-xs text-muted-foreground font-semibold mt-0.5">Monitor active database pool connections, query latency, and schema isolation statuses.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-4 bg-muted/15 border border-border/40 rounded-2xl space-y-2">
-              <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block">Active Database Pool</span>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-foreground">PostgreSQL / SQLite</span>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 uppercase tracking-wide">Connected</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground leading-relaxed font-mono">Host: 127.0.0.1 (Local Node)<br />Primary Pool: pool_lms_matrix</p>
-            </div>
-            <div className="p-4 bg-muted/15 border border-border/40 rounded-2xl space-y-2">
-              <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block">Connection Stats</span>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-muted-foreground">Active / Max Connections:</span>
-                <span className="font-mono font-bold text-foreground">4 / 20</span>
-              </div>
-              <div className="w-full bg-secondary/40 h-2 rounded-full overflow-hidden">
-                <div className="bg-primary h-full rounded-full" style={{ width: "20%" }} />
-              </div>
-              <div className="flex justify-between items-center text-[10px] text-muted-foreground">
-                <span>Idle: 16 connections</span><span>Latency: 12ms</span>
-              </div>
-            </div>
-            <div className="p-4 bg-muted/15 border border-border/40 rounded-2xl space-y-2">
-              <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block">Tenant Isolation Mode</span>
-              <div className="flex items-center gap-1.5 text-xs text-foreground font-bold">
-                <Shield className="w-4 h-4 text-purple-400" /> Schema-level Namespace Segregation
-              </div>
-              <p className="text-[10px] text-muted-foreground leading-relaxed">Queries are scoped dynamically via search path rewrites (`tenant_[subdomain]`).</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <h4 className="text-xs font-black uppercase text-foreground">SQL Playground</h4>
-              <p className="text-[10px] text-muted-foreground">Type a query or select a preset to audit rows inside the isolated schemas.</p>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-              <div className="lg:col-span-2 space-y-3">
-                <div className="flex gap-2 flex-wrap">
-                  {[
-                    "SELECT * FROM public.tenants LIMIT 5;",
-                    "SELECT id, first_name, email, role FROM users;",
-                    "SELECT id, title, content_type FROM lessons LIMIT 3;",
-                  ].map((preset, idx) => (
-                    <button key={idx} onClick={() => setPlaygroundQuery(preset)} className="px-2.5 py-1.5 bg-secondary hover:bg-secondary/80 text-[10px] font-mono font-bold text-muted-foreground hover:text-foreground rounded-lg border border-border transition-all cursor-pointer">
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-                <textarea value={playgroundQuery} onChange={(e) => setPlaygroundQuery(e.target.value)} rows={4} className="w-full bg-slate-950 font-mono text-xs text-emerald-400 p-4 border border-border rounded-2xl focus:outline-none focus:border-primary/50" placeholder="-- Type your query here..." />
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-muted-foreground font-semibold">Sandbox mode: real read-only query execution is active</span>
-                  <button onClick={runPlaygroundQuery} disabled={playgroundRunning} className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-95 shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
-                    {playgroundRunning ? <Loader2 className="w-3 animate-spin" /> : "Run Query"}
-                  </button>
-                </div>
-              </div>
-              <div className="p-4 bg-muted/15 border border-border/45 rounded-2xl space-y-3">
-                <h5 className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Active Schema Tables</h5>
-                <div className="space-y-1.5 font-mono text-[10px] text-muted-foreground">
-                  {[["tenants","12"],["users","14"],["courses","9"],["lessons","11"]].map(([tbl, cols]) => (
-                    <div key={tbl} className="flex justify-between border-b border-border/30 pb-1 last:border-0">
-                      <span className="text-foreground font-bold">{tbl}</span><span>{cols} columns</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            {playgroundResults && (
-              <div className="space-y-2 animate-in fade-in duration-200">
-                <div className="flex justify-between items-center text-[10px] text-muted-foreground font-mono">
-                  <span>Execution successful in {playgroundTime}ms</span>
-                  <span>{playgroundResults.length} rows returned</span>
-                </div>
-                <div className="overflow-x-auto border border-border/40 rounded-xl max-h-60 scrollbar-thin">
-                  <table className="w-full text-[10px] font-mono text-left border-collapse min-w-[500px]">
-                    <thead>
-                      <tr className="bg-muted/20 border-b border-border/60 text-muted-foreground">
-                        {Object.keys(playgroundResults[0] || {}).map((k) => <th key={k} className="p-2 border-r border-border/40">{k}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40">
-                      {playgroundResults.map((row: any, i: number) => (
-                        <tr key={i} className="hover:bg-primary/5">
-                          {Object.values(row).map((val: any, j: number) => (
-                            <td key={j} className="p-2 border-r border-border/40 max-w-xs truncate text-foreground/95">{typeof val === "object" ? JSON.stringify(val) : String(val)}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       )}
 
@@ -930,219 +845,98 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
               <button onClick={closeEditForm} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/15 transition-colors cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
 
-            {/* Modal Internal Tabs */}
-            <div className="flex border-b border-border/40 bg-muted/20 px-5">
-              {(["branding", "features", "ai"] as const).map((tab) => (
-                <button key={tab} type="button" onClick={() => setActiveModalTab(tab)} className={`py-3 text-[11px] font-black uppercase tracking-wider border-b-2 px-3 transition-colors cursor-pointer ${activeModalTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                  {tab === "branding" ? "Branding & Custom Domain" : tab === "features" ? "Features, Gateways & Limits" : "AI Tutor Settings"}
-                </button>
-              ))}
-            </div>
-
             <form onSubmit={handleUpdateTenant} className="flex-1 flex flex-col overflow-hidden">
-              <div className="p-6 space-y-5 overflow-y-auto max-h-[60vh] flex-1">
+              <div className="p-6 space-y-5 overflow-y-auto max-h-[65vh] flex-1">
                 {errorMsg && <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-semibold">{errorMsg}</div>}
                 {successMsg && <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs flex items-center gap-2 font-semibold"><CheckCircle2 className="w-4 h-4" /> {successMsg}</div>}
 
-                {activeModalTab === "branding" && (
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <div className="md:col-span-7 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                  <div className="md:col-span-7 space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Academy name</label>
+                      <input type="text" required value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Academy name</label>
-                        <input type="text" required value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Subdomain</label>
-                          <input type="text" required value={editSubdomain} onChange={(e) => setEditSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Custom Domain</label>
-                          <input type="text" value={editCustomDomain} onChange={(e) => setEditCustomDomain(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45" />
-                        </div>
+                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Subdomain</label>
+                        <input type="text" required value={editSubdomain} onChange={(e) => setEditSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45" />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Logo SVG / PNG URL</label>
-                        <input type="url" value={editLogoUrl} onChange={(e) => setEditLogoUrl(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45" />
+                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Custom Domain</label>
+                        <input type="text" value={editCustomDomain} onChange={(e) => setEditCustomDomain(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45" />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Primary Color</label>
-                          <div className="flex items-center gap-1.5">
-                            <input type="color" value={editPrimaryColor} onChange={(e) => setEditPrimaryColor(e.target.value)} className="w-8 h-8 rounded-lg border border-border bg-transparent cursor-pointer shrink-0" />
-                            <input type="text" value={editPrimaryColor} onChange={(e) => setEditPrimaryColor(e.target.value)} className="w-full h-9 px-2 rounded-lg bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45" />
-                          </div>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Secondary Color</label>
-                          <div className="flex items-center gap-1.5">
-                            <input type="color" value={editSecondaryColor} onChange={(e) => setEditSecondaryColor(e.target.value)} className="w-8 h-8 rounded-lg border border-border bg-transparent cursor-pointer shrink-0" />
-                            <input type="text" value={editSecondaryColor} onChange={(e) => setEditSecondaryColor(e.target.value)} className="w-full h-9 px-2 rounded-lg bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45" />
-                          </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Logo SVG / PNG URL</label>
+                      <input type="url" value={editLogoUrl} onChange={(e) => setEditLogoUrl(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Primary Color</label>
+                        <div className="flex items-center gap-1.5">
+                          <input type="color" value={editPrimaryColor} onChange={(e) => setEditPrimaryColor(e.target.value)} className="w-8 h-8 rounded-lg border border-border bg-transparent cursor-pointer shrink-0" />
+                          <input type="text" value={editPrimaryColor} onChange={(e) => setEditPrimaryColor(e.target.value)} className="w-full h-9 px-2 rounded-lg bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45" />
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Status</label>
-                        <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-card border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/45 cursor-pointer">
-                          <option value="active">Active</option>
-                          <option value="suspended">Suspended</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Parent Tenant / Organization</label>
-                        <select value={editParentTenantId} onChange={(e) => setEditParentTenantId(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-card border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/45 cursor-pointer">
-                          <option value="">No Parent (Top-level Organization)</option>
-                          {tenantsList.filter((t) => t.id !== editingTenant.id).map((t) => <option key={t.id} value={t.id}>{t.name} (.{t.subdomain})</option>)}
-                        </select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">Isolated DB Name</label>
-                          <input type="text" placeholder="e.g. vt_db" value={editDbName} onChange={(e) => setEditDbName(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">Custom Database URL</label>
-                          <input type="text" placeholder="e.g. postgresql://..." value={editDbUrl} onChange={(e) => setEditDbUrl(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45" />
+                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Secondary Color</label>
+                        <div className="flex items-center gap-1.5">
+                          <input type="color" value={editSecondaryColor} onChange={(e) => setEditSecondaryColor(e.target.value)} className="w-8 h-8 rounded-lg border border-border bg-transparent cursor-pointer shrink-0" />
+                          <input type="text" value={editSecondaryColor} onChange={(e) => setEditSecondaryColor(e.target.value)} className="w-full h-9 px-2 rounded-lg bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45" />
                         </div>
                       </div>
                     </div>
-
-                    {/* Live Branding Swatch Preview */}
-                    <div className="md:col-span-5 flex flex-col justify-start space-y-3">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Live Branding Swatch Preview</label>
-                      <div className="rounded-2xl border border-border/80 p-5 shadow-2xl flex flex-col justify-between h-56 transition-all relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${editSecondaryColor}33 0%, var(--card) 100%)` }}>
-                        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:1.5rem_1.5rem] opacity-30 pointer-events-none" />
-                        <div className="flex items-center justify-between relative z-10">
-                          {editLogoUrl ? <img src={editLogoUrl} alt="logo" className="h-6 max-w-[90px] object-contain" /> : <span className="font-black text-sm uppercase tracking-wider text-foreground">{editName.substring(0, 3).toUpperCase()}</span>}
-                          <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black border" style={{ borderColor: `${editPrimaryColor}35`, color: editPrimaryColor, backgroundColor: `${editPrimaryColor}10` }}>Live Swatch</span>
-                        </div>
-                        <div className="space-y-2 relative z-10">
-                          <h5 className="text-sm font-extrabold text-foreground leading-tight">{editName}</h5>
-                          <p className="text-[10px] text-muted-foreground font-mono tracking-tight flex items-center gap-1">
-                            <Globe className="w-3 h-3 text-muted-foreground/60" />{editSubdomain || "sub"}.lms-matrix.edu
-                          </p>
-                          {editCustomDomain && <p className="text-[9px] text-primary font-mono leading-none">→ custom domain: {editCustomDomain}</p>}
-                        </div>
-                        <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[9px] text-muted-foreground relative z-10">
-                          <span>Primary: <b className="font-mono text-foreground font-bold">{editPrimaryColor}</b></span>
-                          <button type="button" className="px-3 py-1.5 rounded-lg font-black text-white hover:opacity-95 transition-all text-[9.5px] cursor-pointer" style={{ backgroundColor: editPrimaryColor }}>Button</button>
-                        </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Status</label>
+                      <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-card border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/45 cursor-pointer">
+                        <option value="active">Active</option>
+                        <option value="suspended">Suspended</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Parent Tenant / Organization</label>
+                      <div className="w-full h-9 px-3 flex items-center rounded-xl bg-muted/20 border border-border/60 text-xs font-bold text-foreground">
+                        {editingTenant.parentTenantId
+                          ? (tenantsList.find((p) => p.id === editingTenant.parentTenantId)?.name || "Parent Organization") +
+                            ` (.${tenantsList.find((p) => p.id === editingTenant.parentTenantId)?.subdomain || ""})`
+                          : "No Parent (Top-level Organization)"}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">Isolated DB Name</label>
+                        <input type="text" placeholder="e.g. vt_db" value={editDbName} onChange={(e) => setEditDbName(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">Custom Database URL</label>
+                        <input type="text" placeholder="e.g. postgresql://..." value={editDbUrl} onChange={(e) => setEditDbUrl(e.target.value)} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary/45" />
                       </div>
                     </div>
                   </div>
-                )}
 
-                {activeModalTab === "features" && (
-                  <div className="space-y-6">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-                        <Palette className="w-4 h-4 text-primary" />
-                        <h5 className="text-[10px] font-black uppercase tracking-wider text-foreground">Academic Modules Config</h5>
+                  {/* Live Branding Swatch Preview */}
+                  <div className="md:col-span-5 flex flex-col justify-start space-y-3">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Live Branding Swatch Preview</label>
+                    <div className="rounded-2xl border border-border/80 p-5 shadow-2xl flex flex-col justify-between h-56 transition-all relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${editSecondaryColor}33 0%, var(--card) 100%)` }}>
+                      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:1.5rem_1.5rem] opacity-30 pointer-events-none" />
+                      <div className="flex items-center justify-between relative z-10">
+                        {editLogoUrl ? <img src={editLogoUrl} alt="logo" className="h-6 max-w-[90px] object-contain" /> : <span className="font-black text-sm uppercase tracking-wider text-foreground">{editName.substring(0, 3).toUpperCase()}</span>}
+                        <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black border" style={{ borderColor: `${editPrimaryColor}35`, color: editPrimaryColor, backgroundColor: `${editPrimaryColor}10` }}>Live Swatch</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        {[
-                          { label: "Digital Library Module", desc: "Allow students to view course notes and files", state: enableLibrary, set: setEnableLibrary },
-                          { label: "Placement Career Hub", desc: "Enable recruiters and jobs console", state: enablePlacement, set: setEnablePlacement },
-                          { label: "Proctoring Integrity Engine", desc: "Enable proctored quiz sessions", state: enableProctoring, set: setEnableProctoring },
-                          { label: "Automated Certificates", desc: "Release blockchain credentials on pass", state: enableCertificates, set: setEnableCertificates },
-                          { label: "Capstone Projects Module", desc: "Enable capstone projects control on courses", state: enableCapstone, set: setEnableCapstone },
-                        ].map((f) => (
-                          <div key={f.label} onClick={() => f.set(!f.state)} className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${f.state ? "bg-primary/10 border-primary/40 text-foreground" : "bg-muted/10 border-border/50 text-muted-foreground hover:border-border"}`}>
-                            <div>
-                              <p className="text-[11px] font-extrabold">{f.label}</p>
-                              <p className="text-[9px] text-muted-foreground mt-0.5 font-medium">{f.desc}</p>
-                            </div>
-                            <button type="button" className={`w-8 h-4 rounded-full p-0.5 transition-colors relative cursor-pointer ${f.state ? "bg-primary" : "bg-muted"}`}>
-                              <div className={`w-3 h-3 rounded-full bg-white transition-transform ${f.state ? "translate-x-4" : "translate-x-0"}`} />
-                            </button>
-                          </div>
-                        ))}
+                      <div className="space-y-2 relative z-10">
+                        <h5 className="text-sm font-extrabold text-foreground leading-tight">{editName}</h5>
+                        <p className="text-[10px] text-muted-foreground font-mono tracking-tight flex items-center gap-1">
+                          <Globe className="w-3 h-3 text-muted-foreground/60" />{editSubdomain || "sub"}.lms-matrix.edu
+                        </p>
+                        {editCustomDomain && <p className="text-[9px] text-primary font-mono leading-none">→ custom domain: {editCustomDomain}</p>}
                       </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-                        <CreditCard className="w-4 h-4 text-primary" />
-                        <h5 className="text-[10px] font-black uppercase tracking-wider text-foreground">Active Payment Gateways</h5>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4">
-                        {[
-                          { label: "Stripe Gateway", state: stripe, set: setStripe },
-                          { label: "Razorpay Checkout", state: razorpay, set: setRazorpay },
-                          { label: "PayPal Integration", state: paypal, set: setPaypal },
-                        ].map((gw) => (
-                          <div key={gw.label} onClick={() => gw.set(!gw.state)} className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between h-20 ${gw.state ? "bg-primary/10 border-primary/40 text-foreground" : "bg-muted/10 border-border/50 text-muted-foreground hover:border-border"}`}>
-                            <span className="text-[11px] font-extrabold">{gw.label}</span>
-                            <div className="flex items-center justify-between mt-2">
-                              <span className="text-[8px] uppercase tracking-widest text-muted-foreground font-black">{gw.state ? "Active" : "Disabled"}</span>
-                              <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${gw.state ? "bg-primary border-primary text-primary-foreground" : "border-border bg-transparent"}`}>{gw.state && <CheckCircle2 className="w-3.5 h-3.5" />}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-                        <Sliders className="w-4 h-4 text-primary" />
-                        <h5 className="text-[10px] font-black uppercase tracking-wider text-foreground">Platform Restriction Limits</h5>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black text-muted-foreground uppercase">Max Users Limit</label>
-                          <input type="number" value={maxUsers} onChange={(e) => setMaxUsers(Number(e.target.value))} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/45 font-mono" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black text-muted-foreground uppercase">Max Courses Limit</label>
-                          <input type="number" value={maxCourses} onChange={(e) => setMaxCourses(Number(e.target.value))} className="w-full h-9 px-3 rounded-xl bg-transparent border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/45 font-mono" />
-                        </div>
-                        <div className="space-y-1.5 flex flex-col justify-end">
-                          <label onClick={() => setAllowSelfSignup(!allowSelfSignup)} className="flex items-center gap-2 cursor-pointer h-9 select-none text-xs text-foreground font-extrabold">
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${allowSelfSignup ? "bg-primary border-primary text-primary-foreground" : "border-border bg-transparent"}`}>{allowSelfSignup && <CheckCircle2 className="w-3.5 h-3.5" />}</div>
-                            Allow Public Signup
-                          </label>
-                        </div>
+                      <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[9px] text-muted-foreground relative z-10">
+                        <span>Primary: <b className="font-mono text-foreground font-bold">{editPrimaryColor}</b></span>
+                        <button type="button" className="px-3 py-1.5 rounded-lg font-black text-white hover:opacity-95 transition-all text-[9.5px] cursor-pointer" style={{ backgroundColor: editPrimaryColor }}>Button</button>
                       </div>
                     </div>
                   </div>
-                )}
-
-                {activeModalTab === "ai" && (
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-                      <Sparkles className="w-4 h-4 text-primary" />
-                      <h5 className="text-[10px] font-black uppercase tracking-wider text-foreground">AI Tutor Assistant Configuration</h5>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div onClick={() => setEnableAi(!enableAi)} className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${enableAi ? "bg-primary/10 border-primary/40 text-foreground" : "bg-muted/10 border-border/50 text-muted-foreground hover:border-border"}`}>
-                        <div>
-                          <p className="text-[11px] font-extrabold">Enable AI Tutor Bot</p>
-                          <p className="text-[9px] text-muted-foreground mt-0.5 font-medium">Activate interactive chatbot for students</p>
-                        </div>
-                        <button type="button" className={`w-8 h-4 rounded-full p-0.5 transition-colors relative cursor-pointer ${enableAi ? "bg-primary" : "bg-muted"}`}>
-                          <div className={`w-3 h-3 rounded-full bg-white transition-transform ${enableAi ? "translate-x-4" : "translate-x-0"}`} />
-                        </button>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">AI Provider</label>
-                        <select value={aiProvider} onChange={(e) => setAiProvider(e.target.value)} className="w-full h-11 px-3 rounded-xl bg-card border border-border/60 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/45 cursor-pointer">
-                          <option value="mock">Local RAG Simulator (Free)</option>
-                          <option value="openai">OpenAI API (Custom Key Required)</option>
-                        </select>
-                      </div>
-                    </div>
-                    {enableAi && aiProvider === "openai" && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-200">
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">OpenAI API Key</label>
-                          <input type="password" placeholder="sk-proj-..." value={aiApiKey} onChange={(e) => setAiApiKey(e.target.value)} className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Model Selection</label>
-                          <input type="text" placeholder="gpt-4o-mini" value={aiModel} onChange={(e) => setAiModel(e.target.value)} className="w-full h-10 px-3.5 rounded-xl bg-transparent border border-border/60 text-xs text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/45" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                </div>
               </div>
 
               <div className="p-4 border-t border-border/50 bg-muted/20 flex items-center justify-end gap-3">

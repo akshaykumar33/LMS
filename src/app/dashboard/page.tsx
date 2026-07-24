@@ -3,12 +3,13 @@ import { getTenantContext } from "@/features/auth/services/tenant";
 import { requireAuth } from "@/features/auth/services/session";
 import { getAncestorChain } from "@/features/auth/services/is-parent-tenant";
 import { db, dbSubdomainStorage } from "@/db/db";
-import { students, users } from "@/db/schema";
+import { students, users, batchSessions } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { DashboardClient } from "@/features/dashboard/components/DashboardClient";
 import { CourseRepository } from "@/features/course/repository/course-repository";
+import { headers, cookies } from "next/headers";
 
 export default async function DashboardPage() {
   const tenant = await getTenantContext();
@@ -60,6 +61,17 @@ export default async function DashboardPage() {
     }
   }
 
+  let batchSessionsList: any[] = [];
+  if (studentProfile) {
+    batchSessionsList = await db.query.batchSessions.findMany({
+      where: eq(batchSessions.batchId, studentProfile.batchId),
+      orderBy: (bs: any, { asc }: any) => [asc(bs.startTime)],
+      with: {
+        instructor: true,
+      },
+    });
+  }
+
   const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
     await db.query.users.findFirst({
       where: eq(users.id, user.userId),
@@ -83,6 +95,7 @@ export default async function DashboardPage() {
         tenant={tenant} 
         studentProfile={studentProfile} 
         courses={studentCourses} 
+        batchSessions={batchSessionsList}
       />
     </DashboardLayout>
   );

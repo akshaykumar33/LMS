@@ -1,5 +1,5 @@
 import { db } from "@/db/db";
-import { jobPostings, jobApplications } from "@/db/schema";
+import { jobPostings, jobApplications, quizAttempts, projectSubmissions, courseProgress } from "@/db/schema";
 import { eq, and, desc, inArray } from "drizzle-orm";
 
 export class CareerRepository {
@@ -132,6 +132,8 @@ export class CareerRepository {
         location: updates.location,
         updatedAt: new Date(),
       })
+      .where(eq(jobPostings.id, jobId))
+      .returning();
       
     return updatedJob;
   }
@@ -142,7 +144,7 @@ export class CareerRepository {
   static async deleteJobPosting(tenantId: string, jobId: string) {
     return db
       .delete(jobPostings)
-      .where(and(eq(jobPostings.id, jobId), eq(jobPostings.tenantId, tenantId)));
+      .where(eq(jobPostings.id, jobId));
   }
 
   /**
@@ -166,17 +168,46 @@ export class CareerRepository {
       orderBy: [desc(jobApplications.createdAt)],
     });
 
-    return apps.map((app: any) => ({
-      applicationId: app.id,
-      status: app.status,
-      resumeUrl: app.resumeUrl,
-      createdAt: app.createdAt,
-      studentId: app.student?.id ?? null,
-      rollNumber: app.student?.rollNumber ?? null,
-      firstName: app.student?.user?.firstName ?? "Unknown",
-      lastName: app.student?.user?.lastName ?? "",
-      email: app.student?.user?.email ?? "",
-    }));
+    const mapped: any[] = [];
+    for (const app of apps) {
+      let readinessScore = 65; // Default/baseline score
+      if (app.student?.id) {
+        try {
+          const attempts = await db.select().from(quizAttempts).where(eq(quizAttempts.studentId, app.student.id));
+          const avgQuiz = attempts.length > 0 ? (attempts.reduce((sum, a) => sum + a.score, 0) / attempts.length) : 0;
+
+          const capstoneSubmissions = await db.select().from(projectSubmissions).where(
+            and(eq(projectSubmissions.studentId, app.student.id), eq(projectSubmissions.status, "approved"))
+          );
+          const avgCapstone = capstoneSubmissions.length > 0 ? (capstoneSubmissions.reduce((sum, c) => sum + parseFloat(c.grade || "0"), 0) / capstoneSubmissions.length) : 0;
+
+          const progressList = await db.select().from(courseProgress).where(eq(courseProgress.studentId, app.student.id));
+          const progressRate = progressList.length > 0 ? (progressList.filter(p => p.completed).length / progressList.length) * 100 : 0;
+
+          // If they have quizzes, progress, or capstones, calculate custom score.
+          if (attempts.length > 0 || capstoneSubmissions.length > 0 || progressList.length > 0) {
+            readinessScore = Math.round((progressRate * 0.4) + (avgQuiz * 0.3) + (avgCapstone * 0.3));
+          }
+        } catch (e) {
+          console.error("Failed to calculate readiness score for student:", app.student.id, e);
+        }
+      }
+
+      mapped.push({
+        applicationId: app.id,
+        status: app.status,
+        resumeUrl: app.resumeUrl,
+        createdAt: app.createdAt,
+        studentId: app.student?.id ?? null,
+        rollNumber: app.student?.rollNumber ?? null,
+        firstName: app.student?.user?.firstName ?? "Unknown",
+        lastName: app.student?.user?.lastName ?? "",
+        email: app.student?.user?.email ?? "",
+        readinessScore,
+      });
+    }
+
+    return mapped;
   }
 
   /**
@@ -186,12 +217,7 @@ export class CareerRepository {
     const [updated] = await db
       .update(jobApplications)
       .set({ status, updatedAt: new Date() })
-      .where(
-        and(
-          eq(jobApplications.id, applicationId),
-          eq(jobApplications.tenantId, tenantId)
-        )
-      )
+      .where(eq(jobApplications.id, applicationId))
       .returning();
 
     return updated;

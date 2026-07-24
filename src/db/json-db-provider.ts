@@ -489,6 +489,8 @@ function getRelationsForTable(tableName: string): any {
     role_permissions: schema.rolePermissionsRelations,
     users: schema.usersRelations,
     batches: schema.batchesRelations,
+    batch_instructors: schema.batchInstructorsRelations,
+    batch_sessions: schema.batchSessionsRelations,
     admission_applications: schema.admissionApplicationsRelations,
     admission_documents: schema.admissionDocumentsRelations,
     admission_payments: schema.admissionPaymentsRelations,
@@ -506,10 +508,12 @@ function getRelationsForTable(tableName: string): any {
     certificates: schema.certificatesRelations,
     audit_logs: schema.auditLogsRelations,
     digital_library: schema.digitalLibraryRelations,
+    library_ai_contexts: schema.libraryAiContextRelations,
     lesson_progress: schema.lessonProgressRelations,
     course_progress: schema.courseProgressRelations,
     projects: schema.projectsRelations,
     project_submissions: schema.projectSubmissionsRelations,
+    subjective_submissions: schema.subjectiveSubmissionsRelations,
   };
   return mapping[tableName];
 }
@@ -897,13 +901,13 @@ function buildQueryProxy(): Record<string, any> {
   // Map schema export keys to their handlers
   const schemaKeys = [
     "tenants", "roles", "permissions", "rolePermissions",
-    "users", "batches", "admissionApplications", "admissionDocuments",
+    "users", "batches", "batchInstructors", "batchSessions", "admissionApplications", "admissionDocuments",
     "admissionPayments", "students", "courses", "courseBatches",
     "modules", "lessons", "quizzes", "quizQuestions",
     "quizAttempts", "notifications", "jobPostings", "jobApplications",
     "certificates", "auditLogs", "digitalLibrary",
     "lessonProgress", "courseProgress",
-    "projects", "projectSubmissions",
+    "projects", "projectSubmissions", "subjectiveSubmissions",
   ];
 
   for (const key of schemaKeys) {
@@ -919,8 +923,38 @@ function buildQueryProxy(): Record<string, any> {
 // ── Public API ─────────────────────────────────────────────────────────────
 
 export function initJsonDb() {
-  if (initialized) return;
+  const g = globalThis as any;
+  let needsReinit = false;
 
+  if (g.__jsonDbInitialized) {
+    // Verify if SQLite matches current tableMetas (in case of HMR schema updates)
+    try {
+      const currentTableMetas = buildTableMetas();
+      for (const meta of Object.values(currentTableMetas)) {
+        const info = g.__jsonDbSqlite.prepare(`PRAGMA table_info("${meta.name}")`).all() as any[];
+        const existingCols = info.map((c) => c.name);
+        for (const col of meta.columns) {
+          if (!existingCols.includes(col.name)) {
+            needsReinit = true;
+            break;
+          }
+        }
+        if (needsReinit) break;
+      }
+    } catch {
+      needsReinit = true;
+    }
+  }
+
+  if (g.__jsonDbInitialized && !needsReinit) {
+    sqlite = g.__jsonDbSqlite;
+    tableMetas = g.__jsonDbTableMetas;
+    dbJsonPath = g.__jsonDbPath;
+    initialized = true;
+    return;
+  }
+
+  initialized = false;
   console.log("[json-db] Initializing JSON database provider...");
 
   const isVercel = !!process.env.VERCEL;
@@ -956,6 +990,10 @@ export function initJsonDb() {
   seedFromJson(data);
 
   initialized = true;
+  g.__jsonDbInitialized = true;
+  g.__jsonDbSqlite = sqlite;
+  g.__jsonDbTableMetas = tableMetas;
+  g.__jsonDbPath = dbJsonPath;
 
   const tableCount = Object.keys(tableMetas).length;
   const totalRows = Object.values(data).reduce((sum: number, rows: any) => sum + (rows?.length || 0), 0);

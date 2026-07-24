@@ -24,22 +24,7 @@ interface LoginFormProps {
 }
 
 const getSubdomainUrl = (sub: string) => {
-  if (typeof window === "undefined") return "#";
-  const host = window.location.host;
-  const protocol = window.location.protocol;
-  
-  if (host.includes("localhost")) {
-    const port = host.split(":")[1] || "3000";
-    return `${protocol}//${sub}.localhost:${port}/login`;
-  }
-  
-  const parts = host.split(".");
-  if (parts.length > 2) {
-    parts[0] = sub;
-    return `${protocol}//${parts.join(".")}/login`;
-  } else {
-    return `${protocol}//${sub}.${host}/login`;
-  }
+  return "/login";
 };
 
 
@@ -55,7 +40,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
 export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain, chainLength = 3 }: LoginFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/";
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   const [email, setEmail] = useState(searchParams.get("email") || "");
   const [password, setPassword] = useState("");
@@ -63,6 +48,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
   const [loading, setLoading] = useState(false);
   const [showEmulator, setShowEmulator] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<string>("intel");
 
   // ESC key to close emulator
   useEffect(() => {
@@ -100,7 +86,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
     try {
       const result = await loginAction({ email: demoEmail, password: "Password123" });
       if (result.success) {
-        router.push("/");
+        router.push(callbackUrl);
         router.refresh();
       } else {
         setError(result.error || "Demo login failed.");
@@ -124,7 +110,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
 
   const activeStudentEmail = activeSubdomain === "intel"
     ? "linus.torvalds@student.intel.com"
-    : `student@${activeSubdomain}.lms.com`;
+    : `student1@student.${activeSubdomain}.com`;
 
   // Dynamically compile all sandbox credentials from quick-login-credentials.json
   const allAccounts = isParent
@@ -147,7 +133,7 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
     } else if (account.roleName === "Student (Certified)") {
       email = activeSubdomain === "intel"
         ? "linus.torvalds@student.intel.com"
-        : `student@${activeSubdomain}.lms.com`;
+        : `student1@student.${activeSubdomain}.com`;
     } else if (account.roleName === "Student (General)") {
       email = `james.smith.0@student.${activeSubdomain}.com`;
     } else {
@@ -187,6 +173,15 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
               <div className="bg-destructive/10 border border-destructive/30 p-3 rounded-lg text-xs text-destructive flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 {error}
+              </div>
+            )}
+
+            {searchParams.get("error") === "self_signup_disabled" && (
+              <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg text-xs text-amber-500 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
+                <span>
+                  <strong>Registration Disabled:</strong> Student registration is a manual process. Self-signup is disabled on this platform. Credentials are shared manually by the administration.
+                </span>
               </div>
             )}
 
@@ -274,45 +269,53 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
             {/* Divider */}
             <div className="relative flex py-1 items-center">
               <Separator className="flex-1" />
-              <span className="flex-shrink mx-3 text-[10px] text-muted-foreground uppercase font-black tracking-widest">Demo Quick Access</span>
+              <span className="flex-shrink mx-3 text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+                ⚡ 1-Click Demo Login Roles
+              </span>
               <Separator className="flex-1" />
             </div>
 
-            {/* Quick Demo Login Grid */}
-            <div className={`grid gap-2 ${
-              chainLength === 1 ? "grid-cols-1" : chainLength === 2 ? "grid-cols-2" : "grid-cols-3"
-            }`}>
-              {chainLength >= 3 && (
+            {/* Subdomain Filter Tabs */}
+            <div className="flex justify-center gap-1 bg-muted/40 p-1 rounded-xl border border-border/50 text-[10px] font-extrabold">
+              {[
+                { id: "intel", label: "Intel" },
+                { id: "vti", label: "VTI Org" },
+                { id: "amd", label: "AMD" },
+                { id: "nvidia", label: "NVIDIA" },
+                { id: "wysbryx", label: "Super Admin" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSelectedTenant(tab.id)}
+                  className={`flex-1 py-1 px-2 rounded-lg transition-all ${
+                    selectedTenant === tab.id
+                      ? "bg-primary text-primary-foreground shadow-sm font-black"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Quick Demo Login Grid based on selectedTenant */}
+            <div className="grid grid-cols-2 gap-2">
+              {selectedTenant === "intel" && (
                 <>
                   <Button
                     type="button"
                     variant="outline"
                     disabled={loading}
-                    onClick={() => handleQuickLogin(activeStudentEmail)}
-                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
-                  >
-                    <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
-                      <GraduationCap className="w-3.5 h-3.5 text-teal-600" />
-                    </div>
-                    <div className="text-left leading-tight">
-                      <span className="block font-black text-foreground text-[10px]">Student</span>
-                      <span className="text-[8px] text-muted-foreground font-semibold">Certified Profile</span>
-                    </div>
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={loading}
-                    onClick={() => handleQuickLogin(`faculty1@${activeSubdomain}.lms.com`)}
-                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
+                    onClick={() => handleQuickLogin("faculty1@intel.lms.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
                   >
                     <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
                       <Briefcase className="w-3.5 h-3.5 text-indigo-600" />
                     </div>
-                    <div className="text-left leading-tight">
-                      <span className="block font-black text-foreground text-[10px]">Faculty</span>
-                      <span className="text-[8px] text-muted-foreground font-semibold">Instructor</span>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">Faculty</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">faculty1@intel.lms.com</span>
                     </div>
                   </Button>
 
@@ -320,81 +323,290 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
                     type="button"
                     variant="outline"
                     disabled={loading}
-                    onClick={() => handleQuickLogin(`manager@${activeSubdomain}.lms.com`)}
-                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
+                    onClick={() => handleQuickLogin("student1@student.intel.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
                   >
-                    <div className="w-6 h-6 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                      <Users className="w-3.5 h-3.5 text-amber-600" />
+                    <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
+                      <GraduationCap className="w-3.5 h-3.5 text-teal-600" />
                     </div>
-                    <div className="text-left leading-tight">
-                      <span className="block font-black text-foreground text-[10px]">Manager</span>
-                      <span className="text-[8px] text-muted-foreground font-semibold">Academics</span>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">Student</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">student1@student.intel.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("admin@intel.lms.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">Child Admin</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">admin@intel.lms.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("owner@vti.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0">
+                      <Key className="w-3.5 h-3.5 text-rose-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">VTI Owner</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">owner@vti.com</span>
                     </div>
                   </Button>
                 </>
               )}
 
-              {chainLength >= 2 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={loading}
-                  onClick={() => handleQuickLogin(`owner@${activeSubdomain}.lms.com`)}
-                  className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
-                >
-                  <div className="w-6 h-6 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0">
-                    <Key className="w-3.5 h-3.5 text-rose-600" />
-                  </div>
-                  <div className="text-left leading-tight">
-                    <span className="block font-black text-foreground text-[10px]">Owner</span>
-                    <span className="text-[8px] text-muted-foreground font-semibold">Academy</span>
-                  </div>
-                </Button>
+              {selectedTenant === "vti" && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("owner@vti.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0">
+                      <Key className="w-3.5 h-3.5 text-rose-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">VTI Owner</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">owner@vti.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("admin@intel.lms.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">Intel Admin</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">admin@intel.lms.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("admin@amd.lms.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">AMD Admin</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">admin@amd.lms.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("admin@qualcomm.lms.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">Qualcomm Admin</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">admin@qualcomm.lms.com</span>
+                    </div>
+                  </Button>
+                </>
               )}
 
-              {chainLength >= 3 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={loading}
-                  onClick={() => handleQuickLogin(`admin@${activeSubdomain}.lms.com`)}
-                  className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
-                >
-                  <div className="w-6 h-6 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
-                  </div>
-                  <div className="text-left leading-tight">
-                    <span className="block font-black text-foreground text-[10px]">Admin</span>
-                    <span className="text-[8px] text-muted-foreground font-semibold">Academy</span>
-                  </div>
-                </Button>
+              {selectedTenant === "amd" && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("faculty1@amd.lms.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                      <Briefcase className="w-3.5 h-3.5 text-indigo-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">AMD Faculty</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">faculty1@amd.lms.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("student1@student.amd.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
+                      <GraduationCap className="w-3.5 h-3.5 text-teal-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">AMD Student</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">student1@student.amd.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("admin@amd.lms.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">AMD Admin</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">admin@amd.lms.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("owner@vti.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0">
+                      <Key className="w-3.5 h-3.5 text-rose-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">VTI Owner</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">owner@vti.com</span>
+                    </div>
+                  </Button>
+                </>
               )}
 
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loading}
-                onClick={() => handleQuickLogin(superAdminEmail)}
-                className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 hover:text-foreground border border-border/50 rounded-xl"
-              >
-                <div className="w-6 h-6 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
-                </div>
-                <div className="text-left leading-tight">
-                  <span className="block font-black text-foreground text-[10px]">Super Admin</span>
-                  <span className="text-[8px] text-muted-foreground font-semibold">System Wide</span>
-                </div>
-              </Button>
+              {selectedTenant === "nvidia" && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("owner@nvidia.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                      <Key className="w-3.5 h-3.5 text-emerald-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">NVIDIA Owner</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">owner@nvidia.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("faculty1@gaming.lms.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                      <Briefcase className="w-3.5 h-3.5 text-indigo-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">Gaming Faculty</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">faculty1@gaming.lms.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("admin@gaming.lms.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">Gaming Admin</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">admin@gaming.lms.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("admin@ai.lms.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">AI Systems Admin</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">admin@ai.lms.com</span>
+                    </div>
+                  </Button>
+                </>
+              )}
+
+              {selectedTenant === "wysbryx" && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("superadmin@wysbryx.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl col-span-2"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">Wysbryx Super Admin</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">superadmin@wysbryx.com</span>
+                    </div>
+                  </Button>
+                </>
+              )}
             </div>
 
             <Separator />
 
             <div className="text-center flex flex-col gap-2">
+              {/* Commented out self-signup link for manual onboarding phase
               <p className="text-xs text-muted-foreground">
                 New student?{" "}
                 <a href="/admission/apply" className="inline-flex items-center gap-1 font-semibold text-foreground/80 hover:text-foreground transition-colors underline decoration-border hover:decoration-foreground underline-offset-4">
                   Apply & Register Instantly <ArrowRight className="w-3.5 h-3.5" />
                 </a>
+              </p>
+              */}
+              <p className="text-xs text-muted-foreground">
+                Student registration is managed manually by administration.
               </p>
             </div>
           </CardContent>

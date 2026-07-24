@@ -44,19 +44,20 @@ export default async function ProgressPage() {
     }
   });
 
-  const scormTelemetry = scormRows
-    .filter((p: any) => p.lesson?.contentType === "scorm")
-    .map((p: any) => {
-      const data = (p.scormData || {}) as Record<string, string>;
-      return {
-        lessonTitle: p.lesson?.title || "Unknown",
-        courseName: p.lesson?.module?.course?.name || "",
-        completed: p.completed,
-        score: data["cmi.core.score.raw"] || data["cmi.score.raw"] || null,
-        timeSpentSeconds: parseInt(data["_total_time_seconds"] || "0", 10),
-        status: data["cmi.core.lesson_status"] || data["cmi.completion_status"] || "not attempted",
-      };
-    });
+  const scormTelemetry = scormRows.map((p: any) => {
+    const data = (p.scormData || {}) as Record<string, string>;
+    return {
+      lessonTitle: p.lesson?.title || "Unknown",
+      contentType: p.lesson?.contentType || "text",
+      courseName: p.lesson?.module?.course?.name || "",
+      completed: p.completed,
+      score: data["cmi.core.score.raw"] || data["cmi.score.raw"] || null,
+      timeSpentSeconds: p.totalTimeSpentSeconds || parseInt(data["_total_time_seconds"] || "0", 10),
+      status: p.completed ? "completed" : data["cmi.core.lesson_status"] || data["cmi.completion_status"] || "in progress",
+      videoMaxWatchedPercent: p.videoMaxWatchedPercent || 0,
+      zoomAttendanceLogs: p.zoomAttendanceLogs || [],
+    };
+  });
 
   const dbUser = await db.query.users.findFirst({
     where: eq(users.id, user.userId),

@@ -30,7 +30,10 @@ function loadEnv() {
 loadEnv();
 
 const getAdminConnectionString = () => {
-  const dbUrl = process.env.DATABASE_URL || "postgresql://coe_admin:SecretPassword123@127.0.0.1:5433/postgres";
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    throw new Error("DATABASE_URL environment variable is required.");
+  }
   try {
     const url = new URL(dbUrl);
     url.pathname = "/postgres";
@@ -46,12 +49,13 @@ async function main() {
   console.log("🌱 [POSTGRES SEED] Connecting to administrative Postgres...");
   const adminClient = postgres(adminConnectionString, { max: 1 });
 
-  const defaultDbName = new URL(process.env.DATABASE_URL || "postgresql://postgres:postgres123@127.0.0.1:5432/lms_coe_db").pathname.replace("/", "") || "lms_coe_db";
+  const defaultDbName = new URL(process.env.DATABASE_URL!).pathname.replace("/", "") || "postgres";
 
-  // 1. Recreate Physical Databases (vt_db, test1_db, and default database)
-  const databasesToCreate = Array.from(new Set(["vt_db", "test1_db", defaultDbName]));
+  // 1. Recreate Physical Databases (vt_db / vti_db, nvidia_db, test1_db)
+  const databasesToCreate = Array.from(new Set(["vti_db", "vt_db", "nvidia_db", "test1_db"]));
   
   for (const dbName of databasesToCreate) {
+    if (dbName === "postgres") continue;
     console.log(`🧹 Recreating database: ${dbName}...`);
     // Terminate existing connections first to avoid "database is being accessed" errors
     try {
@@ -86,7 +90,13 @@ async function main() {
     "0001_tiresome_hellfire_club.sql",
     "0002_add_notifications.sql",
     "0003_bright_havok.sql",
-    "0004_dizzy_polaris.sql"
+    "0004_dizzy_polaris.sql",
+    "0005_library_metadata.sql",
+    "0006_ai_book_bot_context.sql",
+    "0007_add_lesson_difficulty.sql",
+    "0008_create_subjective_submissions.sql",
+    "0009_create_batch_sessions.sql",
+    "0010_fix_progress_tables.sql"
   ];
 
   // Helper to execute migrations on a target database and schema
@@ -123,7 +133,8 @@ async function main() {
         try {
           await db.execute(sql.raw(stmt));
         } catch (err: any) {
-          if (!err.message.includes("already exists")) {
+          const msg = (err?.message || "") + " " + (err?.cause?.message || "") + " " + (err?.cause?.code || "");
+          if (!msg.includes("already exists") && !msg.includes("42P07") && !msg.includes("42710")) {
             console.error(`Error in ${targetSchema} running SQL:`, stmt);
             throw err;
           }
@@ -473,6 +484,186 @@ async function main() {
   }
 
   // ==========================================
+  // PROVISIONING DATABASE: vti_db (VTI Parent + Intel, AMD, Qualcomm Schemas)
+  // ==========================================
+  const vtiDbUrl = getDbUrl("vti_db");
+  console.log("\n📦 [DATABASE: vti_db] Provisioning VTI Parent & Child Schemas...");
+  await runMigrations(vtiDbUrl, "public", false);
+
+  const vtiClient = postgres(vtiDbUrl, { max: 1 });
+  const vtiDb = drizzle(vtiClient, { schema });
+
+  await vtiDb.insert(schema.tenants).values({
+    id: "96652527-1198-4bbb-8bc4-30781efaed18",
+    name: "Wysbryx Platform",
+    subdomain: "wysbryx",
+    customDomain: "wysbryx.com",
+    dbName: "vt_db",
+    status: "active",
+    branding: { logoUrl: "https://www.wysbryx.com/wysbryx_v.png", primaryColor: "#f97316" },
+    settings: { features: { enableLibrary: true, enablePlacement: true, enableProctoring: true }, gateways: { stripe: true }, restrictions: { maxUsers: 1000, maxCourses: 1000 } }
+  }).onConflictDoNothing();
+
+  const [vtiTenant] = await vtiDb.insert(schema.tenants).values({
+    id: "96652527-1198-4bbb-8bc4-30781efaed19",
+    name: "VTI Enterprise",
+    subdomain: "vti",
+    customDomain: "vti-lms.com",
+    dbName: "vti_db",
+    parentTenantId: wysbryxTenant.id,
+    status: "active",
+    branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/60/Virginia_Tech_Gobblers_logo.svg", primaryColor: "#861F41", secondaryColor: "#1e293b" },
+    settings: { features: { enableLibrary: true, enablePlacement: true, enableProctoring: true }, gateways: { stripe: true }, restrictions: { maxUsers: 2000, maxCourses: 200 } }
+  }).returning();
+
+  await vtiDb.insert(schema.tenants).values([
+    {
+      id: "03e6d706-6e79-4dc5-96c1-e10f1beff95c",
+      name: "Intel Semiconductor Academy",
+      subdomain: "intel",
+      customDomain: "intel-academy.com",
+      dbName: "vti_db",
+      status: "active",
+      parentTenantId: vtiTenant.id,
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel-logo.svg", primaryColor: "#0068B5" },
+      settings: { features: { enableLibrary: true, enablePlacement: true }, gateways: { stripe: true }, restrictions: { maxUsers: 200 } }
+    },
+    {
+      id: "4491103f-37e0-44bd-9458-acde5af99a18",
+      name: "AMD Training Center",
+      subdomain: "amd",
+      customDomain: "amd-coe.com",
+      dbName: "vti_db",
+      status: "active",
+      parentTenantId: vtiTenant.id,
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg", primaryColor: "#ED1C24" },
+      settings: { features: { enableLibrary: true, enablePlacement: false }, gateways: { stripe: true }, restrictions: { maxUsers: 150 } }
+    },
+    {
+      id: "019915ce-3b05-4db3-a1c0-365f772f4e99",
+      name: "Qualcomm Institute",
+      subdomain: "qualcomm",
+      customDomain: "qualcomm.com",
+      dbName: "vti_db",
+      status: "active",
+      parentTenantId: vtiTenant.id,
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/f/fc/Qualcomm-Logo.svg", primaryColor: "#3253DC" },
+      settings: { features: { enableLibrary: true }, gateways: { stripe: true }, restrictions: { maxUsers: 500 } }
+    }
+  ]).onConflictDoNothing();
+
+  await vtiClient.end();
+
+  // Seed schemas inside vti_db
+  await seedTenantSchemaFromSource(vtiDbUrl, "tenant_vti", vtiTenant.id, "vt", "VTI Parent", "vt");
+  await seedTenantSchemaFromSource(vtiDbUrl, "tenant_intel", intelTenant.id, "intel", "Intel Schema", "intel");
+  await seedTenantSchemaFromSource(vtiDbUrl, "tenant_amd", amdTenant.id, "amd", "AMD Schema", "amd");
+  await seedTenantSchemaFromSource(vtiDbUrl, "tenant_qualcomm", "019915ce-3b05-4db3-a1c0-365f772f4e99", "qualcomm", "Qualcomm Schema", "amd");
+
+  // Seed VTI Owner in vti_db tenant_vti schema
+  {
+    const vtiOwnerClient = postgres(vtiDbUrl, { max: 1 });
+    const pwHash = await bcrypt.hash("Password123", 10);
+    await vtiOwnerClient.unsafe(`SET search_path TO "tenant_vti", public`);
+    await vtiOwnerClient.unsafe(`
+      INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, status)
+      VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (tenant_id, email) DO UPDATE SET password_hash = $3, role = $6
+    `, [vtiTenant.id, "owner@vti.com", pwHash, "VTI", "Owner", "Owner", "active"]);
+    await vtiOwnerClient.end();
+  }
+
+  // ==========================================
+  // PROVISIONING DATABASE: nvidia_db (NVIDIA Parent + Gaming, AI, Mellanox Schemas)
+  // ==========================================
+  const nvidiaDbUrl = getDbUrl("nvidia_db");
+  console.log("\n📦 [DATABASE: nvidia_db] Provisioning NVIDIA Parent & Child Schemas...");
+  await runMigrations(nvidiaDbUrl, "public", false);
+
+  const nvidiaClient = postgres(nvidiaDbUrl, { max: 1 });
+  const nvidiaDb = drizzle(nvidiaClient, { schema });
+
+  await nvidiaDb.insert(schema.tenants).values({
+    id: "96652527-1198-4bbb-8bc4-30781efaed18",
+    name: "Wysbryx Platform",
+    subdomain: "wysbryx",
+    customDomain: "wysbryx.com",
+    dbName: "vt_db",
+    status: "active",
+    branding: { logoUrl: "https://www.wysbryx.com/wysbryx_v.png", primaryColor: "#f97316" },
+    settings: { features: { enableLibrary: true, enablePlacement: true, enableProctoring: true }, gateways: { stripe: true }, restrictions: { maxUsers: 1000, maxCourses: 1000 } }
+  }).onConflictDoNothing();
+
+  const [nvidiaTenant] = await nvidiaDb.insert(schema.tenants).values({
+    id: "96652527-1198-4bbb-8bc4-30781efaed20",
+    name: "NVIDIA Corporation",
+    subdomain: "nvidia",
+    customDomain: "nvidia-lms.com",
+    dbName: "nvidia_db",
+    parentTenantId: wysbryxTenant.id,
+    status: "active",
+    branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/sco/2/21/Nvidia_logo.svg", primaryColor: "#76B900", secondaryColor: "#1a1a1a" },
+    settings: { features: { enableLibrary: true, enablePlacement: true, enableProctoring: true }, gateways: { stripe: true }, restrictions: { maxUsers: 5000, maxCourses: 500 } }
+  }).returning();
+
+  await nvidiaDb.insert(schema.tenants).values([
+    {
+      id: "019915ce-3b05-4db3-a1c0-365f772f4e55",
+      name: "Gaming Division",
+      subdomain: "gaming",
+      customDomain: "gaming-nvidia.com",
+      dbName: "nvidia_db",
+      status: "active",
+      parentTenantId: nvidiaTenant.id,
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/sco/2/21/Nvidia_logo.svg", primaryColor: "#76B900" },
+      settings: { features: { enableLibrary: true }, gateways: { stripe: true }, restrictions: { maxUsers: 1000 } }
+    },
+    {
+      id: "019915ce-3b05-4db3-a1c0-365f772f4e66",
+      name: "AI & Autonomous Systems",
+      subdomain: "ai",
+      customDomain: "ai-nvidia.com",
+      dbName: "nvidia_db",
+      status: "active",
+      parentTenantId: nvidiaTenant.id,
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/sco/2/21/Nvidia_logo.svg", primaryColor: "#76B900" },
+      settings: { features: { enableLibrary: true }, gateways: { stripe: true }, restrictions: { maxUsers: 1000 } }
+    },
+    {
+      id: "019915ce-3b05-4db3-a1c0-365f772f4e77",
+      name: "Mellanox Academy",
+      subdomain: "mellanox",
+      customDomain: "mellanox.com",
+      dbName: "nvidia_db",
+      status: "active",
+      parentTenantId: nvidiaTenant.id,
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/9/93/Mellanox_logo_2019.png", primaryColor: "#00B4D8" },
+      settings: { features: { enableLibrary: true }, gateways: { stripe: true }, restrictions: { maxUsers: 500 } }
+    }
+  ]).onConflictDoNothing();
+
+  await nvidiaClient.end();
+
+  // Seed schemas inside nvidia_db
+  await seedTenantSchemaFromSource(nvidiaDbUrl, "tenant_nvidia", nvidiaTenant.id, "nvidia", "NVIDIA Parent", "vt");
+  await seedTenantSchemaFromSource(nvidiaDbUrl, "tenant_gaming", "019915ce-3b05-4db3-a1c0-365f772f4e55", "gaming", "Gaming Org Schema", "intel");
+  await seedTenantSchemaFromSource(nvidiaDbUrl, "tenant_ai", "019915ce-3b05-4db3-a1c0-365f772f4e66", "ai", "AI Research Schema", "amd");
+  await seedTenantSchemaFromSource(nvidiaDbUrl, "tenant_mellanox", "019915ce-3b05-4db3-a1c0-365f772f4e77", "mellanox", "Mellanox Schema", "intel");
+
+  // Seed NVIDIA Owner in nvidia_db tenant_nvidia schema
+  {
+    const nvOwnerClient = postgres(nvidiaDbUrl, { max: 1 });
+    const pwHash = await bcrypt.hash("Password123", 10);
+    await nvOwnerClient.unsafe(`SET search_path TO "tenant_nvidia", public`);
+    await nvOwnerClient.unsafe(`
+      INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, status)
+      VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (tenant_id, email) DO UPDATE SET password_hash = $3, role = $6
+    `, [nvidiaTenant.id, "owner@nvidia.com", pwHash, "NVIDIA", "Owner", "Owner", "active"]);
+    await nvOwnerClient.end();
+  }
+
+  // ==========================================
   // PROVISIONING DATABASE 2: test1_db (Test Organization parent + sub-tenants)
   // ==========================================
   const test1DbUrl = getDbUrl("test1_db");
@@ -613,6 +804,72 @@ async function main() {
       settings: { features: { enableLibrary: true, enablePlacement: false }, gateways: { stripe: true }, restrictions: { maxUsers: 150 } }
     },
     {
+      id: "96652527-1198-4bbb-8bc4-30781efaed19",
+      name: "VTI Enterprise",
+      subdomain: "vti",
+      customDomain: "vti-lms.com",
+      dbName: "vti_db",
+      parentTenantId: "96652527-1198-4bbb-8bc4-30781efaed18",
+      status: "active",
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/60/Virginia_Tech_Gobblers_logo.svg", primaryColor: "#861F41" },
+      settings: { features: { enableLibrary: true, enablePlacement: true, enableProctoring: true }, gateways: { stripe: true }, restrictions: { maxUsers: 2000, maxCourses: 200 } }
+    },
+    {
+      id: "96652527-1198-4bbb-8bc4-30781efaed20",
+      name: "NVIDIA Corporation",
+      subdomain: "nvidia",
+      customDomain: "nvidia-lms.com",
+      dbName: "nvidia_db",
+      parentTenantId: "96652527-1198-4bbb-8bc4-30781efaed18",
+      status: "active",
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/sco/2/21/Nvidia_logo.svg", primaryColor: "#76B900" },
+      settings: { features: { enableLibrary: true, enablePlacement: true, enableProctoring: true }, gateways: { stripe: true }, restrictions: { maxUsers: 5000, maxCourses: 500 } }
+    },
+    {
+      id: "019915ce-3b05-4db3-a1c0-365f772f4e55",
+      name: "Gaming Division",
+      subdomain: "gaming",
+      customDomain: "gaming-nvidia.com",
+      dbName: "nvidia_db",
+      status: "active",
+      parentTenantId: "96652527-1198-4bbb-8bc4-30781efaed20",
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/sco/2/21/Nvidia_logo.svg", primaryColor: "#76B900" },
+      settings: { features: { enableLibrary: true }, gateways: { stripe: true }, restrictions: { maxUsers: 1000 } }
+    },
+    {
+      id: "019915ce-3b05-4db3-a1c0-365f772f4e66",
+      name: "AI & Autonomous Systems",
+      subdomain: "ai",
+      customDomain: "ai-nvidia.com",
+      dbName: "nvidia_db",
+      status: "active",
+      parentTenantId: "96652527-1198-4bbb-8bc4-30781efaed20",
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/sco/2/21/Nvidia_logo.svg", primaryColor: "#76B900" },
+      settings: { features: { enableLibrary: true }, gateways: { stripe: true }, restrictions: { maxUsers: 1000 } }
+    },
+    {
+      id: "019915ce-3b05-4db3-a1c0-365f772f4e99",
+      name: "Qualcomm Institute",
+      subdomain: "qualcomm",
+      customDomain: "qualcomm.com",
+      dbName: "vti_db",
+      status: "active",
+      parentTenantId: "96652527-1198-4bbb-8bc4-30781efaed19",
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/commons/f/fc/Qualcomm-Logo.svg", primaryColor: "#3253DC" },
+      settings: { features: { enableLibrary: true }, gateways: { stripe: true }, restrictions: { maxUsers: 500 } }
+    },
+    {
+      id: "019915ce-3b05-4db3-a1c0-365f772f4e77",
+      name: "Mellanox Networking",
+      subdomain: "mellanox",
+      customDomain: "mellanox-nvidia.com",
+      dbName: "nvidia_db",
+      status: "active",
+      parentTenantId: "96652527-1198-4bbb-8bc4-30781efaed20",
+      branding: { logoUrl: "https://upload.wikimedia.org/wikipedia/sco/2/21/Nvidia_logo.svg", primaryColor: "#76B900" },
+      settings: { features: { enableLibrary: true }, gateways: { stripe: true }, restrictions: { maxUsers: 1000 } }
+    },
+    {
       id: "15b66b68-2e97-4bad-b756-e4cc16923530",
       name: "Test Organization parent",
       subdomain: "test1",
@@ -634,7 +891,7 @@ async function main() {
       branding: { logoUrl: "", primaryColor: "#555555" },
       settings: { features: { enableLibrary: false }, gateways: { stripe: false }, restrictions: { maxUsers: 50 } }
     }
-  ]);
+  ]).onConflictDoNothing();
   await defaultClientConn.end();
   console.log(`   └─ Central registry database seeded with all tenants.`);
 

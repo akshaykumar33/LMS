@@ -5,6 +5,7 @@ import { users, tenants, roles, rolePermissions, permissions } from "@/db/schema
 import { eq, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getTenantContext, getScopedTenantIds } from "./tenant";
+import { isAncestorOf } from "./is-parent-tenant";
 
 /**
  * Retrieve the current authenticated user session from JWT HttpOnly cookies.
@@ -41,7 +42,10 @@ export async function getCurrentUser(): Promise<UserTokenPayload | null> {
     }
 
     return payload;
-  } catch (error) {
+  } catch (error: any) {
+    if (error && (error.digest === "DYNAMIC_SERVER_USAGE" || error.message?.includes("Dynamic server usage"))) {
+      throw error;
+    }
     console.error("Failed to retrieve user session:", error);
     return null;
   }
@@ -66,7 +70,9 @@ export async function requireAuth(allowedRoles?: string[]): Promise<UserTokenPay
   const activeTenant = await getTenantContext();
   if (activeTenant && user.role !== "SuperAdmin") {
     const allowedTenantIds = await getScopedTenantIds(user.role, user.tenantId || activeTenant.id);
-    if (!allowedTenantIds || !allowedTenantIds.includes(activeTenant.id)) {
+    const isParentOrAncestor = user.tenantId ? await isAncestorOf(activeTenant.id, user.tenantId) : false;
+    
+    if ((!allowedTenantIds || !allowedTenantIds.includes(activeTenant.id)) && !isParentOrAncestor) {
       const cookieStore = await cookies();
       cookieStore.delete("access_token");
       cookieStore.delete("refresh_token");

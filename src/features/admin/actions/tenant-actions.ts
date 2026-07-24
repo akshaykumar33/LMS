@@ -283,7 +283,6 @@ export async function getTenantPermissionsAction(tenantId: string) {
 export async function toggleRolePermissionAction(roleId: string, permissionId: string, enable: boolean) {
   try {
     const user = await requireAuth(["SuperAdmin", "Owner"]);
-    await verifyGlobalAdmin(user);
     verifyWriteAccess(user);
 
     if (enable) {

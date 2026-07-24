@@ -85,32 +85,8 @@ export function TenantQuickSwitcher({ userRole, currentSubdomain }: TenantQuickS
 
   const handleSwitch = (targetSubdomain: string) => {
     if (targetSubdomain === currentSubdomain) return;
-
-    const host = window.location.host; // e.g. "intel.localhost:3080" or "localhost:3080"
-    const protocol = window.location.protocol;
-    const pathname = window.location.pathname;
-
-    // Handle Localhost
-    if (host.includes("localhost") || host.includes("127.0.0.1")) {
-      const parts = host.split(".");
-      if (parts.length > 1 && !parts[parts.length - 2].includes("localhost")) {
-        parts[0] = targetSubdomain;
-        window.location.href = `${protocol}//${parts.join(".")}${pathname}`;
-      } else {
-        // Fallback to query param on bare localhost
-        window.location.href = `${protocol}//${host}${pathname}?tenant=${targetSubdomain}`;
-      }
-    } else {
-      // Handle Production (Vercel or custom domain)
-      const parts = host.split(".");
-      const isVercel = host.endsWith(".vercel.app");
-      if ((isVercel && parts.length > 3) || (!isVercel && parts.length > 2)) {
-        parts[0] = targetSubdomain;
-        window.location.href = `${protocol}//${parts.join(".")}${pathname}`;
-      } else {
-        window.location.href = `${protocol}//${host}${pathname}?tenant=${targetSubdomain}`;
-      }
-    }
+    document.cookie = `x-tenant-subdomain=${targetSubdomain}; path=/; max-age=2592000`;
+    window.location.reload();
   };
 
   const sortedList = getSortedHierarchy();

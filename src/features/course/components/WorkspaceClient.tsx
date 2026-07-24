@@ -5,12 +5,15 @@ import {
   BookOpen, Video, FileText, ChevronLeft, ChevronRight, Sparkles, 
   Edit3, HelpCircle, MessageSquare, Award, Play, CheckCircle, 
   Send, RefreshCw, Download, Award as BadgeIcon, BrainCircuit, ShieldAlert,
-  HelpCircle as QuestionIcon, Volume2, VolumeX, Pause, RotateCcw, RotateCw, Maximize
+  HelpCircle as QuestionIcon, Volume2, VolumeX, Pause, RotateCcw, RotateCw, Maximize,
+  Lock, Unlock
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { QuizWorkspace } from "@/features/quiz/components/QuizWorkspace";
-import { toggleLessonCompletionAction, submitProjectAction, askAiAction } from "../actions/course-actions";
+import { toggleLessonCompletionAction, submitProjectAction, askAiAction, updateStudentCompetencyAction } from "../actions/course-actions";
+import { submitSubjectiveAction } from "../actions/subjective-actions";
 import { saveScormAttemptAction, getScormProgressAction, saveScormCourseAttemptAction, getScormCourseProgressAction } from "../actions/scorm-actions";
+import { formatReadableDate } from "@/utils/date-formatter";
 
 interface Lesson {
   id: string;
@@ -22,6 +25,7 @@ interface Lesson {
   zoomMeetingId?: string | null;
   zoomPasscode?: string | null;
   fileUrl?: string | null;
+  difficulty?: string;
 }
 
 interface Module {
@@ -38,6 +42,7 @@ interface CourseDetails {
   syllabus: string | null;
   scormEnabled?: boolean;
   scormPackageUrl?: string | null;
+  unlockPolicy?: string | null;
   modules: Module[];
 }
 
@@ -56,6 +61,7 @@ interface WorkspaceClientProps {
   scormCourseProgress?: any | null;
   capstoneProject?: any | null;
   capstoneSubmission?: any | null;
+  subjectiveSubmissions?: any[];
   tenantName: string;
   subdomain: string;
   primaryColor?: string;
@@ -463,6 +469,7 @@ export function WorkspaceClient({
   scormCourseProgress,
   capstoneProject,
   capstoneSubmission,
+  subjectiveSubmissions = [],
   tenantName, 
   subdomain,
   primaryColor = "#0ea5e9",
@@ -474,10 +481,64 @@ export function WorkspaceClient({
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<"material" | "whiteboard" | "notes" | "chat" | "capstone">("material");
+  const [activeTab, setActiveTab] = useState<"material" | "whiteboard" | "notes" | "chat" | "capstone" | "subjective">("material");
 
   // Lesson completions
   const [completedLessons, setCompletedLessons] = useState<string[]>(completedLessonIds);
+  const [competencyLevel, setCompetencyLevel] = useState((user as any).competencyLevel || "Beginner");
+
+  // Enforce sequential / competency locking
+  const allLessons = course.modules.flatMap((mod) => mod.lessons);
+
+  const getLessonLockStatus = (lesId: string) => {
+    const lesson = allLessons.find((l) => l.id === lesId);
+    if (!lesson) return { isLocked: false, reason: "" };
+
+    const lessonDifficulty = (lesson as any).difficulty || "Beginner";
+
+    // 1. Competency lock enforcement: lock Advanced lessons if student is Beginner
+    if (course.unlockPolicy === "competency" || course.unlockPolicy === "sequential") {
+      if (lessonDifficulty === "Advanced" && competencyLevel === "Beginner") {
+        return { isLocked: true, reason: "competency" };
+      }
+    }
+
+    // 2. Sequential lock enforcement: lock if preceding lessons are not completed
+    if (course.unlockPolicy === "sequential") {
+      const idx = allLessons.findIndex((l) => l.id === lesId);
+      if (idx > 0) {
+        const precedingLessons = allLessons.slice(0, idx);
+        const hasUncompletedPreceding = precedingLessons.some((l) => !completedLessons.includes(l.id));
+        if (hasUncompletedPreceding) {
+          return { isLocked: true, reason: "sequential" };
+        }
+      }
+    }
+
+    return { isLocked: false, reason: "" };
+  };
+
+  const handleUpgradeCompetency = async () => {
+    if (user.role === "Guest") {
+      setCompetencyLevel("Advanced");
+      setNotification({ type: "success", message: "Sandbox simulation: Competency upgraded to Advanced!" });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+    try {
+      const res = await updateStudentCompetencyAction("Advanced");
+      if (res.success) {
+        setCompetencyLevel("Advanced");
+        setNotification({ type: "success", message: "Competency level upgraded to Advanced successfully!" });
+      } else {
+        setNotification({ type: "error", message: res.error || "Failed to upgrade competency." });
+      }
+    } catch (err: any) {
+      setNotification({ type: "error", message: err.message || "Failed to upgrade competency." });
+    }
+    setTimeout(() => setNotification(null), 4000);
+  };
+
   const [scormCompleted, setScormCompleted] = useState(!!scormCourseProgress?.completed);
   const [localScormData, setLocalScormData] = useState<any>(scormCourseProgress?.scormData || {});
   const [updatingProgress, setUpdatingProgress] = useState(false);
@@ -607,6 +668,25 @@ export function WorkspaceClient({
     setIsResubmitting(false);
   }, [capstoneSubmission]);
 
+  // Subjective submissions local states
+  const [localSubmissionsList, setLocalSubmissionsList] = useState<any[]>(subjectiveSubmissions);
+  const [subjectiveAnswer, setSubjectiveAnswer] = useState("");
+  const [submittingSubjective, setSubmittingSubjective] = useState(false);
+
+  useEffect(() => {
+    setLocalSubmissionsList(subjectiveSubmissions);
+  }, [subjectiveSubmissions]);
+
+  // Sync current subjective answer for active lesson
+  useEffect(() => {
+    if (activeLesson) {
+      const match = localSubmissionsList.find((s) => s.lessonId === activeLesson.id);
+      setSubjectiveAnswer(match?.studentAnswer || "");
+    } else {
+      setSubjectiveAnswer("");
+    }
+  }, [activeLesson, localSubmissionsList]);
+
   useEffect(() => {
     setCompletedLessons(completedLessonIds);
   }, [completedLessonIds]);
@@ -624,8 +704,96 @@ export function WorkspaceClient({
   // AI Chat state
   const [activeBot, setActiveBot] = useState<"tutor" | "book" | "score">("tutor");
   const [aiQuery, setAiQuery] = useState("");
+
+  // Dynamic Course Analysis Helper for AI Assistant Console
+  const getCourseAnalysisAndTopics = () => {
+    const courseName = course?.name || "Course Learning Module";
+    const courseCode = course?.code || "LMS";
+    const courseDesc = course?.description || "";
+    const activeLessonTitle = activeLesson?.title || "";
+    const textLower = `${courseName} ${courseCode} ${courseDesc} ${activeLessonTitle}`.toLowerCase();
+
+    let topics: Array<{ label: string; query: string }> = [];
+
+    if (textLower.includes("cuda") || textLower.includes("parallel") || textLower.includes("gpu")) {
+      topics = [
+        { label: "CUDA Parallel", query: "CUDA" },
+        { label: "GPU Arch", query: "GPU Architecture" },
+        { label: "Kernel Tuning", query: "CUDA Kernels" }
+      ];
+    } else if (textLower.includes("fabrication") || textLower.includes("wafer") || textLower.includes("cleanroom")) {
+      topics = [
+        { label: "Fab Guide", query: "Fabrication" },
+        { label: "Lithography", query: "Lithography" },
+        { label: "CVD & Etch", query: "Etch" }
+      ];
+    } else if (textLower.includes("ray tracing") || textLower.includes("graphics") || textLower.includes("rt core")) {
+      topics = [
+        { label: "Ray Tracing", query: "Ray Tracing" },
+        { label: "RT Cores", query: "Core Synthesis" },
+        { label: "BVH Traversal", query: "BVH" }
+      ];
+    } else if (textLower.includes("interconnect") || textLower.includes("nvlink") || textLower.includes("high-speed")) {
+      topics = [
+        { label: "NVLink Spec", query: "NVLink" },
+        { label: "Interconnects", query: "Interconnects" },
+        { label: "SerDes PHY", query: "SerDes" }
+      ];
+    } else if (textLower.includes("device physics") || textLower.includes("sub-micron") || textLower.includes("quantum")) {
+      topics = [
+        { label: "Device Physics", query: "Device Physics" },
+        { label: "Sub-Micron", query: "Sub-Micron" },
+        { label: "Quantum Effects", query: "Quantum" }
+      ];
+    } else if (textLower.includes("eda") || textLower.includes("synthesis") || textLower.includes("verilog")) {
+      topics = [
+        { label: "EDA Tools", query: "EDA" },
+        { label: "Synthesis", query: "Synthesis" },
+        { label: "DRC Rules", query: "DRC" }
+      ];
+    } else if (textLower.includes("deep learning") || textLower.includes("accelerator")) {
+      topics = [
+        { label: "AI Hardware", query: "Accelerator" },
+        { label: "Tensor Cores", query: "Tensor" },
+        { label: "Systolic Array", query: "Systolic" }
+      ];
+    } else if (textLower.includes("vlsi") || textLower.includes("cmos")) {
+      topics = [
+        { label: "CMOS Design", query: "CMOS" },
+        { label: "VLSI Layout", query: "VLSI" },
+        { label: "Timing Slack", query: "Timing" }
+      ];
+    } else {
+      const words = courseName.split(/[\s&,/–-]+/).filter((w: string) => w.length > 2);
+      const t1 = words[0] || "Core";
+      const t2 = words[1] || "Reference";
+      const t3 = words[2] || "Manuals";
+      topics = [
+        { label: `${t1} Books`, query: t1 },
+        { label: `${t2} Guide`, query: t2 },
+        { label: `${t3} Docs`, query: t3 }
+      ];
+    }
+
+    const topicQueries = topics.map(t => `'${t.query}'`).join(", ");
+    const topicLabels = topics.map(t => t.label).join(" • ");
+
+    const welcomeMessage = `Hello! I am your AI Book Bot Librarian for **${courseName}** (${courseCode}).
+
+I have dynamically analyzed this course syllabus and indexed our digital reference library for **${courseName}**.
+
+📚 **Course Context Analysis**:
+• **Active Focus**: ${activeLessonTitle ? `"${activeLessonTitle}"` : (course.modules?.[0]?.name || courseName)}
+• **Core Subject Domain**: ${topicLabels}
+• **Scope**: ${courseDesc ? courseDesc.substring(0, 120) + "..." : "Advanced technical references & manuals"}
+
+I can search through our digital library textbooks, research papers, and worksheets tailored for **${courseCode}**. Try typing search queries like ${topicQueries} or click one of the quick tools below!`;
+
+    return { topics, welcomeMessage };
+  };
+
   const [aiMessages, setAiMessages] = useState<Array<{ sender: "user" | "ai"; text: string; rag?: any[] }>>([
-    { sender: "ai", text: "Hello! I am your AI Semiconductor Assistant. Ask me anything about today's lesson, or use the shortcuts below to summarize or quiz yourself." }
+    { sender: "ai", text: `Hello! I am your AI Assistant for ${course.name}. Ask me anything about ${activeLesson ? activeLesson.title : "this course"}, or use the shortcuts below to summarize or quiz yourself.` }
   ]);
   const [expandedRagIndices, setExpandedRagIndices] = useState<Record<number, boolean>>({});
   const [aiLoading, setAiLoading] = useState(false);
@@ -676,20 +844,21 @@ export function WorkspaceClient({
     setSpeakingIndex(null);
     if (activeBot === "tutor") {
       setAiMessages([
-        { sender: "ai", text: "Hello! I am your AI Semiconductor Assistant. Ask me anything about today's lesson, or use the shortcuts below to summarize or quiz yourself." }
+        { sender: "ai", text: `Hello! I am your AI Tutor for **${course.name}** (${course.code}). Ask me anything about ${activeLesson ? `"${activeLesson.title}"` : "this course"}, or use the shortcuts below to summarize or quiz yourself.` }
       ]);
     } else if (activeBot === "book") {
+      const { welcomeMessage } = getCourseAnalysisAndTopics();
       setAiMessages([
-        { sender: "ai", text: "Hello! I am your AI Book Bot Librarian. I can search through our digital library textbooks, manuals, and worksheets. Try typing 'CMOS' or 'EUV' or 'transistor' to find reference links." }
+        { sender: "ai", text: welcomeMessage }
       ]);
     } else if (activeBot === "score") {
       setAiMessages([
-        { sender: "ai", text: "Hello! I am your AI Score Bot Coach. I can analyze your roadmap progress, average quiz score grades, and proctoring integrity record. Click 'Analyze Score' below to pull your progress audit report card!" }
+        { sender: "ai", text: `Hello! I am your AI Score Bot Coach for **${course.name}**. I can analyze your roadmap progress, average quiz score grades, and proctoring integrity record for this course. Click 'Analyze Score' below to pull your progress audit report card!` }
       ]);
     }
     setFlashcards([]);
     setCustomQuiz([]);
-  }, [activeBot]);
+  }, [activeBot, course, activeLesson]);
 
   // Chat & Polls state
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; user: string; text: string; time: string; rx?: string }>>([
@@ -731,6 +900,22 @@ export function WorkspaceClient({
     setCustomQuiz([]);
     lastSavedTimeRef.current = 0;
   }, [activeLesson]);
+
+  // Total time spent tracking
+  useEffect(() => {
+    if (user.role !== "Student" || !activeLesson) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const { incrementTimeSpentAction } = await import("../actions/course-actions");
+        await incrementTimeSpentAction(activeLesson.id, 10);
+      } catch (err) {
+        console.error("Failed to increment time spent:", err);
+      }
+    }, 10000); // every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [activeLesson, user.role]);
 
   // Notes Auto-save logic
   useEffect(() => {
@@ -878,6 +1063,88 @@ export function WorkspaceClient({
       });
     } finally {
       setSubmittingProject(false);
+      setTimeout(() => setNotification(null), 5000);
+    }
+  };
+
+  const handleSubjectiveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeLesson) return;
+    if (user.role === "Guest") {
+      setNotification({
+        type: "error",
+        message: "State modifications are disabled in guest sandbox mode.",
+      });
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
+    if (!subjectiveAnswer.trim()) {
+      setNotification({
+        type: "error",
+        message: "Answer cannot be empty.",
+      });
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
+    setSubmittingSubjective(true);
+    try {
+      const promptText = `Please write a subjective summary or analysis based on this lesson: ${activeLesson.title}. Analyze the core concepts, their practical implementation in semiconductor/VLSI design, and explain the key trade-offs involved.`;
+      const res = await submitSubjectiveAction({
+        courseId: course.id,
+        lessonId: activeLesson.id,
+        title: `${activeLesson.title} - Subjective Assessment`,
+        questionText: promptText,
+        studentAnswer: subjectiveAnswer,
+      });
+
+      if (res.success) {
+        confetti({
+          particleCount: 80,
+          spread: 40,
+          origin: { y: 0.8 }
+        });
+        setNotification({
+          type: "success",
+          message: "Subjective response submitted successfully! Faculty will evaluate it manually.",
+        });
+
+        // Add to local list or modify local entry
+        const existingIdx = localSubmissionsList.findIndex((s) => s.lessonId === activeLesson.id);
+        const newSub = {
+          lessonId: activeLesson.id,
+          courseId: course.id,
+          title: `${activeLesson.title} - Subjective Assessment`,
+          questionText: promptText,
+          studentAnswer: subjectiveAnswer,
+          status: "pending",
+          score: null,
+          rubrics: null,
+          feedback: null,
+          history: [],
+          submittedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        if (existingIdx > -1) {
+          const updated = [...localSubmissionsList];
+          updated[existingIdx] = { ...updated[existingIdx], ...newSub };
+          setLocalSubmissionsList(updated);
+        } else {
+          setLocalSubmissionsList((prev) => [...prev, newSub]);
+        }
+      } else {
+        setNotification({
+          type: "error",
+          message: res.error || "Submission failed. Please try again.",
+        });
+      }
+    } catch (err: any) {
+      setNotification({
+        type: "error",
+        message: err.message || "An unexpected error occurred.",
+      });
+    } finally {
+      setSubmittingSubjective(false);
       setTimeout(() => setNotification(null), 5000);
     }
   };
@@ -1278,39 +1545,53 @@ export function WorkspaceClient({
                     {mod.lessons.map((les) => {
                       const isActive = activeLessonId === les.id;
                       const lessonQuiz = quizzes.find((q) => q.lessonId === les.id);
+                      const lockStatus = getLessonLockStatus(les.id);
                       return (
                         <div key={les.id} className="space-y-0.5">
                           <a
-                            href={`/courses/${course.id}?lessonId=${les.id}`}
+                            href={lockStatus.isLocked ? undefined : `/courses/${course.id}?lessonId=${les.id}`}
                             className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                              isActive 
+                              lockStatus.isLocked
+                                ? "opacity-50 cursor-not-allowed text-muted-foreground/60"
+                                : isActive 
                                 ? "bg-primary/10 text-primary border-l-2" 
                                 : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
                             }`}
-                            style={isActive ? { borderLeftColor: primaryColor, color: primaryColor } : undefined}
+                            style={isActive && !lockStatus.isLocked ? { borderLeftColor: primaryColor, color: primaryColor } : undefined}
                           >
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
                               <span className="shrink-0 text-sm">
-                                {les.contentType === "video" ? "📺" : les.contentType === "live_class" ? "🎥" : "📄"}
+                                {lockStatus.isLocked ? (
+                                  <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+                                ) : les.contentType === "video" ? (
+                                  "📺"
+                                ) : les.contentType === "live_class" ? (
+                                  "🎥"
+                                ) : (
+                                  "📄"
+                                )}
                               </span>
                               <span className="truncate flex-1">{les.title}</span>
                             </div>
-                            {completedLessons.includes(les.id) && (
+                            {completedLessons.includes(les.id) && !lockStatus.isLocked && (
                               <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                             )}
                           </a>
 
                           {lessonQuiz && (
                             <a
-                              href={`/courses/${course.id}?quizId=${lessonQuiz.id}`}
+                              href={lockStatus.isLocked ? undefined : `/courses/${course.id}?quizId=${lessonQuiz.id}`}
                               className={`w-full flex items-center gap-2 px-3 py-1.5 pl-8 rounded-xl text-[10px] font-extrabold transition-all ${
-                                activeQuizId === lessonQuiz.id
+                                lockStatus.isLocked
+                                  ? "opacity-50 cursor-not-allowed text-muted-foreground/45"
+                                  : activeQuizId === lessonQuiz.id
                                   ? "bg-amber-500/10 text-amber-500 border-l-2 border-amber-500" 
                                   : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
                               }`}
                             >
                               <span>✍️</span>
                               <span className="truncate flex-1">{lessonQuiz.title}</span>
+                              {lockStatus.isLocked && <Lock className="w-2.5 h-2.5 text-muted-foreground ml-auto" />}
                             </a>
                           )}
                         </div>
@@ -1385,719 +1666,939 @@ export function WorkspaceClient({
             />
           </div>
         ) : activeLesson ? (
-          <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Viewport: Video, PDF text, or Zoom */}
-                <div className="bg-card/35 border-b border-border shrink-0">
-              {activeLesson.contentType === "video" && activeLesson.videoUrl && (
-                <div className="aspect-video max-h-[38vh] mx-auto bg-black relative flex items-center justify-center group overflow-hidden rounded-xl border border-border/40 shadow-2xl">
-                  <video 
-                    ref={videoRef}
-                    key={activeLesson.videoUrl}
-                    className="w-full h-full object-contain"
-                    poster="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=1200"
-                    onLoadedMetadata={handleVideoLoadedMetadata}
-                    onTimeUpdate={handleVideoTimeUpdate}
-                    onClick={playPauseVideo}
-                    playsInline
-                  >
-                    {activeLesson.videoUrl && <source src={activeLesson.videoUrl} type="video/mp4" />}
-                    <source src="/sample-video.mp4" type="video/mp4" />
-                    Your browser does not support the video tag.
-                  </video>
-
-                  {/* Top Header Overlay: Displays the Lesson Title */}
-                  <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex flex-col justify-start z-10">
-                    <span className="text-[9px] font-black text-primary tracking-widest uppercase" style={{ color: primaryColor }}>
-                      Now Playing
-                    </span>
-                    <h4 className="text-white text-xs font-black drop-shadow truncate">
-                      {activeLesson.title}
-                    </h4>
-                  </div>
-
-                  {/* Center Play/Pause Overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                    <button 
-                      onClick={playPauseVideo}
-                      className="w-12 h-12 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto hover:scale-105 hover:bg-black/85 cursor-pointer shadow-lg border border-white/10"
-                    >
-                      {isPlaying ? (
-                        <Pause className="w-5 h-5 fill-white text-white" />
-                      ) : (
-                        <Play className="w-5 h-5 fill-white text-white ml-0.5" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Custom Controls Bar Overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2 pointer-events-auto z-10">
-                    {/* Progress Slider */}
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="range"
-                        min={0}
-                        max={videoDuration || 100}
-                        value={videoCurrentTime}
-                        onChange={handleProgressBarChange}
-                        className="flex-1 accent-primary h-1 bg-white/20 rounded-lg appearance-none cursor-pointer hover:h-1.5 transition-all"
-                        style={{ '--c': primaryColor } as any}
-                      />
+          (() => {
+            const lockStatus = getLessonLockStatus(activeLesson.id);
+            if (lockStatus.isLocked) {
+              return (
+                <div className="flex-1 overflow-y-auto flex items-center justify-center p-6 bg-card/10">
+                  <div className="w-full max-w-md sexy-border-glow bg-card/45 backdrop-blur-md rounded-3xl p-8 text-center space-y-6">
+                    <div className="w-16 h-16 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto border border-rose-500/20">
+                      <Lock className="w-8 h-8" />
                     </div>
-
-                    {/* Bottom Control buttons */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3.5">
-                        {/* Play/Pause */}
-                        <button 
-                          onClick={playPauseVideo}
-                          className="text-white hover:text-primary transition-colors cursor-pointer"
-                          style={isPlaying ? { color: primaryColor } : undefined}
-                          title={isPlaying ? "Pause" : "Play"}
-                        >
-                          {isPlaying ? <Pause className="w-4 h-4 fill-current text-white" /> : <Play className="w-4 h-4 fill-current text-white" />}
-                        </button>
-
-                        {/* Back 10s */}
-                        <button 
-                          onClick={() => skipVideo(-10)}
-                          className="text-white hover:text-primary transition-colors cursor-pointer"
-                          title="Rewind 10s"
-                        >
-                          <RotateCcw className="w-4 h-4 text-white" />
-                        </button>
-
-                        {/* Forward 10s */}
-                        <button 
-                          onClick={() => skipVideo(10)}
-                          className="text-white hover:text-primary transition-colors cursor-pointer"
-                          title="Forward 10s"
-                        >
-                          <RotateCw className="w-4 h-4 text-white" />
-                        </button>
-
-                        {/* Time display */}
-                        <span className="text-[10px] text-white/90 font-mono select-none">
-                          {formatVideoTime(videoCurrentTime)} / {formatVideoTime(videoDuration)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-3.5">
-                        {/* Mute/Unmute */}
-                        <button 
-                          onClick={toggleMuteVideo}
-                          className="text-white hover:text-primary transition-colors cursor-pointer"
-                          title={isMuted ? "Unmute" : "Mute"}
-                        >
-                          {isMuted ? <VolumeX className="w-4 h-4 text-rose-500 fill-current" /> : <Volume2 className="w-4 h-4 text-white" />}
-                        </button>
-
-                        {/* Fullscreen */}
-                        <button 
-                          onClick={() => {
-                            if (videoRef.current) {
-                              if (document.fullscreenElement) {
-                                document.exitFullscreen().catch(console.error);
-                              } else {
-                                videoRef.current.requestFullscreen().catch(console.error);
-                              }
-                            }
-                          }}
-                          className="text-white hover:text-primary transition-colors cursor-pointer"
-                          title="Fullscreen"
-                        >
-                          <Maximize className="w-4 h-4 text-white" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeLesson.contentType === "live_class" && (
-                <div className="py-8 text-center bg-gradient-to-tr from-card to-background space-y-4">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 text-2xl flex items-center justify-center mx-auto animate-pulse">
-                    🎥
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-black bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-emerald-400 uppercase tracking-widest">
-                      Live Classroom
-                    </span>
-                    <h3 className="text-sm font-extrabold text-foreground">{activeLesson.title}</h3>
-                    <p className="text-[10px] text-muted-foreground">Meeting details generated securely below.</p>
-                  </div>
-                  <div className="flex items-center justify-center gap-4 text-left max-w-xs bg-background border border-border p-2.5 rounded-xl mx-auto text-[10px] font-mono">
-                    <div>
-                      <span className="text-muted-foreground block">ID:</span>
-                      <strong className="text-foreground">{activeLesson.zoomMeetingId || "821 7401"}</strong>
-                    </div>
-                    <div className="border-l border-border pl-4">
-                      <span className="text-muted-foreground block">Key:</span>
-                      <strong className="text-foreground">{activeLesson.zoomPasscode || "intelLMS"}</strong>
-                    </div>
-                  </div>
-                  <a 
-                    href="https://zoom.us" 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs px-4 py-2 rounded-xl transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
-                  >
-                    Enter Live Class
-                  </a>
-                </div>
-              )}
-
-              {activeLesson.contentType === "text" && (
-                <div className="p-6 bg-gradient-to-r from-primary/5 to-transparent flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center text-lg">
-                    📄
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-primary tracking-widest">Document Workspace</span>
-                    <h3 className="text-sm font-extrabold text-foreground">{activeLesson.title}</h3>
-                  </div>
-                </div>
-              )}
-
-
-              {activeLesson.contentType === "audio" && activeLesson.videoUrl && (
-                <div className="py-6 px-8 text-center bg-gradient-to-tr from-card to-background space-y-4 border-b border-border">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 text-primary text-xl flex items-center justify-center mx-auto">
-                    🎧
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-black bg-primary/10 border border-primary/20 px-2 py-0.5 rounded text-primary uppercase tracking-widest">
-                      Audio Lecture Podcast
-                    </span>
-                    <h3 className="text-sm font-extrabold text-foreground">{activeLesson.title}</h3>
-                  </div>
-                  <div className="max-w-md mx-auto">
-                    <audio 
-                      key={activeLesson.videoUrl}
-                      controls 
-                      className="w-full"
-                    >
-                      {activeLesson.videoUrl && <source src={activeLesson.videoUrl} type="audio/mpeg" />}
-                      <source src="/sample-audio.mp3" type="audio/mpeg" />
-                    </audio>
-                  </div>
-                  {/* Waveform graphic visualization */}
-                  <div className="flex justify-center items-end gap-1 h-8 max-w-[200px] mx-auto select-none">
-                    <span className="w-1 bg-primary/40 rounded-full h-4 animate-bounce" style={{ animationDelay: '0.1s' }} />
-                    <span className="w-1 bg-primary/60 rounded-full h-7 animate-bounce" style={{ animationDelay: '0.3s' }} />
-                    <span className="w-1 bg-primary rounded-full h-5 animate-bounce" style={{ animationDelay: '0.5s' }} />
-                    <span className="w-1 bg-primary/70 rounded-full h-8 animate-bounce" style={{ animationDelay: '0.2s' }} />
-                    <span className="w-1 bg-primary/50 rounded-full h-4 animate-bounce" style={{ animationDelay: '0.4s' }} />
-                  </div>
-                </div>
-              )}
-
-              {(activeLesson.contentType === "excel" || activeLesson.contentType === "sheets") && (
-                <div className="p-4 bg-card/60 border-b border-border flex flex-col items-stretch space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[9px] font-black bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
-                        Interactive Spreadsheet Workspace
-                      </span>
-                      <h3 className="text-xs font-black text-foreground mt-1">{activeLesson.title}</h3>
-                    </div>
-                    {activeLesson.fileUrl && (
-                      <a 
-                        href={activeLesson.fileUrl} 
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[9px] font-black uppercase text-primary tracking-wider hover:underline flex items-center gap-1"
-                        style={{ color: primaryColor }}
-                      >
-                        📂 Open Excel Sheet
-                      </a>
-                    )}
-                  </div>
-                  
-                  {/* Spreadsheet Grid Component */}
-                  <div className="border border-border rounded-xl overflow-hidden bg-background">
-                    <table className="w-full text-left border-collapse text-[10px]">
-                      <thead>
-                        <tr className="bg-muted/30 text-muted-foreground border-b border-border font-bold">
-                          <th className="p-2 border-r border-border text-center w-8 bg-muted/10"></th>
-                          <th className="p-2 border-r border-border w-24">Parameter</th>
-                          <th className="p-2 border-r border-border w-16">Target</th>
-                          <th className="p-2 border-r border-border w-16">Value</th>
-                          <th className="p-2 border-r border-border w-16">Tolerance</th>
-                          <th className="p-2">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[
-                          { id: 1, param: "Fin Width (W_fin)", target: "8nm", val: "7.92nm", tol: "±0.1nm", status: "PASS" },
-                          { id: 2, param: "Gate Length (L_g)", target: "14nm", val: "14.05nm", tol: "±0.2nm", status: "PASS" },
-                          { id: 3, param: "EOT (Oxide Thickness)", target: "0.9nm", val: "0.89nm", tol: "±0.05nm", status: "PASS" },
-                          { id: 4, param: "Threshold Voltage (V_th)", target: "0.28V", val: "0.274V", tol: "±0.02V", status: "PASS" },
-                        ].map((row) => (
-                          <tr key={row.id} className="border-b border-border hover:bg-muted/10">
-                            <td className="p-2 border-r border-border text-center font-bold text-muted-foreground bg-muted/10">{row.id}</td>
-                            <td className="p-2 border-r border-border font-extrabold text-foreground">{row.param}</td>
-                            <td className="p-2 border-r border-border text-muted-foreground font-semibold">{row.target}</td>
-                            <td className="p-2 border-r border-border font-mono">
-                              <input 
-                                type="text"
-                                defaultValue={row.val}
-                                className="w-full bg-transparent focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 border-none text-foreground font-mono"
-                              />
-                            </td>
-                            <td className="p-2 border-r border-border text-muted-foreground">{row.tol}</td>
-                            <td className="p-2 font-black text-emerald-400">{row.status}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {activeLesson.contentType === "scorm" && (
-                <ScormInlinePlayer
-                  lessonId={activeLesson.id}
-                  fileUrl={activeLesson.fileUrl || null}
-                  userName={user ? `${user.firstName} ${user.lastName}` : "Student"}
-                  userId={user?.userId || ""}
-                  onComplete={() => {
-                    confetti({ particleCount: 80, spread: 60 });
-                    if (!completedLessons.includes(activeLesson.id)) {
-                      setCompletedLessons(prev => [...prev, activeLesson.id]);
-                    }
-                  }}
-                />
-              )}
-            </div>
-
-            {/* Split Tab Panel below Viewport */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-              
-              {/* Tab Navigation header */}
-              <div className="h-11 border-b border-border bg-card/25 flex items-center justify-between px-6 shrink-0">
-                <div className="flex gap-2">
-                  {((): any[] => {
-                    const list = [
-                      { id: "material", label: "Study Materials", icon: FileText },
-                      { id: "whiteboard", label: "Drawing Board", icon: BrainCircuit },
-                      { id: "notes", label: "Notebook", icon: Edit3 },
-                      { id: "chat", label: "Discussion Hub", icon: MessageSquare }
-                    ];
-                    if (capstoneProject && enableCapstone) {
-                      list.push({ id: "capstone", label: "Capstone Project", icon: Award });
-                    }
-                    return list;
-                  })().map((tab) => {
-                    const Icon = tab.icon;
-                    const isSel = activeTab === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black tracking-wide transition-all cursor-pointer ${
-                          isSel 
-                            ? "bg-primary/10 text-primary" 
-                            : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
-                        }`}
-                        style={isSel ? { color: primaryColor, backgroundColor: `${primaryColor}15` } : undefined}
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                        <span>{tab.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                {activeTab === "notes" && notesSaving && (
-                  <span className="text-[9px] text-muted-foreground font-semibold flex items-center gap-1.5">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                    <span>Saving...</span>
-                  </span>
-                )}
-              </div>
-                         {/* Tab content display */}
-              <div className="flex-1 overflow-y-auto p-6 bg-card/10">
-                {notification && (
-                  <div className={`mb-6 p-4 rounded-xl text-xs font-semibold flex items-center justify-between border animate-in slide-in-from-top duration-300 ${
-                    notification.type === "success"
-                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500 dark:text-emerald-400"
-                      : "bg-red-500/10 border-red-500/20 text-red-500 dark:text-red-400"
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-emerald-500" />
-                      <span>{notification.message}</span>
-                    </div>
-                    <button onClick={() => setNotification(null)} className="text-muted-foreground hover:text-foreground p-1 text-sm font-bold">✕</button>
-                  </div>
-                )}
-
-                {activeTab === "material" && (
-                  <div className="space-y-5 max-w-3xl">
                     <div className="space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                        Lesson Unit Locked
+                      </span>
                       <h3 className="text-base font-extrabold text-foreground">{activeLesson.title}</h3>
                       <p className="text-xs text-muted-foreground leading-relaxed">
-                        {activeLesson.content || "Read the conceptual transcript notes. Use the Notebook tab to capture equations or notes."}
+                        {lockStatus.reason === "competency" 
+                          ? "This advanced microelectronics lesson requires 'Advanced' student competency level rank."
+                          : "This lesson is locked. You must sequentially complete all preceding curriculum modules first."}
                       </p>
                     </div>
 
-                    {activeLesson.fileUrl && (
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-primary/5 border border-primary/20 p-4 rounded-xl">
-                        <div className="space-y-1">
-                          <span className="text-[9px] font-black uppercase text-primary tracking-wider">Lesson Attachment</span>
-                          <h4 className="text-xs font-bold text-foreground">Practical Handout / Worksheet PDF</h4>
-                          <p className="text-[10px] text-muted-foreground">Download the exercises and practice problems for this module.</p>
-                        </div>
-                        <a 
-                          href={`/api/download?lessonId=${activeLesson.id}`}
-                          download
-                          className="flex items-center gap-1.5 bg-primary hover:opacity-95 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer self-stretch sm:self-auto justify-center"
+                    <div className="pt-4 border-t border-border/40 flex flex-col gap-3">
+                      {lockStatus.reason === "competency" ? (
+                        <button
+                          type="button"
+                          onClick={handleUpgradeCompetency}
+                          className="w-full py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
                           style={{ backgroundColor: primaryColor }}
                         >
-                          <Download className="w-3.5 h-3.5" /> Download Worksheet
-                        </a>
+                          Upgrade Rank to Advanced
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (user.role === "Guest") {
+                              const preceding = allLessons.slice(0, allLessons.findIndex((l) => l.id === activeLesson.id));
+                              const ids = preceding.map((l) => l.id);
+                              setCompletedLessons((prev) => [...new Set([...prev, ...ids])]);
+                              setNotification({ type: "success", message: "Sandbox simulation: Completed preceding lessons!" });
+                              setTimeout(() => setNotification(null), 4000);
+                              return;
+                            }
+                            const preceding = allLessons.slice(0, allLessons.findIndex((l) => l.id === activeLesson.id));
+                            const uncompleted = preceding.filter((l) => !completedLessons.includes(l.id));
+                            setUpdatingProgress(true);
+                            try {
+                              for (const l of uncompleted) {
+                                await toggleLessonCompletionAction(l.id, true);
+                              }
+                              setCompletedLessons((prev) => [...new Set([...prev, ...uncompleted.map((l) => l.id)])]);
+                              setNotification({ type: "success", message: "Preceding lessons marked as completed!" });
+                            } catch (err: any) {
+                              setNotification({ type: "error", message: err.message || "Failed to complete lessons." });
+                            } finally {
+                              setUpdatingProgress(false);
+                              setTimeout(() => setNotification(null), 4000);
+                            }
+                          }}
+                          disabled={updatingProgress}
+                          className="w-full py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                          style={{ backgroundColor: primaryColor }}
+                        >
+                          {updatingProgress ? "Completing Prerequisites..." : "Complete Preceding Prerequisites"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Viewport: Video, PDF text, or Zoom */}
+                <div className="bg-card/35 border-b border-border shrink-0">
+                  {activeLesson.contentType === "video" && activeLesson.videoUrl && (
+                    <div className="aspect-video max-h-[38vh] mx-auto bg-black relative flex items-center justify-center group overflow-hidden rounded-xl border border-border/40 shadow-2xl">
+                      <video 
+                        ref={videoRef}
+                        key={activeLesson.videoUrl}
+                        className="w-full h-full object-contain"
+                        poster="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=1200"
+                        onLoadedMetadata={handleVideoLoadedMetadata}
+                        onTimeUpdate={handleVideoTimeUpdate}
+                        onClick={playPauseVideo}
+                        playsInline
+                      >
+                        {activeLesson.videoUrl && <source src={activeLesson.videoUrl} type="video/mp4" />}
+                        <source src="/sample-video.mp4" type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+
+                      {/* Top Header Overlay: Displays the Lesson Title */}
+                      <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex flex-col justify-start z-10">
+                        <span className="text-[9px] font-black text-primary tracking-widest uppercase" style={{ color: primaryColor }}>
+                          Now Playing
+                        </span>
+                        <h4 className="text-white text-xs font-black drop-shadow truncate">
+                          {activeLesson.title}
+                        </h4>
+                      </div>
+
+                      {/* Center Play/Pause Overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                        <button 
+                          onClick={playPauseVideo}
+                          className="w-12 h-12 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto hover:scale-105 hover:bg-black/85 cursor-pointer shadow-lg border border-white/10"
+                        >
+                          {isPlaying ? (
+                            <Pause className="w-5 h-5 fill-white text-white" />
+                          ) : (
+                            <Play className="w-5 h-5 fill-white text-white ml-0.5" />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Custom Controls Bar Overlay */}
+                      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2 pointer-events-auto z-10">
+                        {/* Progress Slider */}
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="range"
+                            min={0}
+                            max={videoDuration || 100}
+                            value={videoCurrentTime}
+                            onChange={handleProgressBarChange}
+                            className="flex-1 accent-primary h-1 bg-white/20 rounded-lg appearance-none cursor-pointer hover:h-1.5 transition-all"
+                            style={{ '--c': primaryColor } as any}
+                          />
+                        </div>
+
+                        {/* Bottom Control buttons */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3.5">
+                            {/* Play/Pause */}
+                            <button 
+                              onClick={playPauseVideo}
+                              className="text-white hover:text-primary transition-colors cursor-pointer"
+                              style={isPlaying ? { color: primaryColor } : undefined}
+                              title={isPlaying ? "Pause" : "Play"}
+                            >
+                              {isPlaying ? <Pause className="w-4 h-4 fill-current text-white" /> : <Play className="w-4 h-4 fill-current text-white" />}
+                            </button>
+
+                            {/* Back 10s */}
+                            <button 
+                              onClick={() => skipVideo(-10)}
+                              className="text-white hover:text-primary transition-colors cursor-pointer"
+                              title="Rewind 10s"
+                            >
+                              <RotateCcw className="w-4 h-4 text-white" />
+                            </button>
+
+                            {/* Forward 10s */}
+                            <button 
+                              onClick={() => skipVideo(10)}
+                              className="text-white hover:text-primary transition-colors cursor-pointer"
+                              title="Forward 10s"
+                            >
+                              <RotateCw className="w-4 h-4 text-white" />
+                            </button>
+
+                            {/* Time display */}
+                            <span className="text-[10px] text-white/90 font-mono select-none">
+                              {formatVideoTime(videoCurrentTime)} / {formatVideoTime(videoDuration)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3.5">
+                            {/* Mute/Unmute */}
+                            <button 
+                              onClick={toggleMuteVideo}
+                              className="text-white hover:text-primary transition-colors cursor-pointer"
+                              title={isMuted ? "Unmute" : "Mute"}
+                            >
+                              {isMuted ? <VolumeX className="w-4 h-4 text-rose-500 fill-current" /> : <Volume2 className="w-4 h-4 text-white" />}
+                            </button>
+
+                            {/* Fullscreen */}
+                            <button 
+                              onClick={() => {
+                                if (videoRef.current) {
+                                  if (document.fullscreenElement) {
+                                    document.exitFullscreen().catch(console.error);
+                                  } else {
+                                    videoRef.current.requestFullscreen().catch(console.error);
+                                  }
+                                }
+                              }}
+                              className="text-white hover:text-primary transition-colors cursor-pointer"
+                              title="Fullscreen"
+                            >
+                              <Maximize className="w-4 h-4 text-white" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeLesson.contentType === "live_class" && (
+                    <div className="py-8 text-center bg-gradient-to-tr from-card to-background space-y-4">
+                      <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 text-2xl flex items-center justify-center mx-auto animate-pulse">
+                        🎥
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-black bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-emerald-400 uppercase tracking-widest">
+                          Live Classroom
+                        </span>
+                        <h3 className="text-sm font-extrabold text-foreground">{activeLesson.title}</h3>
+                        <p className="text-[10px] text-muted-foreground">Meeting details generated securely below.</p>
+                      </div>
+                      <div className="flex items-center justify-center gap-4 text-left max-w-xs bg-background border border-border p-2.5 rounded-xl mx-auto text-[10px] font-mono">
+                        <div>
+                          <span className="text-muted-foreground block">ID:</span>
+                          <strong className="text-foreground">{activeLesson.zoomMeetingId || "821 7401"}</strong>
+                        </div>
+                        <div className="border-l border-border pl-4">
+                          <span className="text-muted-foreground block">Key:</span>
+                          <strong className="text-foreground">{activeLesson.zoomPasscode || "intelLMS"}</strong>
+                        </div>
+                      </div>
+                      <a 
+                        href="https://zoom.us" 
+                        target="_blank" 
+                        rel="noreferrer"
+                        onClick={async () => {
+                          try {
+                            const { logZoomAttendanceAction } = await import("../actions/course-actions");
+                            await logZoomAttendanceAction(activeLesson.id);
+                          } catch (err) {
+                            console.error("Failed to log Zoom attendance:", err);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs px-4 py-2 rounded-xl transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+                      >
+                        Enter Live Class
+                      </a>
+                    </div>
+                  )}
+
+                  {activeLesson.contentType === "text" && (
+                    <div className="p-6 bg-gradient-to-r from-primary/5 to-transparent flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center text-lg">
+                        📄
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-black uppercase text-primary tracking-widest">Document Workspace</span>
+                        <h3 className="text-sm font-extrabold text-foreground">{activeLesson.title}</h3>
+                      </div>
+                    </div>
+                  )}
+
+
+                  {activeLesson.contentType === "audio" && activeLesson.videoUrl && (
+                    <div className="py-6 px-8 text-center bg-gradient-to-tr from-card to-background space-y-4 border-b border-border">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 text-primary text-xl flex items-center justify-center mx-auto">
+                        🎧
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-black bg-primary/10 border border-primary/20 px-2 py-0.5 rounded text-primary uppercase tracking-widest">
+                          Audio Lecture Podcast
+                        </span>
+                        <h3 className="text-sm font-extrabold text-foreground">{activeLesson.title}</h3>
+                      </div>
+                      <div className="max-w-md mx-auto">
+                        <audio 
+                          key={activeLesson.videoUrl}
+                          controls 
+                          className="w-full"
+                        >
+                          {activeLesson.videoUrl && <source src={activeLesson.videoUrl} type="audio/mpeg" />}
+                          <source src="/sample-audio.mp3" type="audio/mpeg" />
+                        </audio>
+                      </div>
+                      {/* Waveform graphic visualization */}
+                      <div className="flex justify-center items-end gap-1 h-8 max-w-[200px] mx-auto select-none">
+                        <span className="w-1 bg-primary/40 rounded-full h-4 animate-bounce" style={{ animationDelay: '0.1s' }} />
+                        <span className="w-1 bg-primary/60 rounded-full h-7 animate-bounce" style={{ animationDelay: '0.3s' }} />
+                        <span className="w-1 bg-primary rounded-full h-5 animate-bounce" style={{ animationDelay: '0.5s' }} />
+                        <span className="w-1 bg-primary/70 rounded-full h-8 animate-bounce" style={{ animationDelay: '0.2s' }} />
+                        <span className="w-1 bg-primary/50 rounded-full h-4 animate-bounce" style={{ animationDelay: '0.4s' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {(activeLesson.contentType === "excel" || activeLesson.contentType === "sheets") && (
+                    <div className="p-4 bg-card/60 border-b border-border flex flex-col items-stretch space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[9px] font-black bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
+                            Interactive Spreadsheet Workspace
+                          </span>
+                          <h3 className="text-xs font-black text-foreground mt-1">{activeLesson.title}</h3>
+                        </div>
+                        {activeLesson.fileUrl && (
+                          <a 
+                            href={activeLesson.fileUrl} 
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[9px] font-black uppercase text-primary tracking-wider hover:underline flex items-center gap-1"
+                            style={{ color: primaryColor }}
+                          >
+                            📂 Open Excel Sheet
+                          </a>
+                        )}
+                      </div>
+                      
+                      {/* Spreadsheet Grid Component */}
+                      <div className="border border-border rounded-xl overflow-hidden bg-background">
+                        <table className="w-full text-left border-collapse text-[10px]">
+                          <thead>
+                            <tr className="bg-muted/30 text-muted-foreground border-b border-border font-bold">
+                              <th className="p-2 border-r border-border text-center w-8 bg-muted/10"></th>
+                              <th className="p-2 border-r border-border w-24">Parameter</th>
+                              <th className="p-2 border-r border-border w-16">Target</th>
+                              <th className="p-2 border-r border-border w-16">Value</th>
+                              <th className="p-2 border-r border-border w-16">Tolerance</th>
+                              <th className="p-2">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[
+                              { id: 1, param: "Fin Width (W_fin)", target: "8nm", val: "7.92nm", tol: "±0.1nm", status: "PASS" },
+                              { id: 2, param: "Gate Length (L_g)", target: "14nm", val: "14.05nm", tol: "±0.2nm", status: "PASS" },
+                              { id: 3, param: "EOT (Oxide Thickness)", target: "0.9nm", val: "0.89nm", tol: "±0.05nm", status: "PASS" },
+                              { id: 4, param: "Threshold Voltage (V_th)", target: "0.28V", val: "0.274V", tol: "±0.02V", status: "PASS" },
+                            ].map((row) => (
+                              <tr key={row.id} className="border-b border-border hover:bg-muted/10">
+                                <td className="p-2 border-r border-border text-center font-bold text-muted-foreground bg-muted/10">{row.id}</td>
+                                <td className="p-2 border-r border-border font-extrabold text-foreground">{row.param}</td>
+                                <td className="p-2 border-r border-border text-muted-foreground font-semibold">{row.target}</td>
+                                <td className="p-2 border-r border-border font-mono">
+                                  <input 
+                                    type="text"
+                                    defaultValue={row.val}
+                                    className="w-full bg-transparent focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 border-none text-foreground font-mono"
+                                  />
+                                </td>
+                                <td className="p-2 border-r border-border text-muted-foreground">{row.tol}</td>
+                                <td className="p-2 font-black text-emerald-400">{row.status}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeLesson.contentType === "scorm" && (
+                    <ScormInlinePlayer
+                      lessonId={activeLesson.id}
+                      fileUrl={activeLesson.fileUrl || null}
+                      userName={user ? `${user.firstName} ${user.lastName}` : "Student"}
+                      userId={user?.userId || ""}
+                      onComplete={() => {
+                        confetti({ particleCount: 80, spread: 60 });
+                        if (!completedLessons.includes(activeLesson.id)) {
+                          setCompletedLessons(prev => [...prev, activeLesson.id]);
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+
+                {/* Split Tab Panel below Viewport */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  
+                  {/* Tab Navigation header */}
+                  <div className="h-11 border-b border-border bg-card/25 flex items-center justify-between px-6 shrink-0">
+                    <div className="flex-1 overflow-x-auto scrollbar-none flex items-center mr-4">
+                      <div className="flex gap-2 min-w-max">
+                      {((): any[] => {
+                        const list = [
+                          { id: "material", label: "Study Materials", icon: FileText },
+                          { id: "whiteboard", label: "Drawing Board", icon: BrainCircuit },
+                          { id: "notes", label: "Notebook", icon: Edit3 },
+                          { id: "chat", label: "Discussion Hub", icon: MessageSquare }
+                        ];
+                        if (activeLesson) {
+                          list.push({ id: "subjective", label: "Subjective Submission", icon: Edit3 });
+                        }
+                        return list;
+                      })().map((tab) => {
+                        const Icon = tab.icon;
+                        const isSel = activeTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black tracking-wide transition-all cursor-pointer ${
+                              isSel 
+                                ? "bg-primary/10 text-primary" 
+                                : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
+                            }`}
+                            style={isSel ? { color: primaryColor, backgroundColor: `${primaryColor}15` } : undefined}
+                          >
+                            <Icon className="w-3.5 h-3.5" />
+                            <span>{tab.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                    
+                    {activeTab === "notes" && notesSaving && (
+                      <span className="text-[9px] text-muted-foreground font-semibold flex items-center gap-1.5">
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        <span>Saving...</span>
+                      </span>
+                    )}
+                  </div>
+                             {/* Tab content display */}
+                  <div className="flex-1 overflow-y-auto p-6 bg-card/10">
+                    {notification && (
+                      <div className={`mb-6 p-4 rounded-xl text-xs font-semibold flex items-center justify-between border animate-in slide-in-from-top duration-300 ${
+                        notification.type === "success"
+                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500 dark:text-emerald-400"
+                          : "bg-red-500/10 border-red-500/20 text-red-500 dark:text-red-400"
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-emerald-500" />
+                          <span>{notification.message}</span>
+                        </div>
+                        <button onClick={() => setNotification(null)} className="text-muted-foreground hover:text-foreground p-1 text-sm font-bold">✕</button>
                       </div>
                     )}
 
-                    <div className="border-t border-border/60 pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                      <div className="space-y-0.5">
-                        <h4 className="text-xs font-bold text-foreground">Lesson Completion</h4>
-                        <p className="text-[10px] text-muted-foreground">Mark this lesson as completed to update your learning streak and earn +50 XP.</p>
-                      </div>
-                      <button
-                        onClick={() => handleToggleComplete(activeLesson.id)}
-                        disabled={updatingProgress || user.role === "Guest"}
-                        className={`h-10 px-5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer ${
-                          completedLessons.includes(activeLesson.id)
-                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20"
-                            : "text-white hover:opacity-95"
-                        } disabled:opacity-50`}
-                        style={!completedLessons.includes(activeLesson.id) ? { backgroundColor: primaryColor } : undefined}
-                      >
-                        {user.role === "Guest" ? "Read Only" : completedLessons.includes(activeLesson.id) ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 text-emerald-500" /> Lesson Completed
-                          </>
-                        ) : (
-                          "Mark as Complete (+50 XP)"
-                        )}
-                      </button>
-                    </div>
+                    {activeTab === "material" && (
+                      <div className="space-y-5 max-w-3xl">
+                        <div className="space-y-2">
+                          <h3 className="text-base font-extrabold text-foreground">{activeLesson.title}</h3>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            {activeLesson.content || "Read the conceptual transcript notes. Use the Notebook tab to capture equations or notes."}
+                          </p>
+                        </div>
 
-                    <div className="bg-secondary/10 border border-border p-4 rounded-xl space-y-2 text-xs text-muted-foreground leading-relaxed font-sans">
-                      <strong className="text-foreground block text-[10px] uppercase font-black tracking-wider">Fabrication Guidelines</strong>
-                      <p>
-                        Advanced node layouts are strictly limited by physical design rule checks (DRC). Photoresist exposures require clean wavelengths and fine diffraction tuning. Channel lengths below 14nm require FinFET or GAA structures to maintain proper electrostatic gate control.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === "whiteboard" && (
-                  <div className="h-full flex flex-col space-y-3">
-                    <div className="flex items-center justify-between shrink-0 bg-card border border-border p-2.5 rounded-xl text-xs gap-4">
-                      {/* Tools & Colors */}
-                      <div className="flex items-center gap-3">
-                        <button 
-                          onClick={() => setPenColor("#ffffff")}
-                          className={`w-5 h-5 rounded-full bg-white border border-border ${penColor === "#ffffff" ? "ring-2 ring-primary" : ""}`}
-                        />
-                        <button 
-                          onClick={() => setPenColor("#f43f5e")}
-                          className={`w-5 h-5 rounded-full bg-rose-500 border border-border ${penColor === "#f43f5e" ? "ring-2 ring-primary" : ""}`}
-                        />
-                        <button 
-                          onClick={() => setPenColor("#10b981")}
-                          className={`w-5 h-5 rounded-full bg-emerald-500 border border-border ${penColor === "#10b981" ? "ring-2 ring-primary" : ""}`}
-                        />
-                        <button 
-                          onClick={() => setPenColor(primaryColor)}
-                          className={`w-5 h-5 rounded-full border border-border ${penColor === primaryColor ? "ring-2 ring-primary" : ""}`}
-                          style={{ backgroundColor: primaryColor }}
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-2 border-l border-border pl-3">
-                        <span className="text-[10px] text-muted-foreground">Brush Size:</span>
-                        <input
-                          type="range" min={1} max={10} value={penWidth}
-                          onChange={(e) => setPenWidth(parseInt(e.target.value))}
-                          className="w-16 h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-1.5 ml-auto">
-                        <button 
-                          onClick={clearCanvas}
-                          className="px-2.5 py-1 text-[10px] font-black border border-border rounded-lg hover:bg-secondary transition-colors"
-                        >
-                          Clear
-                        </button>
-                        <button 
-                          onClick={downloadCanvas}
-                          className="px-2.5 py-1 text-[10px] font-black bg-primary text-white rounded-lg hover:opacity-95 flex items-center gap-1 transition-all cursor-pointer"
-                          style={{ backgroundColor: primaryColor }}
-                        >
-                          <Download className="w-3 h-3" /> Save Drawing
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex-1 bg-[#1e293b] rounded-xl border border-border overflow-hidden relative min-h-[250px]">
-                      <canvas
-                        ref={canvasRef}
-                        width={600}
-                        height={400}
-                        onMouseDown={startDrawing}
-                        onMouseMove={draw}
-                        onMouseUp={stopDrawing}
-                        onMouseLeave={stopDrawing}
-                        className="absolute inset-0 w-full h-full cursor-crosshair"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === "notes" && (
-                  <div className="h-full flex flex-col space-y-2">
-                    <textarea
-                      placeholder="Write rich notes, formulas, or reminders for this lesson here. They will auto-save instantly to your client storage."
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      className="w-full flex-1 bg-secondary/20 border border-border rounded-xl p-4 text-xs font-mono leading-relaxed placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary min-h-[200px]"
-                    />
-                  </div>
-                )}
-
-                {activeTab === "chat" && (
-                  <div className="h-full flex flex-col space-y-4">
-                    {/* Poll panel */}
-                    <div className="bg-secondary/15 border border-border p-4 rounded-xl space-y-2.5 shrink-0">
-                      <span className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-1.5">
-                        <QuestionIcon className="w-3.5 h-3.5" /> Class Checkpoint Poll
-                      </span>
-                      <p className="text-xs font-bold text-foreground">Do you understand the difference between static and dynamic logic families?</p>
-                      
-                      <div className="grid grid-cols-3 gap-3">
-                        {[
-                          { id: "yes", text: "Yes, clear", count: pollVotes.yes },
-                          { id: "no", text: "Confused", count: pollVotes.no },
-                          { id: "review", text: "Need review", count: pollVotes.review }
-                        ].map((opt) => {
-                          const totalVotes = pollVotes.yes + pollVotes.no + pollVotes.review;
-                          const percent = Math.round((opt.count / totalVotes) * 100);
-                          const isVoted = votedOption === opt.id;
-                          return (
-                            <button
-                              key={opt.id}
-                              onClick={() => handleVote(opt.id)}
-                              className={`p-2.5 rounded-xl border text-left text-[10px] transition-all relative overflow-hidden ${
-                                isVoted 
-                                  ? "border-primary bg-primary/5 text-primary" 
-                                  : votedOption 
-                                    ? "border-border bg-secondary/5 text-muted-foreground" 
-                                    : "border-border hover:border-slate-500 cursor-pointer"
-                              }`}
-                              disabled={votedOption !== null}
+                        {activeLesson.fileUrl && (
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-primary/5 border border-primary/20 p-4 rounded-xl">
+                            <div className="space-y-1">
+                              <span className="text-[9px] font-black uppercase text-primary tracking-wider">Lesson Attachment</span>
+                              <h4 className="text-xs font-bold text-foreground">Practical Handout / Worksheet PDF</h4>
+                              <p className="text-[10px] text-muted-foreground">Download the exercises and practice problems for this module.</p>
+                            </div>
+                            <a 
+                              href={`/api/download?lessonId=${activeLesson.id}`}
+                              download
+                              className="flex items-center gap-1.5 bg-primary hover:opacity-95 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer self-stretch sm:self-auto justify-center"
+                              style={{ backgroundColor: primaryColor }}
                             >
-                              <div className="absolute inset-y-0 left-0 bg-primary/5 transition-all" style={{ width: votedOption ? `${percent}%` : "0%" }} />
-                              <div className="relative flex justify-between font-bold">
-                                <span>{opt.text}</span>
-                                <span>{votedOption ? `${percent}%` : ""}</span>
-                              </div>
+                              <Download className="w-3.5 h-3.5" /> Download Worksheet
+                            </a>
+                          </div>
+                        )}
+
+                        <div className="border-t border-border/60 pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                          <div className="space-y-0.5">
+                            <h4 className="text-xs font-bold text-foreground">Lesson Completion</h4>
+                            <p className="text-[10px] text-muted-foreground">Mark this lesson as completed to update your learning streak and earn +50 XP.</p>
+                          </div>
+                          <button
+                            onClick={() => handleToggleComplete(activeLesson.id)}
+                            disabled={updatingProgress || user.role === "Guest"}
+                            className={`h-10 px-5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer ${
+                              completedLessons.includes(activeLesson.id)
+                                ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20"
+                                : "text-white hover:opacity-95"
+                            } disabled:opacity-50`}
+                            style={!completedLessons.includes(activeLesson.id) ? { backgroundColor: primaryColor } : undefined}
+                          >
+                            {user.role === "Guest" ? "Read Only" : completedLessons.includes(activeLesson.id) ? (
+                              <>
+                                <CheckCircle className="w-4 h-4 text-emerald-500" /> Lesson Completed
+                              </>
+                            ) : (
+                              "Mark as Complete (+50 XP)"
+                            )}
+                          </button>
+                        </div>
+
+                        <div className="bg-secondary/10 border border-border p-4 rounded-xl space-y-2 text-xs text-muted-foreground leading-relaxed font-sans">
+                          <strong className="text-foreground block text-[10px] uppercase font-black tracking-wider">Fabrication Guidelines</strong>
+                          <p>
+                            Advanced node layouts are strictly limited by physical design rule checks (DRC). Photoresist exposures require clean wavelengths and fine diffraction tuning. Channel lengths below 14nm require FinFET or GAA structures to maintain proper electrostatic gate control.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === "whiteboard" && (
+                      <div className="h-full flex flex-col space-y-3">
+                        <div className="flex items-center justify-between shrink-0 bg-card border border-border p-2.5 rounded-xl text-xs gap-4">
+                          {/* Tools & Colors */}
+                          <div className="flex items-center gap-3">
+                            <button 
+                              onClick={() => setPenColor("#ffffff")}
+                              className={`w-5 h-5 rounded-full bg-white border border-border ${penColor === "#ffffff" ? "ring-2 ring-primary" : ""}`}
+                            />
+                            <button 
+                              onClick={() => setPenColor("#f43f5e")}
+                              className={`w-5 h-5 rounded-full bg-rose-500 border border-border ${penColor === "#f43f5e" ? "ring-2 ring-primary" : ""}`}
+                            />
+                            <button 
+                              onClick={() => setPenColor("#10b981")}
+                              className={`w-5 h-5 rounded-full bg-emerald-500 border border-border ${penColor === "#10b981" ? "ring-2 ring-primary" : ""}`}
+                            />
+                            <button 
+                              onClick={() => setPenColor(primaryColor)}
+                              className={`w-5 h-5 rounded-full border border-border ${penColor === primaryColor ? "ring-2 ring-primary" : ""}`}
+                              style={{ backgroundColor: primaryColor }}
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2 border-l border-border pl-3">
+                            <span className="text-[10px] text-muted-foreground">Brush Size:</span>
+                            <input
+                              type="range" min={1} max={10} value={penWidth}
+                              onChange={(e) => setPenWidth(parseInt(e.target.value))}
+                              className="w-16 h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1.5 ml-auto">
+                            <button 
+                              onClick={clearCanvas}
+                              className="px-2.5 py-1 text-[10px] font-black border border-border rounded-lg hover:bg-secondary transition-colors"
+                            >
+                              Clear
                             </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Messages stream */}
-                    <div className="flex-1 overflow-y-auto space-y-3 p-1 min-h-[150px]">
-                      {chatMessages.map((msg) => (
-                        <div key={msg.id} className="p-3 bg-secondary/10 border border-border/40 rounded-xl space-y-1.5 max-w-xl">
-                          <div className="flex items-center justify-between text-[9px] font-semibold text-muted-foreground">
-                            <span className="font-extrabold text-foreground">{msg.user}</span>
-                            <span>{msg.time}</span>
+                            <button 
+                              onClick={downloadCanvas}
+                              className="px-2.5 py-1 text-[10px] font-black bg-primary text-white rounded-lg hover:opacity-95 flex items-center gap-1 transition-all cursor-pointer"
+                              style={{ backgroundColor: primaryColor }}
+                            >
+                              <Download className="w-3 h-3" /> Save Drawing
+                            </button>
                           </div>
-                          <p className="text-xs text-muted-foreground leading-relaxed">{msg.text}</p>
-                          {msg.rx && (
-                            <span className="inline-block bg-secondary/40 border border-border px-1.5 py-0.5 rounded text-[10px]">
-                              {msg.rx} 1
-                            </span>
-                          )}
                         </div>
-                      ))}
-                    </div>
 
-                    {/* Chat input form */}
-                    <form onSubmit={handleSendChat} className="flex gap-2 shrink-0">
-                      <input
-                        type="text"
-                        placeholder="Write a message to the group chat..."
-                        value={newChatText}
-                        onChange={(e) => setNewChatText(e.target.value)}
-                        className="flex-1 bg-secondary/20 border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none"
-                      />
-                      <button
-                        type="submit"
-                        className="bg-primary text-white px-4 py-2 rounded-xl flex items-center justify-center transition-colors cursor-pointer"
-                        style={{ backgroundColor: primaryColor }}
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                      </button>
-                    </form>
-                  </div>
-                )}
-
-                {activeTab === "capstone" && (
-                  <div className="space-y-6 max-w-3xl">
-                    {!capstoneProject ? (
-                      <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
-                        <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center text-lg">
-                          🏆
-                        </div>
-                        <div className="space-y-1">
-                          <h4 className="text-xs font-bold text-foreground">No Capstone Project Assigned</h4>
-                          <p className="text-[10px] text-muted-foreground">This course does not require a capstone project submission.</p>
+                        <div className="flex-1 bg-[#1e293b] rounded-xl border border-border overflow-hidden relative min-h-[250px]">
+                          <canvas
+                            ref={canvasRef}
+                            width={600}
+                            height={400}
+                            onMouseDown={startDrawing}
+                            onMouseMove={draw}
+                            onMouseUp={stopDrawing}
+                            onMouseLeave={stopDrawing}
+                            className="absolute inset-0 w-full h-full cursor-crosshair"
+                          />
                         </div>
                       </div>
-                    ) : (
-                      <div className="space-y-6">
-                        {/* Project Header details */}
-                        <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent border border-border p-6 rounded-2xl space-y-4">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-black uppercase text-amber-500 tracking-wider">Course Capstone</span>
-                            <div className="flex gap-2">
-                              <span className="text-[9px] font-black bg-secondary border px-2 py-0.5 rounded text-muted-foreground">{capstoneProject.difficulty}</span>
-                              <span className="text-[9px] font-black bg-secondary border px-2 py-0.5 rounded text-muted-foreground">{capstoneProject.durationWeeks} Weeks Duration</span>
-                            </div>
-                          </div>
-                          <h3 className="text-sm font-extrabold text-foreground">{capstoneProject.title}</h3>
-                          <div className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line font-sans border-t border-border/60 pt-4">
-                            {capstoneProject.description}
+                    )}
+
+                    {activeTab === "notes" && (
+                      <div className="h-full flex flex-col space-y-2">
+                        <textarea
+                          placeholder="Write rich notes, formulas, or reminders for this lesson here. They will auto-save instantly to your client storage."
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          className="w-full flex-1 bg-secondary/20 border border-border rounded-xl p-4 text-xs font-mono leading-relaxed placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary min-h-[200px]"
+                        />
+                      </div>
+                    )}
+
+                    {activeTab === "chat" && (
+                      <div className="h-full flex flex-col space-y-4">
+                        {/* Poll panel */}
+                        <div className="bg-secondary/15 border border-border p-4 rounded-xl space-y-2.5 shrink-0">
+                          <span className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-1.5">
+                            <QuestionIcon className="w-3.5 h-3.5" /> Class Checkpoint Poll
+                          </span>
+                          <p className="text-xs font-bold text-foreground">Do you understand the difference between static and dynamic logic families?</p>
+                          
+                          <div className="grid grid-cols-3 gap-3">
+                            {[
+                              { id: "yes", text: "Yes, clear", count: pollVotes.yes },
+                              { id: "no", text: "Confused", count: pollVotes.no },
+                              { id: "review", text: "Need review", count: pollVotes.review }
+                            ].map((opt) => {
+                              const totalVotes = pollVotes.yes + pollVotes.no + pollVotes.review;
+                              const percent = Math.round((opt.count / totalVotes) * 100);
+                              const isVoted = votedOption === opt.id;
+                              return (
+                                <button
+                                  key={opt.id}
+                                  onClick={() => handleVote(opt.id)}
+                                  className={`p-2.5 rounded-xl border text-left text-[10px] transition-all relative overflow-hidden ${
+                                    isVoted 
+                                      ? "border-primary bg-primary/5 text-primary" 
+                                      : votedOption 
+                                        ? "border-border bg-secondary/5 text-muted-foreground" 
+                                        : "border-border hover:border-slate-500 cursor-pointer"
+                                  }`}
+                                  disabled={votedOption !== null}
+                                >
+                                  <div className="absolute inset-y-0 left-0 bg-primary/5 transition-all" style={{ width: votedOption ? `${percent}%` : "0%" }} />
+                                  <div className="relative flex justify-between font-bold">
+                                    <span>{opt.text}</span>
+                                    <span>{votedOption ? `${percent}%` : ""}</span>
+                                  </div>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
 
-                        {/* Submission status or form */}
-                        {localSubmission && !isResubmitting ? (
-                          <div className="bg-card border border-border p-6 rounded-2xl space-y-4 shadow-sm animate-in fade-in duration-200">
-                            <div className="flex items-center justify-between border-b border-border/80 pb-3">
-                              <h4 className="text-xs font-extrabold text-foreground">Your Submission</h4>
-                              <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md border ${
-                                localSubmission.status === "approved" 
-                                  ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-500" 
-                                  : localSubmission.status === "failed"
-                                    ? "bg-red-500/15 border-red-500/30 text-red-500"
-                                    : "bg-amber-500/15 border-amber-500/30 text-amber-500"
-                              }`}>
-                                {localSubmission.status === "approved" ? "Approved" : localSubmission.status === "failed" ? "Changes Requested" : "Pending Review"}
-                              </span>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                              <div className="space-y-1">
-                                <span className="text-[9px] font-bold text-muted-foreground block">Git Repository:</span>
-                                <a href={localSubmission.gitRepoUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold break-all">
-                                  {localSubmission.gitRepoUrl}
-                                </a>
+                        {/* Messages stream */}
+                        <div className="flex-1 overflow-y-auto space-y-3 p-1 min-h-[150px]">
+                          {chatMessages.map((msg) => (
+                            <div key={msg.id} className="p-3 bg-secondary/10 border border-border/40 rounded-xl space-y-1.5 max-w-xl">
+                              <div className="flex items-center justify-between text-[9px] font-semibold text-muted-foreground">
+                                <span className="font-extrabold text-foreground">{msg.user}</span>
+                                <span>{msg.time}</span>
                               </div>
-                              <div className="space-y-1">
-                                <span className="text-[9px] font-bold text-muted-foreground block">Design Report:</span>
-                                <a href={localSubmission.documentationUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold break-all">
-                                  {localSubmission.documentationUrl}
-                                </a>
-                              </div>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{msg.text}</p>
+                              {msg.rx && (
+                                <span className="inline-block bg-secondary/40 border border-border px-1.5 py-0.5 rounded text-[10px]">
+                                  {msg.rx} 1
+                                </span>
+                              )}
                             </div>
+                          ))}
+                        </div>
 
-                            {localSubmission.score !== null && (
-                              <div className="bg-secondary/20 border border-border/40 p-4 rounded-xl space-y-2">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Grade Evaluation</span>
-                                  <span className="text-xs font-black text-foreground">{localSubmission.score} / 100</span>
+                        {/* Chat input form */}
+                        <form onSubmit={handleSendChat} className="flex gap-2 shrink-0">
+                          <input
+                            type="text"
+                            placeholder="Write a message to the group chat..."
+                            value={newChatText}
+                            onChange={(e) => setNewChatText(e.target.value)}
+                            className="flex-1 bg-secondary/20 border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none"
+                          />
+                          <button
+                            type="submit"
+                            className="bg-primary text-white px-4 py-2 rounded-xl flex items-center justify-center transition-colors cursor-pointer"
+                            style={{ backgroundColor: primaryColor }}
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                        </form>
+                      </div>
+                    )}
+
+                    {activeTab === "capstone" && (
+                      <div className="space-y-6 max-w-3xl">
+                        {!capstoneProject ? (
+                          <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                            <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center text-lg">
+                              🏆
+                            </div>
+                            <div className="space-y-1">
+                              <h4 className="text-xs font-bold text-foreground">No Capstone Project Assigned</h4>
+                              <p className="text-[10px] text-muted-foreground">This course does not require a capstone project submission.</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-6">
+                            {/* Project Header details */}
+                            <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent border border-border p-6 rounded-2xl space-y-4">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[9px] font-black uppercase text-amber-500 tracking-wider">Course Capstone</span>
+                                <div className="flex gap-2">
+                                  <span className="text-[9px] font-black bg-secondary border px-2 py-0.5 rounded text-muted-foreground">{capstoneProject.difficulty}</span>
+                                  <span className="text-[9px] font-black bg-secondary border px-2 py-0.5 rounded text-muted-foreground">{capstoneProject.durationWeeks} Weeks Duration</span>
                                 </div>
-                                {localSubmission.feedback && (
-                                  <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                                    "{localSubmission.feedback}"
-                                  </p>
+                              </div>
+                              <h3 className="text-sm font-extrabold text-foreground">{capstoneProject.title}</h3>
+                              <div className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line font-sans border-t border-border/60 pt-4">
+                                {capstoneProject.description}
+                              </div>
+                            </div>
+
+                            {/* Submission status or form */}
+                            {localSubmission && !isResubmitting ? (
+                              <div className="bg-card border border-border p-6 rounded-2xl space-y-4 shadow-sm animate-in fade-in duration-200">
+                                <div className="flex items-center justify-between border-b border-border/80 pb-3">
+                                  <h4 className="text-xs font-extrabold text-foreground">Your Submission</h4>
+                                  <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md border ${
+                                    localSubmission.status === "approved" 
+                                      ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-500" 
+                                      : localSubmission.status === "failed"
+                                        ? "bg-red-500/15 border-red-500/30 text-red-500"
+                                        : "bg-amber-500/15 border-amber-500/30 text-amber-500"
+                                  }`}>
+                                    {localSubmission.status === "approved" ? "Approved" : localSubmission.status === "failed" ? "Changes Requested" : "Pending Review"}
+                                  </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                  <div className="space-y-1">
+                                    <span className="text-[9px] font-bold text-muted-foreground block">Git Repository:</span>
+                                    <a href={localSubmission.gitRepoUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold break-all">
+                                      {localSubmission.gitRepoUrl}
+                                    </a>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <span className="text-[9px] font-bold text-muted-foreground block">Design Report:</span>
+                                    <a href={localSubmission.documentationUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold break-all">
+                                      {localSubmission.documentationUrl}
+                                    </a>
+                                  </div>
+                                </div>
+
+                                {localSubmission.score !== null && (
+                                  <div className="bg-secondary/20 border border-border/40 p-4 rounded-xl space-y-2">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Grade Evaluation</span>
+                                      <span className="text-xs font-black text-foreground">{localSubmission.score} / 100</span>
+                                    </div>
+                                    {localSubmission.feedback && (
+                                      <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                                        "{localSubmission.feedback}"
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {localSubmission.status !== "approved" && (
+                                  <button
+                                    onClick={() => setIsResubmitting(true)}
+                                    disabled={user.role === "Guest"}
+                                    className="w-full h-10 rounded-xl text-xs font-extrabold border border-border hover:bg-secondary flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                                  >
+                                    {user.role === "Guest" ? "Read Only" : "Edit and Re-submit Project"}
+                                  </button>
                                 )}
                               </div>
-                            )}
+                            ) : (
+                              /* Submission Form */
+                              <form onSubmit={handleProjectSubmit} className="bg-card border border-border p-6 rounded-2xl space-y-4 shadow-sm animate-in fade-in duration-200">
+                                <div className="border-b border-border/80 pb-3">
+                                  <h4 className="text-xs font-extrabold text-foreground">
+                                    {isResubmitting ? "Edit Project Submission" : "Submit Your Capstone Project"}
+                                  </h4>
+                                  <p className="text-[10px] text-muted-foreground">Provide repository and design documentation URLs below.</p>
+                                </div>
 
-                            {localSubmission.status !== "approved" && (
-                              <button
-                                onClick={() => setIsResubmitting(true)}
-                                disabled={user.role === "Guest"}
-                                className="w-full h-10 rounded-xl text-xs font-extrabold border border-border hover:bg-secondary flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
-                              >
-                                {user.role === "Guest" ? "Read Only" : "Edit and Re-submit Project"}
-                              </button>
+                                <div className="space-y-3">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Git Repository URL</label>
+                                    <input
+                                      type="url"
+                                      required
+                                      placeholder="https://github.com/username/vlsi-capstone"
+                                      value={projectGitUrl}
+                                      onChange={(e) => setProjectGitUrl(e.target.value)}
+                                      className="w-full px-3.5 py-2 bg-secondary/25 border border-border rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Design Report / PDF Link</label>
+                                    <input
+                                      type="url"
+                                      required
+                                      placeholder="https://drive.google.com/file/d/.../view"
+                                      value={projectDocUrl}
+                                      onChange={(e) => setProjectDocUrl(e.target.value)}
+                                      className="w-full px-3.5 py-2 bg-secondary/25 border border-border rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="flex gap-3">
+                                  {isResubmitting && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsResubmitting(false)}
+                                      className="flex-1 h-10 rounded-xl text-xs font-extrabold border border-border hover:bg-secondary flex items-center justify-center transition-all cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                  )}
+                                  <button
+                                    type="submit"
+                                    disabled={submittingProject || user.role === "Guest"}
+                                    className="flex-[2] h-10 rounded-xl text-xs font-extrabold text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                                    style={{ backgroundColor: primaryColor }}
+                                  >
+                                    {submittingProject ? "Submitting..." : user.role === "Guest" ? "Read Only" : "Submit Project"}
+                                  </button>
+                                </div>
+                              </form>
                             )}
                           </div>
+                        )}
+                      </div>
+                    )}
+
+                    {activeTab === "subjective" && (
+                      <div className="space-y-6 max-w-3xl">
+                        {!activeLesson ? (
+                          <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                            <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center text-lg">
+                              📝
+                            </div>
+                            <div className="space-y-1">
+                              <h4 className="text-xs font-bold text-foreground">Select a Lesson</h4>
+                              <p className="text-[10px] text-muted-foreground">Select a lesson from the curriculum roadmap outline to submit subjective work.</p>
+                            </div>
+                          </div>
                         ) : (
-                          /* Submission Form */
-                          <form onSubmit={handleProjectSubmit} className="bg-card border border-border p-6 rounded-2xl space-y-4 shadow-sm animate-in fade-in duration-200">
-                            <div className="border-b border-border/80 pb-3">
-                              <h4 className="text-xs font-extrabold text-foreground">
-                                {isResubmitting ? "Edit Project Submission" : "Submit Your Capstone Project"}
-                              </h4>
-                              <p className="text-[10px] text-muted-foreground">Provide repository and design documentation URLs below.</p>
-                            </div>
+                          <div className="space-y-6">
+                            {(() => {
+                              const sub = localSubmissionsList.find((s) => s.lessonId === activeLesson.id);
+                              const promptText = `Please write a subjective summary or analysis based on this lesson: ${activeLesson.title}. Analyze the core concepts, their practical implementation in semiconductor/VLSI design, and explain the key trade-offs involved.`;
+                              return (
+                                <div className="space-y-6">
+                                  {/* Assignment / Rubric info */}
+                                  <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent border border-border p-5 rounded-2xl space-y-4">
+                                    <div className="flex justify-between items-center">
+                                      <div>
+                                        <span className="text-[9px] font-black uppercase text-indigo-400 tracking-wider">Subjective Assessment</span>
+                                        <h3 className="text-sm font-extrabold text-foreground mt-0.5">{activeLesson.title} - Analysis Essay</h3>
+                                      </div>
+                                      {sub && (
+                                        <span className={`text-[8.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${sub.status === "graded" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse"}`}>
+                                          {sub.status}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="p-3.5 bg-card/65 rounded-xl border border-border/40 space-y-2">
+                                      <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Rubric Criteria Details</h4>
+                                      <ul className="text-[10px] text-muted-foreground space-y-1 list-disc pl-4 font-semibold">
+                                        <li>Technical Correctness (40%): Evaluation of silicon design principles.</li>
+                                        <li>Clarity & Structure (30%): Structure, flow, and terminology accuracy.</li>
+                                        <li>Completeness (30%): Depth of coverage of all micro-circuit scaling trade-offs.</li>
+                                      </ul>
+                                    </div>
+                                  </div>
 
-                            <div className="space-y-3">
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Git Repository URL</label>
-                                <input
-                                  type="url"
-                                  required
-                                  placeholder="https://github.com/username/vlsi-capstone"
-                                  value={projectGitUrl}
-                                  onChange={(e) => setProjectGitUrl(e.target.value)}
-                                  className="w-full px-3.5 py-2 bg-secondary/25 border border-border rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
-                                />
-                              </div>
+                                  {sub && sub.status === "graded" && (
+                                    <div className="sexy-border-glow bg-card/45 backdrop-blur-md p-5 rounded-2xl space-y-4">
+                                      <div className="border-b border-border/60 pb-3 flex justify-between items-center">
+                                        <div>
+                                          <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Grading Evaluation Scorecard</h4>
+                                          <p className="text-[9px] text-muted-foreground">Manually evaluated by faculty assessor.</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="text-2xl font-black text-primary" style={{ color: primaryColor }}>{sub.score}</span>
+                                          <span className="text-xs text-muted-foreground font-bold"> / 100</span>
+                                        </div>
+                                      </div>
 
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Design Report / PDF Link</label>
-                                <input
-                                  type="url"
-                                  required
-                                  placeholder="https://drive.google.com/file/d/.../view"
-                                  value={projectDocUrl}
-                                  onChange={(e) => setProjectDocUrl(e.target.value)}
-                                  className="w-full px-3.5 py-2 bg-secondary/25 border border-border rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
-                                />
-                              </div>
-                            </div>
+                                      {sub.rubrics && (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                          {sub.rubrics.map((rub: any, idx: number) => (
+                                            <div key={idx} className="p-3 bg-secondary/15 rounded-xl border border-border/40 text-left">
+                                              <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black uppercase text-foreground">{rub.criteria}</span>
+                                                <span className="text-[10px] font-mono font-black text-primary" style={{ color: primaryColor }}>{rub.score}/{rub.maxScore}</span>
+                                              </div>
+                                              {rub.feedback && (
+                                                <p className="text-[9.5px] text-muted-foreground mt-2 italic leading-relaxed">"{rub.feedback}"</p>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
 
-                            <div className="flex gap-3">
-                              {isResubmitting && (
-                                <button
-                                  type="button"
-                                  onClick={() => setIsResubmitting(false)}
-                                  className="flex-1 h-10 rounded-xl text-xs font-extrabold border border-border hover:bg-secondary flex items-center justify-center transition-all cursor-pointer"
-                                >
-                                  Cancel
-                                </button>
-                              )}
-                              <button
-                                type="submit"
-                                disabled={submittingProject || user.role === "Guest"}
-                                className="flex-[2] h-10 rounded-xl text-xs font-extrabold text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
-                                style={{ backgroundColor: primaryColor }}
-                              >
-                                {submittingProject ? "Submitting..." : user.role === "Guest" ? "Read Only" : "Submit Project"}
-                              </button>
-                            </div>
-                          </form>
+                                      {sub.feedback && (
+                                        <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 text-left" style={{ borderColor: `${primaryColor}20`, backgroundColor: `${primaryColor}05` }}>
+                                          <span className="text-[9px] font-black uppercase tracking-widest text-primary block mb-1" style={{ color: primaryColor }}>Evaluator Feedback Comments</span>
+                                          <p className="text-[10px] text-foreground leading-relaxed italic">"{sub.feedback}"</p>
+                                        </div>
+                                      )}
+
+                                      {sub.history && sub.history.length > 1 && (
+                                        <div className="pt-2">
+                                          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-2">Evaluation History Logs</span>
+                                          <div className="space-y-2 border-l border-border/60 pl-3">
+                                            {sub.history.map((hist: any, hIdx: number) => (
+                                              <div key={hIdx} className="text-[9.5px] text-muted-foreground">
+                                                <span className="font-extrabold text-foreground">Score: {hist.score}/100</span> &middot; Graded by {hist.evaluatedBy} on {formatReadableDate(hist.evaluatedAt)}
+                                                {hist.feedback && <p className="italic text-muted-foreground/80 mt-0.5">"{hist.feedback}"</p>}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {(!sub || sub.status === "pending" || user.role !== "Guest") && (
+                                    <form onSubmit={handleSubjectiveSubmit} className="bg-card border border-border p-6 rounded-2xl space-y-4 shadow-sm animate-in fade-in duration-200">
+                                      <div className="border-b border-border/80 pb-3">
+                                        <h4 className="text-xs font-extrabold text-foreground">
+                                          {sub ? "Resubmit Your Assignment" : "Submit Subjective Analysis Response"}
+                                        </h4>
+                                        <p className="text-[10px] text-muted-foreground">{promptText}</p>
+                                      </div>
+
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Your Answer / Essay Response</label>
+                                        <textarea
+                                          required
+                                          rows={10}
+                                          placeholder="Write your detailed technical response here. Ensure clarity, completeness, and mention specific equations or trade-offs where applicable..."
+                                          value={subjectiveAnswer}
+                                          onChange={(e) => setSubjectiveAnswer(e.target.value)}
+                                          className="w-full px-3.5 py-3 bg-secondary/25 border border-border rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-foreground leading-relaxed font-sans"
+                                        />
+                                      </div>
+
+                                      <div className="flex gap-3">
+                                        <button
+                                          type="submit"
+                                          disabled={submittingSubjective || user.role === "Guest"}
+                                          className="flex-1 h-10 rounded-xl text-xs font-extrabold text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                                          style={{ backgroundColor: primaryColor }}
+                                        >
+                                          {submittingSubjective ? "Submitting..." : sub ? "Resubmit Analysis" : "Submit Answer"}
+                                        </button>
+                                      </div>
+                                    </form>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
                         )}
                       </div>
                     )}
                   </div>
-                )}
+
+                </div>
+
               </div>
-
-            </div>
-
-          </div>
+            );
+          })()
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground text-xs space-y-2">
             <span>Select a lesson or quiz from the curriculum roadmap outline to begin learning.</span>
@@ -2338,24 +2839,16 @@ export function WorkspaceClient({
 
             {activeBot === "book" && (
               <div className="grid grid-cols-3 gap-1.5">
-                <button 
-                  onClick={() => askAI("CMOS VLSI")}
-                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
-                >
-                  CMOS Books
-                </button>
-                <button 
-                  onClick={() => askAI("Lithography")}
-                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
-                >
-                  Lithography
-                </button>
-                <button 
-                  onClick={() => askAI("FinFET")}
-                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
-                >
-                  FinFET Docs
-                </button>
+                {getCourseAnalysisAndTopics().topics.map((topic, tIdx) => (
+                  <button 
+                    key={tIdx}
+                    onClick={() => askAI(topic.query)}
+                    className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate cursor-pointer"
+                    title={`Search library for ${topic.label}`}
+                  >
+                    📖 {topic.label}
+                  </button>
+                ))}
               </div>
             )}
 

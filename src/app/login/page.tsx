@@ -3,23 +3,21 @@ import { getTenantContext } from "@/features/auth/services/tenant";
 import { LoginForm } from "@/features/auth/components/LoginForm";
 import { getCurrentUser } from "@/features/auth/services/session";
 import { isParentTenant, getAncestorChain } from "@/features/auth/services/is-parent-tenant";
-import { ArrowLeft } from "lucide-react";
 
 export default async function LoginPage() {
   const tenant = await getTenantContext();
   const sessionUser = await getCurrentUser();
 
-  // If already logged in, redirect to dashboard (which handles role-based routing)
+  // If already logged in, redirect to dashboard
   if (sessionUser) {
     redirect("/dashboard");
   }
 
-  // Allow root-domain login for SuperAdmin
   const tenantName = tenant?.branding?.companyName || tenant?.name || "Wysbryx Platform";
-  const primaryColor = tenant?.branding?.primaryColor || "#f97316"; // Wysbryx orange default
-  const subdomain = tenant?.subdomain || "wysbryx";
+  const primaryColor = tenant?.branding?.primaryColor || "#f97316"; // Default brand accent
+  const subdomain = tenant?.subdomain || "vt";
 
-  // Determine hierarchical depth (1 = platform root, 2 = tenant level, 3+ = sub-company/institute)
+  // Determine hierarchical depth
   const chainLength = tenant ? (await getAncestorChain(tenant.id)).length : 1;
 
   return (
@@ -35,16 +33,9 @@ export default async function LoginPage() {
           tenantName={tenantName} 
           primaryColor={primaryColor} 
           subdomain={subdomain}
-          isParentDomain={isParentTenant(tenant)}
+          isParentDomain={tenant ? isParentTenant(tenant) : true}
           chainLength={chainLength}
         />
-        
-        <a 
-          href="/" 
-          className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to Academy Selection
-        </a>
       </div>
     </div>
   );

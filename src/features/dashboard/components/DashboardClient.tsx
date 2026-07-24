@@ -38,9 +38,10 @@ interface DashboardClientProps {
     } | null;
   } | null;
   courses: Course[];
+  batchSessions: any[]; // added for schedule
 }
 
-export function DashboardClient({ user, tenant, studentProfile, courses }: DashboardClientProps) {
+export function DashboardClient({ user, tenant, studentProfile, courses, batchSessions }: DashboardClientProps) {
   const primaryColor = tenant.branding?.primaryColor || "#0ea5e9";
   const tenantDisplayName = tenant.branding?.companyName || tenant.name;
   const [mounted, setMounted] = useState(false);

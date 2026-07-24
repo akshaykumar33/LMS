@@ -19,7 +19,8 @@ export function GatewayUserControls({ email, role, showGatewayLink, primaryColor
 
   const handleLogout = async () => {
     await logoutAction();
-    router.push("/login");
+    
+    window.location.href = "/login";
   };
 
   const displayInitials = email ? email.substring(0, 2).toUpperCase() : "US";
@@ -47,10 +48,11 @@ export function GatewayUserControls({ email, role, showGatewayLink, primaryColor
       {/* Logout */}
       <button
         onClick={handleLogout}
-        className="inline-flex items-center gap-1.5 rounded-xl text-[10px] font-bold h-8 px-3 bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all border border-red-500/20 cursor-pointer shrink-0"
+        className="inline-flex items-center gap-1.5 rounded-xl text-[10px] font-bold h-8 px-2 sm:px-3 bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all border border-red-500/20 cursor-pointer shrink-0"
         title="Logout"
       >
-        <LogOut className="w-3 h-3" /> Logout
+        <LogOut className="w-3 h-3" />
+        <span className="hidden sm:inline">Logout</span>
       </button>
     </div>
   );

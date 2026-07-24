@@ -93,7 +93,7 @@ export class AdmissionService {
   }
 
   /**
-   * Approve application, provision account and student profile.
+   * Approve application status (setting it to approved).
    */
   static async approveApplication(tenantId: string, applicationId: string) {
     const app = await AdmissionRepository.findById(tenantId, applicationId);
@@ -103,6 +103,19 @@ export class AdmissionService {
 
     if (app.status === "approved") {
       throw new Error("Application is already approved.");
+    }
+
+    await AdmissionRepository.updateApplicationStatus(tenantId, applicationId, "approved");
+    return { success: true };
+  }
+
+  /**
+   * Provision account and student profile manually with password.
+   */
+  static async provisionStudentAccount(tenantId: string, applicationId: string, passwordText: string) {
+    const app = await AdmissionRepository.findById(tenantId, applicationId);
+    if (!app) {
+      throw new Error("Application not found.");
     }
 
     // 0. Enforce maxUsers restriction limit check
@@ -154,10 +167,8 @@ export class AdmissionService {
     }
 
     // 3. Generate unique Roll Number and Admission Number
-    // Pattern: ME-<SUBDOMAIN>-<YEAR>-<SEQUENCE>
     const year = new Date().getFullYear().toString().substring(2);
     
-    // Count existing students under this tenant to generate the sequence number
     const tenantStudentCountResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(schema.students)
@@ -171,14 +182,8 @@ export class AdmissionService {
     const rollNumber = `ME-${subCode}-${year}-${seq}`;
     const admissionNumber = `ADM-${subCode}-${seq}`;
 
-    // 4. Determine password hash (use chosen password from signup if present, else default)
-    let passwordHash = "";
-    const desiredPasswordHash = (app.academicHistory as any)?.desiredPasswordHash;
-    if (desiredPasswordHash) {
-      passwordHash = desiredPasswordHash;
-    } else {
-      passwordHash = await bcrypt.hash("Password123", 10);
-    }
+    // 4. Hash the password
+    const passwordHash = await bcrypt.hash(passwordText || "Password123", 10);
 
     // 5. Run transactional enrollment
     const enrollment = await AdmissionRepository.approveAndEnrollStudent(
@@ -190,13 +195,11 @@ export class AdmissionService {
       admissionNumber
     );
 
-    // In a production application, we would fire an event/queue message here
-    // to trigger an email notification to the student with their credentials.
     console.log(`Student enrolled successfully. Email: ${app.email}, Roll: ${rollNumber}`);
 
     return {
       ...enrollment,
-      temporaryPassword: desiredPasswordHash ? "[Configured during Signup]" : "Password123",
+      temporaryPassword: passwordText || "Password123",
     };
   }
 

@@ -10,8 +10,10 @@ import { getRazorpayEnvKeys, getPaymentMode } from "../services/payment-config";
 import { AdmissionRepository } from "../repository/admission-repository";
 import { admissionApplicationSchema, paymentSubmitSchema, documentUploadSchema } from "../schemas/admission-schemas";
 import { db } from "@/db/db";
+import * as schema from "@/db/schema";
 import { batches, tenants } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
+import { getScopedTenantIds } from "@/features/auth/services/tenant";
 import bcrypt from "bcryptjs";
 import { establishSessionAction } from "@/features/auth/actions/auth-actions";
 
@@ -153,14 +155,53 @@ export async function listApplicationsAction(filters?: { status?: string; batchI
 }
 
 /**
- * Protected Admin Action: Approve application and provision student.
+ * Protected Admin Action: Approve application status (setting status to approved).
  */
 export async function approveApplicationAction(applicationId: string) {
   const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
   verifyWriteAccess(user);
 
   try {
-    const result = await AdmissionService.approveApplication(user.tenantId, applicationId);
+    await AdmissionService.approveApplication(user.tenantId, applicationId);
+
+    // Fetch applicant details to send email
+    const app = await db.query.admissionApplications.findFirst({
+      where: eq(schema.admissionApplications.id, applicationId),
+    });
+
+    if (app) {
+      try {
+        const { sendTenantEmail } = require("@/features/notification/services/mail-service");
+        sendTenantEmail(user.tenantId, {
+          to: app.email,
+          subject: `Application Approved - ${user.tenantId}`,
+          html: `<p>Hi ${app.firstName},</p>
+                 <p>Congratulations! Your admission application has been approved.</p>
+                 <p>An administrator will provision your student account and share your credentials shortly.</p>
+                 <p>Best regards,<br/>Admissions Team</p>`
+        }).catch((err: any) => console.error("Failed to send approval email:", err));
+      } catch (e) {
+        console.error("Failed to trigger approval email dispatch:", e);
+      }
+    }
+
+    revalidatePath("/admin/admissions");
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to approve application." };
+  }
+}
+
+/**
+ * Protected Admin Action: Manually provision account and sign up student.
+ */
+export async function manualSignUpStudentAction(applicationId: string, passwordText: string) {
+  const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
+  verifyWriteAccess(user);
+
+  try {
+    const result = await AdmissionService.provisionStudentAccount(user.tenantId, applicationId, passwordText);
 
     try {
       const { NotificationRepository } = require("@/features/notification/repository/notification-repository");
@@ -168,32 +209,35 @@ export async function approveApplicationAction(applicationId: string) {
         user.tenantId,
         result.user.id,
         "Welcome to the Center of Excellence!",
-        "Your admission application has been approved and your student account is active. Welcome aboard!",
+        "Your student account has been manually provisioned. Welcome aboard!",
         "success"
       );
     } catch (e) {
-      console.error("Failed to trigger approval notification:", e);
+      console.error("Failed to trigger signup notification:", e);
     }
 
     try {
       const { sendTenantEmail } = require("@/features/notification/services/mail-service");
       sendTenantEmail(user.tenantId, {
         to: result.user.email,
-        subject: `Application Approved - Welcome to ${user.tenantId}`,
+        subject: `Account Created - Welcome to ${user.tenantId}`,
         html: `<p>Hi ${result.user.firstName},</p>
-               <p>Congratulations! Your admission application has been approved.</p>
-               <p>You can now log in and access your portal to get started.</p>
+               <p>Your student account has been created successfully.</p>
+               <p><strong>Roll Number:</strong> ${result.student.rollNumber}</p>
+               <p><strong>Admission ID:</strong> ${result.student.admissionNumber}</p>
+               <p><strong>Password:</strong> ${passwordText || "Password123"}</p>
+               <p>You can now log in using these credentials.</p>
                <p>Best regards,<br/>Admissions Team</p>`
-      }).catch((err: any) => console.error("Failed to send approval email:", err));
+      }).catch((err: any) => console.error("Failed to send signup email:", err));
     } catch (e) {
-      console.error("Failed to trigger approval email dispatch:", e);
+      console.error("Failed to trigger signup email dispatch:", e);
     }
 
     revalidatePath("/admin/admissions");
     revalidatePath("/dashboard");
     return { success: true, ...result };
   } catch (error: any) {
-    return { success: false, error: error.message || "Failed to approve application." };
+    return { success: false, error: error.message || "Failed to sign up student." };
   }
 }
 
@@ -220,11 +264,27 @@ export async function getApplicationDetailsAction(applicationId: string) {
   const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
   
   try {
-    const details = await AdmissionRepository.findById(user.tenantId, applicationId);
+    const scopedTenantIds = await getScopedTenantIds(user.role, user.tenantId);
+    const details = await AdmissionRepository.findById(scopedTenantIds, applicationId);
     if (!details) {
       return { success: false, error: "Application not found." };
     }
-    return { success: true, data: details };
+
+    // Check if user already exists
+    const existingUser = await db.query.users.findFirst({
+      where: and(
+        eq(schema.users.email, details.email),
+        inArray(schema.users.tenantId, scopedTenantIds)
+      ),
+    });
+
+    return { 
+      success: true, 
+      data: JSON.parse(JSON.stringify({
+        ...details,
+        isEnrolled: !!existingUser
+      }))
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -281,8 +341,6 @@ export async function registerStudentAction(formData: any) {
     return { success: false, error: error.message || "Failed to register student." };
   }
 }
-
-import * as schema from "@/db/schema";
 
 /**
  * Public Action: Generate Stripe Payment Intent for student application fee.
@@ -465,7 +523,7 @@ export async function completeSignupAndEnrollAction(appId: string, password: any
       );
 
     // 2. Approve and enroll the student
-    const enrollment = await AdmissionService.approveApplication(tenant.id, appId);
+    const enrollment = await AdmissionService.provisionStudentAccount(tenant.id, appId, password);
 
     if (!enrollment || !enrollment.user) {
       return { success: false, error: "Failed to enroll student account." };
@@ -693,3 +751,245 @@ export async function verifyAndCompleteRazorpayPaymentAction(
     return { success: false, error: error.message || "Failed to complete Razorpay checkout." };
   }
 }
+
+/**
+ * Protected Admin Action: Verify or reject admission documents.
+ */
+export async function updateDocumentStatusAction(
+  documentId: string,
+  status: "verified" | "rejected",
+  reason?: string
+) {
+  const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
+  verifyWriteAccess(user);
+
+  try {
+    const [doc] = await db
+      .update(schema.admissionDocuments)
+      .set({ status, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.admissionDocuments.id, documentId),
+          eq(schema.admissionDocuments.tenantId, user.tenantId)
+        )
+      )
+      .returning();
+
+    if (!doc) {
+      return { success: false, error: "Document not found." };
+    }
+
+    // Fetch applicant details
+    const app = await db.query.admissionApplications.findFirst({
+      where: eq(schema.admissionApplications.id, doc.applicationId),
+    });
+
+    if (app && status === "rejected") {
+      try {
+        const { sendTenantEmail } = require("@/features/notification/services/mail-service");
+        await sendTenantEmail(user.tenantId, {
+          to: app.email,
+          subject: `Admission Document Rejected - ${doc.documentName}`,
+          html: `<p>Hi ${app.firstName},</p>
+                 <p>Your uploaded document <strong>${doc.documentName}</strong> has been rejected during review.</p>
+                 ${reason ? `<p><strong>Reason for rejection:</strong> ${reason}</p>` : ""}
+                 <p>Please log in to your application portal and upload a valid document to continue your onboarding process.</p>
+                 <p>Best regards,<br/>Admissions Team</p>`
+        });
+      } catch (mailErr) {
+        console.error("Failed to send document rejection email:", mailErr);
+      }
+    }
+
+    revalidatePath("/admin/admissions");
+    return { success: true, data: doc };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to update document status." };
+  }
+}
+
+/**
+ * Protected Admin Action: Direct Admission for a user, provisioning the account,
+ * uploading verified documents, and linking selected courses to the cohort batch.
+ */
+export async function adminDirectAdmissionAction(data: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  dateOfBirth: string;
+  password: string;
+  batchId: string;
+  selectedCourseIds: string[];
+  academicHistory: {
+    highestDegree: string;
+    institution: string;
+    gpaOrPercentage: string;
+    graduationYear: number;
+    experienceMonths: number;
+  };
+  documents: { documentName: string; fileUrl: string }[];
+}) {
+  const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
+  verifyWriteAccess(user);
+
+  try {
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      dateOfBirth,
+      password,
+      batchId,
+      selectedCourseIds,
+      academicHistory,
+      documents,
+    } = data;
+
+    // 1. Check if user already exists
+    const existingUser = await db.query.users.findFirst({
+      where: and(
+        eq(schema.users.email, email),
+        eq(schema.users.tenantId, user.tenantId)
+      ),
+    });
+    if (existingUser) {
+      return { success: false, error: "A user with this email address already exists." };
+    }
+
+    const existingApp = await db.query.admissionApplications.findFirst({
+      where: and(
+        eq(schema.admissionApplications.email, email),
+        eq(schema.admissionApplications.tenantId, user.tenantId)
+      ),
+    });
+    if (existingApp) {
+      return { success: false, error: "An admission application with this email address already exists." };
+    }
+
+    // 2. Fetch the Student Role UUID for the tenant
+    const studentRole = await db.query.roles.findFirst({
+      where: and(
+        eq(schema.roles.tenantId, user.tenantId),
+        eq(schema.roles.name, "Student")
+      ),
+    });
+
+    if (!studentRole) {
+      return { success: false, error: "Student system role was not found for this tenant." };
+    }
+
+    // 3. Generate unique Roll Number and Admission Number
+    const year = new Date().getFullYear().toString().substring(2);
+    const tenantStudentCountResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.students)
+      .where(eq(schema.students.tenantId, user.tenantId));
+
+    const count = Number(tenantStudentCountResult[0]?.count || 0) + 1;
+    const seq = count.toString().padStart(4, "0");
+
+    const tenant = await db.query.tenants.findFirst({
+      where: eq(schema.tenants.id, user.tenantId),
+    });
+    const subCode = (tenant?.subdomain || "COE").toUpperCase();
+
+    const rollNumber = `ME-${subCode}-${year}-${seq}`;
+    const admissionNumber = `ADM-${subCode}-${seq}`;
+
+    // 4. Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 5. Execute transaction
+    await db.transaction(async (tx) => {
+      // Create admission application with status "approved"
+      const [app] = await tx
+        .insert(schema.admissionApplications)
+        .values({
+          tenantId: user.tenantId,
+          batchId,
+          email,
+          firstName,
+          lastName,
+          phone,
+          dateOfBirth: new Date(dateOfBirth),
+          academicHistory: {
+            ...academicHistory,
+            desiredPasswordHash: hashedPassword,
+          },
+          status: "approved",
+        })
+        .returning();
+
+      // Create the User record
+      const [dbUser] = await tx
+        .insert(schema.users)
+        .values({
+          tenantId: user.tenantId,
+          firstName,
+          lastName,
+          email,
+          passwordHash: hashedPassword,
+          role: "Student",
+          customRoleId: studentRole.id,
+          status: "active",
+        })
+        .returning();
+
+      // Create the Student profile and associate with Batch
+      await tx
+        .insert(schema.students)
+        .values({
+          tenantId: user.tenantId,
+          userId: dbUser.id,
+          batchId,
+          rollNumber,
+          admissionNumber,
+        });
+
+      // Create verified documents
+      if (documents && documents.length > 0) {
+        for (const doc of documents) {
+          await tx
+            .insert(schema.admissionDocuments)
+            .values({
+              tenantId: user.tenantId,
+              applicationId: app.id,
+              documentName: doc.documentName,
+              fileUrl: doc.fileUrl,
+              status: "verified",
+            });
+        }
+      }
+
+      // Link selected courses to the batch if not already linked
+      if (selectedCourseIds && selectedCourseIds.length > 0) {
+        for (const courseId of selectedCourseIds) {
+          const existingLink = await tx.query.courseBatches.findFirst({
+            where: and(
+              eq(schema.courseBatches.courseId, courseId),
+              eq(schema.courseBatches.batchId, batchId)
+            ),
+          });
+          if (!existingLink) {
+            await tx
+              .insert(schema.courseBatches)
+              .values({
+                courseId,
+                batchId,
+              });
+          }
+        }
+      }
+    });
+
+    revalidatePath("/admin/admissions");
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Direct Admission action failed:", error);
+    return { success: false, error: error.message || "Failed to complete direct admission." };
+  }
+}
+

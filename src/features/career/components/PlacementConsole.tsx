@@ -34,6 +34,7 @@ interface Applicant {
   resumeUrl: string;
   status: string;
   appliedAt: Date | string;
+  readinessScore?: number;
 }
 
 interface PlacementConsoleProps {
@@ -254,7 +255,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   <div className="absolute -top-12 -right-12 w-24 h-24 rounded-full blur-3xl bg-primary/5 pointer-events-none" />
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                     <div className="space-y-1">
-                      <h2 className="text-base font-extrabold text-white leading-tight">{selectedJob.title}</h2>
+                      <h2 className="text-base font-extrabold text-foreground leading-tight">{selectedJob.title}</h2>
                       <p className="text-[11px] font-semibold text-muted-foreground">
                         {selectedJob.company} <span className="text-border">|</span> <span className="font-normal text-muted-foreground">{selectedJob.location}</span>
                       </p>
@@ -288,7 +289,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                   
                   <div className="space-y-1.5 bg-muted/15 p-4 rounded-xl border border-border/40">
                     <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground block">Candidate Requirements</span>
-                    <p className="text-slate-200 font-medium leading-relaxed text-[11px]">{selectedJob.requirements}</p>
+                    <p className="text-foreground/90 font-medium leading-relaxed text-[11px]">{selectedJob.requirements}</p>
                   </div>
                 </div>
 
@@ -335,6 +336,7 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                             <th className="p-3.5">Student</th>
                             <th className="p-3.5">Roll No</th>
                             <th className="p-3.5">Resume</th>
+                            <th className="p-3.5">Readiness Index</th>
                             <th className="p-3.5">Stage</th>
                             <th className="p-3.5 text-right">Transition Action</th>
                           </tr>
@@ -362,6 +364,19 @@ export function PlacementConsole({ jobs, applicantsMap, userRole }: PlacementCon
                                   >
                                     View Resume &rarr;
                                   </a>
+                                </td>
+                                <td className="p-3.5">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-12 bg-muted rounded-full h-1.5 overflow-hidden">
+                                      <div 
+                                        className={`h-full rounded-full ${
+                                          (app.readinessScore || 0) >= 80 ? "bg-emerald-500" : (app.readinessScore || 0) >= 50 ? "bg-amber-500" : "bg-rose-500"
+                                        }`}
+                                        style={{ width: `${app.readinessScore || 65}%` }}
+                                      ></div>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-foreground">{app.readinessScore || 65}%</span>
+                                  </div>
                                 </td>
                                 <td className="p-3.5">
                                   <Badge variant="outline" className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${getStatusColor(app.status)}`}>

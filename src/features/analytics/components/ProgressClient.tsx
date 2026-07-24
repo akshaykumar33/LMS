@@ -77,11 +77,14 @@ interface ProgressClientProps {
   } | null;
   scormTelemetry?: {
     lessonTitle: string;
+    contentType?: string;
     courseName: string;
     completed: boolean;
     score: string | null;
     timeSpentSeconds: number;
     status: string;
+    videoMaxWatchedPercent?: number;
+    zoomAttendanceLogs?: { joinedAt: string; leftAt: string; durationSeconds: number }[];
   }[];
 }
 
@@ -402,20 +405,21 @@ export function ProgressClient({
         )}
       </div>
 
-      {/* Interactive SCORM Modules */}
+      {/* Course Tracking Telemetry */}
       {scormTelemetry.length > 0 && (
         <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-6 space-y-4 shadow-sm">
           <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <BookOpen className="w-4 h-4 text-primary" /> Interactive SCORM Modules
+            <BookOpen className="w-4 h-4 text-primary" /> Detailed Lesson & E-Learning Telemetry
           </h3>
           <div className="overflow-x-auto border border-border/80 rounded-xl">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-border bg-secondary/10 text-muted-foreground text-[10px] font-black uppercase tracking-wider">
-                  <th className="p-3">Module</th>
+                  <th className="p-3">Lesson Unit</th>
+                  <th className="p-3">Type</th>
                   <th className="p-3">Course</th>
                   <th className="p-3 text-center">Status</th>
-                  <th className="p-3 text-center">Score</th>
+                  <th className="p-3 text-center">Progress/Score</th>
                   <th className="p-3 text-right">Time Spent</th>
                 </tr>
               </thead>
@@ -423,6 +427,7 @@ export function ProgressClient({
                 {scormTelemetry.map((s, idx) => (
                   <tr key={idx} className="hover:bg-secondary/15 transition-colors">
                     <td className="p-3 text-foreground font-bold">{s.lessonTitle}</td>
+                    <td className="p-3 text-muted-foreground font-medium uppercase text-[9px]">{s.contentType || "text"}</td>
                     <td className="p-3 text-muted-foreground">{s.courseName}</td>
                     <td className="p-3 text-center">
                       <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
@@ -433,7 +438,24 @@ export function ProgressClient({
                         {s.status}
                       </span>
                     </td>
-                    <td className="p-3 text-center font-black text-foreground">{s.score ?? "—"}</td>
+                    <td className="p-3 text-center">
+                      {s.contentType === "video" ? (
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold text-foreground font-mono">{s.videoMaxWatchedPercent}% watched</span>
+                          <div className="w-16 h-1 bg-secondary rounded-full mx-auto overflow-hidden">
+                            <div className="bg-primary h-full" style={{ width: `${s.videoMaxWatchedPercent}%` }} />
+                          </div>
+                        </div>
+                      ) : s.contentType === "live_class" ? (
+                        <div className="text-[9px] font-bold text-emerald-400">
+                          {s.zoomAttendanceLogs && s.zoomAttendanceLogs.length > 0
+                            ? `Joined (${s.zoomAttendanceLogs.length} session)`
+                            : "No join recorded"}
+                        </div>
+                      ) : (
+                        <span className="font-black text-foreground font-mono">{s.score ?? "—"}</span>
+                      )}
+                    </td>
                     <td className="p-3 text-right text-muted-foreground font-mono">
                       {s.timeSpentSeconds > 0
                         ? `${Math.floor(s.timeSpentSeconds / 60)}m ${s.timeSpentSeconds % 60}s`

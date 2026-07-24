@@ -276,31 +276,6 @@ export function CourseManagerConsole({
                   ))}
                 </div>
               </div>
-
-              {enableCapstone && (
-                <div className="border-t border-border/80 pt-6 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">Capstone Project</h3>
-                    <Button size="sm" variant="outline" disabled={userRole === "Guest"} onClick={() => openEditCapstone(selectedCourse.capstoneProject || { title: `${selectedCourse.name} - Capstone Project`, description: "", difficulty: "Intermediate", durationWeeks: 4 })} className="text-xs font-bold border" style={{ borderColor: `${primaryColor}30`, backgroundColor: `${primaryColor}0c`, color: primaryColor }}>
-                      {selectedCourse.capstoneProject ? "Edit Capstone" : "Assign Capstone"}
-                    </Button>
-                  </div>
-                  {selectedCourse.capstoneProject ? (
-                    <div className="p-4 rounded-xl border border-border/60 bg-muted/5 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-extrabold text-foreground">🏆 {selectedCourse.capstoneProject.title}</h4>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-[9px] font-bold font-mono uppercase px-1.5 h-4">{selectedCourse.capstoneProject.difficulty}</Badge>
-                          <Badge variant="secondary" className="text-[9px] font-bold font-mono uppercase px-1.5 h-4">{selectedCourse.capstoneProject.durationWeeks} Weeks</Badge>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{selectedCourse.capstoneProject.description}</p>
-                    </div>
-                  ) : (
-                    <div className="p-6 text-center border border-dashed border-border/60 rounded-xl text-xs text-muted-foreground">No capstone project assigned to this course.</div>
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
         ) : (
@@ -427,45 +402,6 @@ export function CourseManagerConsole({
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={closeEditLesson} className="text-xs font-bold">Cancel</Button>
-              <Button type="submit" disabled={isSubmitting} className="text-xs font-bold" style={{ backgroundColor: primaryColor, color: "#fff" }}>
-                {isSubmitting ? "Saving..." : "Save Changes"}
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* ── Edit Capstone Modal ───────────────────────────────────────────── */}
-      {editingCapstone && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleUpdateCapstone} className="bg-slate-950 border border-border p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
-            <h3 className="text-lg font-bold text-foreground">
-              {selectedCourse?.capstoneProject ? "Edit Capstone Project" : "Assign Capstone Project"}
-            </h3>
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground font-bold uppercase">Project Title</Label>
-              <Input type="text" required value={editingCapstone.title} onChange={(e) => patchEditingCapstone({ title: e.target.value })} className="h-10 text-xs" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground font-bold uppercase">Difficulty</Label>
-                <select value={editingCapstone.difficulty} onChange={(e) => patchEditingCapstone({ difficulty: e.target.value })} className="w-full h-10 bg-card border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                  <option value="Easy" className="bg-card text-foreground">Easy</option>
-                  <option value="Intermediate" className="bg-card text-foreground">Intermediate</option>
-                  <option value="Advanced" className="bg-card text-foreground">Advanced</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground font-bold uppercase">Duration (Weeks)</Label>
-                <Input type="number" min={1} max={52} required value={editingCapstone.durationWeeks} onChange={(e) => patchEditingCapstone({ durationWeeks: parseInt(e.target.value) || 4 })} className="h-10 text-xs" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-slate-400 font-bold uppercase">Description & Guidelines</Label>
-              <textarea required value={editingCapstone.description || ""} onChange={(e) => patchEditingCapstone({ description: e.target.value })} placeholder="Detail submission requirements, Git repository guidelines, and PDF report constraints..." className="w-full h-40 bg-transparent border border-input rounded-lg p-2.5 text-xs text-foreground resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none" />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="ghost" onClick={closeEditCapstone} className="text-xs font-bold">Cancel</Button>
               <Button type="submit" disabled={isSubmitting} className="text-xs font-bold" style={{ backgroundColor: primaryColor, color: "#fff" }}>
                 {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
