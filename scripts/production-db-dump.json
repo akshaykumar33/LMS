@@ -29,71 +29,11 @@
             "tableName": "tenants",
             "rows": [
               {
-                "id": "96652527-1198-4bbb-8bc4-30781efaed17",
-                "name": "Virginia Tech",
-                "subdomain": "vt",
-                "custom_domain": "vt-lms.edu",
-                "db_name": "vt_db",
-                "branding": {
-                  "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/6/60/Virginia_Tech_Gobblers_logo.svg",
-                  "primaryColor": "#861F41"
-                },
-                "status": "active",
-                "created_at": "2026-07-24T06:58:08.574Z",
-                "updated_at": "2026-07-24T06:58:08.574Z",
-                "deleted_at": null,
-                "parent_tenant_id": "96652527-1198-4bbb-8bc4-30781efaed18",
-                "settings": {
-                  "features": {
-                    "enableLibrary": true,
-                    "enablePlacement": true,
-                    "enableProctoring": true
-                  },
-                  "gateways": {
-                    "stripe": true
-                  },
-                  "restrictions": {
-                    "maxUsers": 500,
-                    "maxCourses": 100
-                  }
-                }
-              },
-              {
-                "id": "96652527-1198-4bbb-8bc4-30781efaed18",
-                "name": "Wysbryx Platform",
-                "subdomain": "wysbryx",
-                "custom_domain": "wysbryx.com",
-                "db_name": "vt_db",
-                "branding": {
-                  "logoUrl": "https://www.wysbryx.com/wysbryx_v.png",
-                  "primaryColor": "#f97316"
-                },
-                "status": "active",
-                "created_at": "2026-07-24T06:58:08.574Z",
-                "updated_at": "2026-07-24T06:58:08.574Z",
-                "deleted_at": null,
-                "parent_tenant_id": null,
-                "settings": {
-                  "features": {
-                    "enableLibrary": true,
-                    "enablePlacement": true,
-                    "enableProctoring": true
-                  },
-                  "gateways": {
-                    "stripe": true
-                  },
-                  "restrictions": {
-                    "maxUsers": 1000,
-                    "maxCourses": 1000
-                  }
-                }
-              },
-              {
                 "id": "03e6d706-6e79-4dc5-96c1-e10f1beff95c",
                 "name": "Intel Semiconductor Academy",
                 "subdomain": "intel",
                 "custom_domain": "intel-academy.com",
-                "db_name": "vt_db",
+                "db_name": "vti_db",
                 "branding": {
                   "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel-logo.svg",
                   "primaryColor": "#0068B5"
@@ -121,7 +61,7 @@
                 "name": "Intel Oregon Labs",
                 "subdomain": "intel-oregon",
                 "custom_domain": "intel-oregon.com",
-                "db_name": "vt_db",
+                "db_name": "vti_db",
                 "branding": {
                   "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Intel-logo.svg",
                   "primaryColor": "#0068B5"
@@ -148,7 +88,7 @@
                 "name": "AMD Training Center",
                 "subdomain": "amd",
                 "custom_domain": "amd-coe.com",
-                "db_name": "vt_db",
+                "db_name": "vti_db",
                 "branding": {
                   "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg",
                   "primaryColor": "#ED1C24"
@@ -168,60 +108,6 @@
                   },
                   "restrictions": {
                     "maxUsers": 150
-                  }
-                }
-              },
-              {
-                "id": "15b66b68-2e97-4bad-b756-e4cc16923530",
-                "name": "Test Organization parent",
-                "subdomain": "test1",
-                "custom_domain": "test1-org.com",
-                "db_name": "test1_db",
-                "branding": {
-                  "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/6/67/TSMC_logo.svg",
-                  "primaryColor": "#333333"
-                },
-                "status": "active",
-                "created_at": "2026-07-24T06:58:08.574Z",
-                "updated_at": "2026-07-24T06:58:08.574Z",
-                "deleted_at": null,
-                "parent_tenant_id": "96652527-1198-4bbb-8bc4-30781efaed18",
-                "settings": {
-                  "features": {
-                    "enableLibrary": true
-                  },
-                  "gateways": {
-                    "stripe": true
-                  },
-                  "restrictions": {
-                    "maxUsers": 100
-                  }
-                }
-              },
-              {
-                "id": "019915ce-3b05-4db3-a1c0-365f772f4e11",
-                "name": "Test Sub-company",
-                "subdomain": "test1-sub",
-                "custom_domain": "test1-sub.com",
-                "db_name": "test1_db",
-                "branding": {
-                  "logoUrl": "",
-                  "primaryColor": "#555555"
-                },
-                "status": "active",
-                "created_at": "2026-07-24T06:58:08.574Z",
-                "updated_at": "2026-07-24T06:58:08.574Z",
-                "deleted_at": null,
-                "parent_tenant_id": "15b66b68-2e97-4bad-b756-e4cc16923530",
-                "settings": {
-                  "features": {
-                    "enableLibrary": false
-                  },
-                  "gateways": {
-                    "stripe": false
-                  },
-                  "restrictions": {
-                    "maxUsers": 50
                   }
                 }
               },
@@ -252,6 +138,33 @@
                   "restrictions": {
                     "maxUsers": 2000,
                     "maxCourses": 200
+                  }
+                }
+              },
+              {
+                "id": "019915ce-3b05-4db3-a1c0-365f772f4e99",
+                "name": "Qualcomm Institute",
+                "subdomain": "qualcomm",
+                "custom_domain": "qualcomm.com",
+                "db_name": "vti_db",
+                "branding": {
+                  "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/f/fc/Qualcomm-Logo.svg",
+                  "primaryColor": "#3253DC"
+                },
+                "status": "active",
+                "created_at": "2026-07-24T07:01:02.260Z",
+                "updated_at": "2026-07-24T07:01:02.260Z",
+                "deleted_at": null,
+                "parent_tenant_id": "96652527-1198-4bbb-8bc4-30781efaed19",
+                "settings": {
+                  "features": {
+                    "enableLibrary": true
+                  },
+                  "gateways": {
+                    "stripe": true
+                  },
+                  "restrictions": {
+                    "maxUsers": 500
                   }
                 }
               },
@@ -340,33 +253,6 @@
                 }
               },
               {
-                "id": "019915ce-3b05-4db3-a1c0-365f772f4e99",
-                "name": "Qualcomm Institute",
-                "subdomain": "qualcomm",
-                "custom_domain": "qualcomm.com",
-                "db_name": "vti_db",
-                "branding": {
-                  "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/f/fc/Qualcomm-Logo.svg",
-                  "primaryColor": "#3253DC"
-                },
-                "status": "active",
-                "created_at": "2026-07-24T07:01:02.260Z",
-                "updated_at": "2026-07-24T07:01:02.260Z",
-                "deleted_at": null,
-                "parent_tenant_id": "96652527-1198-4bbb-8bc4-30781efaed19",
-                "settings": {
-                  "features": {
-                    "enableLibrary": true
-                  },
-                  "gateways": {
-                    "stripe": true
-                  },
-                  "restrictions": {
-                    "maxUsers": 500
-                  }
-                }
-              },
-              {
                 "id": "019915ce-3b05-4db3-a1c0-365f772f4e77",
                 "name": "Mellanox Networking",
                 "subdomain": "mellanox",
@@ -390,6 +276,120 @@
                   },
                   "restrictions": {
                     "maxUsers": 1000
+                  }
+                }
+              },
+              {
+                "id": "15b66b68-2e97-4bad-b756-e4cc16923530",
+                "name": "Test Organization parent",
+                "subdomain": "test1",
+                "custom_domain": "test1-org.com",
+                "db_name": "test1_db",
+                "branding": {
+                  "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/6/67/TSMC_logo.svg",
+                  "primaryColor": "#333333"
+                },
+                "status": "active",
+                "created_at": "2026-07-24T06:58:08.574Z",
+                "updated_at": "2026-07-24T06:58:08.574Z",
+                "deleted_at": null,
+                "parent_tenant_id": "96652527-1198-4bbb-8bc4-30781efaed18",
+                "settings": {
+                  "features": {
+                    "enableLibrary": true
+                  },
+                  "gateways": {
+                    "stripe": true
+                  },
+                  "restrictions": {
+                    "maxUsers": 100
+                  }
+                }
+              },
+              {
+                "id": "019915ce-3b05-4db3-a1c0-365f772f4e11",
+                "name": "Test Sub-company",
+                "subdomain": "test1-sub",
+                "custom_domain": "test1-sub.com",
+                "db_name": "test1_db",
+                "branding": {
+                  "logoUrl": "",
+                  "primaryColor": "#555555"
+                },
+                "status": "active",
+                "created_at": "2026-07-24T06:58:08.574Z",
+                "updated_at": "2026-07-24T06:58:08.574Z",
+                "deleted_at": null,
+                "parent_tenant_id": "15b66b68-2e97-4bad-b756-e4cc16923530",
+                "settings": {
+                  "features": {
+                    "enableLibrary": false
+                  },
+                  "gateways": {
+                    "stripe": false
+                  },
+                  "restrictions": {
+                    "maxUsers": 50
+                  }
+                }
+              },
+              {
+                "id": "96652527-1198-4bbb-8bc4-30781efaed17",
+                "name": "Virginia Tech",
+                "subdomain": "vt",
+                "custom_domain": "vt-lms.edu",
+                "db_name": "vt_db",
+                "branding": {
+                  "logoUrl": "https://upload.wikimedia.org/wikipedia/commons/6/60/Virginia_Tech_Gobblers_logo.svg",
+                  "primaryColor": "#861F41"
+                },
+                "status": "active",
+                "created_at": "2026-07-24T06:58:08.574Z",
+                "updated_at": "2026-07-24T06:58:08.574Z",
+                "deleted_at": null,
+                "parent_tenant_id": "96652527-1198-4bbb-8bc4-30781efaed18",
+                "settings": {
+                  "features": {
+                    "enableLibrary": true,
+                    "enablePlacement": true,
+                    "enableProctoring": true
+                  },
+                  "gateways": {
+                    "stripe": true
+                  },
+                  "restrictions": {
+                    "maxUsers": 500,
+                    "maxCourses": 100
+                  }
+                }
+              },
+              {
+                "id": "96652527-1198-4bbb-8bc4-30781efaed18",
+                "name": "Wysbryx Platform",
+                "subdomain": "wysbryx",
+                "custom_domain": "wysbryx.com",
+                "db_name": "vt_db",
+                "branding": {
+                  "logoUrl": "https://www.wysbryx.com/wysbryx_v.png",
+                  "primaryColor": "#f97316"
+                },
+                "status": "active",
+                "created_at": "2026-07-24T06:58:08.574Z",
+                "updated_at": "2026-07-24T06:58:08.574Z",
+                "deleted_at": null,
+                "parent_tenant_id": null,
+                "settings": {
+                  "features": {
+                    "enableLibrary": true,
+                    "enablePlacement": true,
+                    "enableProctoring": true
+                  },
+                  "gateways": {
+                    "stripe": true
+                  },
+                  "restrictions": {
+                    "maxUsers": 1000,
+                    "maxCourses": 1000
                   }
                 }
               }
