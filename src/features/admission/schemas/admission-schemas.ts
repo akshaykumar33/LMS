@@ -22,7 +22,7 @@ export const admissionApplicationSchema = z.object({
 
 export const documentUploadSchema = z.object({
   documentName: z.string().min(1, "Document name is required"),
-  fileUrl: z.string().url("Invalid file URL"),
+  fileUrl: z.string().min(1, "File path/URL is required"),
 });
 
 export const paymentSubmitSchema = z.object({

@@ -212,8 +212,14 @@ export class AdmissionRepository {
         throw new Error("Application not found");
       }
 
-      if (app.status === "approved") {
-        throw new Error("Application has already been approved");
+      const existingUser = await tx.query.users.findFirst({
+        where: and(
+          eq(schema.users.email, app.email),
+          eq(schema.users.tenantId, tenantId)
+        ),
+      });
+      if (existingUser) {
+        throw new Error("Student account has already been created/signed up.");
       }
 
       // 2. Update application status to approved

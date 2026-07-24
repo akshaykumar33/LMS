@@ -291,7 +291,7 @@ export default async function Home() {
   }
 
   const tenantParam = tenant.subdomain && tenant.subdomain !== "wysbryx" ? `?tenant=${tenant.subdomain}` : "";
-  const loginUrl = `/login${tenantParam}`;
+  const loginUrl = sessionUser ? "/dashboard" : `/login${tenantParam}`;
   const applyUrl = `/admission/apply${tenantParam}`;
   const primaryColor = tenant.branding?.primaryColor || "#0ea5e9";
 

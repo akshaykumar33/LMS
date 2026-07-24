@@ -190,6 +190,15 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
               </div>
             )}
 
+            {searchParams.get("error") === "self_signup_disabled" && (
+              <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg text-xs text-amber-500 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
+                <span>
+                  <strong>Registration Disabled:</strong> Student registration is a manual process. Self-signup is disabled on this platform. Credentials are shared manually by the administration.
+                </span>
+              </div>
+            )}
+
             {searchParams.get("activated") === "true" && (
               <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg text-xs text-emerald-400 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-400" />
@@ -390,11 +399,16 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
             <Separator />
 
             <div className="text-center flex flex-col gap-2">
+              {/* Commented out self-signup link for manual onboarding phase
               <p className="text-xs text-muted-foreground">
                 New student?{" "}
                 <a href="/admission/apply" className="inline-flex items-center gap-1 font-semibold text-foreground/80 hover:text-foreground transition-colors underline decoration-border hover:decoration-foreground underline-offset-4">
                   Apply & Register Instantly <ArrowRight className="w-3.5 h-3.5" />
                 </a>
+              </p>
+              */}
+              <p className="text-xs text-muted-foreground">
+                Student registration is managed manually by administration.
               </p>
             </div>
           </CardContent>
