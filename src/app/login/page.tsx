@@ -5,9 +5,23 @@ import { getCurrentUser } from "@/features/auth/services/session";
 import { isParentTenant, getAncestorChain } from "@/features/auth/services/is-parent-tenant";
 import { ArrowLeft } from "lucide-react";
 
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<any> }) {
+  /*
+  // DISABLED: Moved cookie clearing logic to middleware (src/proxy.ts) to prevent auto-redirect loop.
+  const resolvedParams = await searchParams;
+  const isLogout = resolvedParams?.logout === "true";
+
+  if (isLogout) {
+    const cookieStore = await cookies();
+    cookieStore.delete({ name: "access_token", path: "/" });
+    cookieStore.delete({ name: "refresh_token", path: "/" });
+    cookieStore.delete({ name: "x-tenant-subdomain", path: "/" });
+    redirect("/login");
+  }
+  */
+
   const tenant = await getTenantContext();
   const sessionUser = await getCurrentUser();
 
@@ -59,12 +73,14 @@ export default async function LoginPage() {
           chainLength={chainLength}
         />
         
+        {/* 
         <a 
           href="/" 
           className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> Back to Academy Selection
         </a>
+        */}
       </div>
     </div>
   );

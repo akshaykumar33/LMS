@@ -93,6 +93,17 @@ export function proxy(request: NextRequest) {
   // and expect a serialized response, not a 302 redirect
   const isServerAction = request.method === "POST" && request.headers.has("Next-Action");
 
+  // Handle logout parameter directly in middleware to clear cookies on the current domain
+  const isLogout = url.searchParams.get("logout") === "true";
+  if (isLogout) {
+    const cleanLoginUrl = new URL("/login", request.url);
+    const res = NextResponse.redirect(cleanLoginUrl);
+    res.cookies.delete("access_token");
+    res.cookies.delete("refresh_token");
+    res.cookies.delete("x-tenant-subdomain");
+    return res;
+  }
+
   // Authentication guards
   if (!isStaticRoute && !isAuthRoute && !isAdmissionApplyRoute && !isServerAction) {
     if (!accessToken) {

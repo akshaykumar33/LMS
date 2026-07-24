@@ -340,7 +340,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
         dbUrl: editDbUrl || undefined,
         settings: {
           features: { enableLibrary, enablePlacement, enableProctoring, enableCertificates, enableCapstone },
-          gateways: { stripe, razorpay, paypal },
+          gateways: { stripe: false, razorpay: false, paypal: false },
           restrictions: { maxUsers: Number(maxUsers), maxCourses: Number(maxCourses), allowSelfSignup },
           ai: { enableAi, provider: aiProvider, apiKey: aiApiKey, model: aiModel },
         },
@@ -1059,6 +1059,8 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                         ))}
                       </div>
                     </div>
+                    {/* Active Payment Gateways Section - Disabled and Hidden in UI */}
+                    {false && (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 border-b border-border/40 pb-2">
                         <CreditCard className="w-4 h-4 text-primary" />
@@ -1080,6 +1082,7 @@ export function SuperAdminConsole({ initialTenants, user }: SuperAdminConsolePro
                         ))}
                       </div>
                     </div>
+                    )}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 border-b border-border/40 pb-2">
                         <Sliders className="w-4 h-4 text-primary" />

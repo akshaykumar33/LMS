@@ -123,15 +123,14 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
     // Redirect to the VT login page dynamically
     const host = window.location.host;
     const port = host.split(":")[1] || "";
-    const portSuffix = port ? `:${port}` : "";
     const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
     const isVercel = host.endsWith(".vercel.app");
 
     const vtLoginUrl = isLocal
-      ? `${window.location.protocol}//vt.localhost${portSuffix}/login`
+      ? `http://vt.localhost:${port || "3000"}/login?logout=true`
       : isVercel
-      ? `/login?tenant=vt`
-      : `${window.location.protocol}//vt.${host.replace(/^[^.]+\./, "")}/login`;
+      ? `/login?tenant=vt&logout=true`
+      : `${window.location.protocol}//vt.${host.replace(/^[^.]+\./, "")}/login?logout=true`;
 
     window.location.href = vtLoginUrl;
   };
