@@ -48,7 +48,46 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
   const [loading, setLoading] = useState(false);
   const [showEmulator, setShowEmulator] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedTenant, setSelectedTenant] = useState<string>("intel");
+  const [selectedTenant, setSelectedTenant] = useState<string>("vti");
+
+  const TENANT_BRANDING_MAP: Record<string, { name: string; subdomain: string; color: string; subtitle: string }> = {
+    vti: {
+      name: "Virginia Tech Innovation (VTI)",
+      subdomain: "vti",
+      color: "#861F41",
+      subtitle: "Enter credentials to access the VTI Enterprise portal.",
+    },
+    intel: {
+      name: "Intel Semiconductor Academy",
+      subdomain: "intel",
+      color: "#0068B5",
+      subtitle: "Enter credentials to access the Intel Semiconductor Academy portal.",
+    },
+    amd: {
+      name: "AMD Training Center",
+      subdomain: "amd",
+      color: "#ED1C24",
+      subtitle: "Enter credentials to access the AMD Center of Excellence portal.",
+    },
+    nvidia: {
+      name: "NVIDIA Corporation",
+      subdomain: "nvidia",
+      color: "#76B900",
+      subtitle: "Enter credentials to access the NVIDIA Enterprise portal.",
+    },
+    wysbryx: {
+      name: "Wysbryx Platform",
+      subdomain: "wysbryx",
+      color: "#f97316",
+      subtitle: "Enter credentials to access the Wysbryx Super Admin console.",
+    },
+  };
+
+  const currentBrand = TENANT_BRANDING_MAP[selectedTenant] || TENANT_BRANDING_MAP.vti;
+  const activeTenantName = currentBrand.name;
+  const activeSubdomain = currentBrand.subdomain;
+  const activeBrandColor = currentBrand.color;
+  const activeSubtitle = currentBrand.subtitle;
 
   // ESC key to close emulator
   useEffect(() => {
@@ -98,61 +137,6 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
     }
   };
 
-  const brandColor = primaryColor || "#0ea5e9";
-
-  const isParent = isParentDomain;
-  const activeSubdomain = isParent ? (subdomain === "test1" ? "test1-sub" : "intel") : subdomain;
-
-  // Resolve SuperAdmin quick-login email based on which parent platform we're on
-  const superAdminEmail = (subdomain === "test1" || subdomain === "test1-sub")
-    ? "superadmin@test1.com"
-    : "superadmin@wysbryx.com";
-
-  const activeStudentEmail = activeSubdomain === "intel"
-    ? "linus.torvalds@student.intel.com"
-    : `student1@student.${activeSubdomain}.com`;
-
-  // Dynamically compile all sandbox credentials from quick-login-credentials.json
-  const allAccounts = isParent
-    ? [
-        ...quickLoginData.parent,
-        ...quickLoginData.tenant.filter(acc => acc.roleName !== "Super Admin")
-      ]
-    : quickLoginData.tenant.filter(acc => acc.roleName !== "Super Admin");
-
-  // Deduplicate by roleName to avoid double listing Super Admin
-  const uniqueRoles = new Map<string, typeof allAccounts[number]>();
-  for (const acc of allAccounts) {
-    uniqueRoles.set(acc.roleName, acc);
-  }
-
-  const demoAccounts = Array.from(uniqueRoles.values()).map(account => {
-    let email = account.email;
-    if (account.roleName === "Super Admin") {
-      email = superAdminEmail;
-    } else if (account.roleName === "Student (Certified)") {
-      email = activeSubdomain === "intel"
-        ? "linus.torvalds@student.intel.com"
-        : `student1@student.${activeSubdomain}.com`;
-    } else if (account.roleName === "Student (General)") {
-      email = `james.smith.0@student.${activeSubdomain}.com`;
-    } else {
-      email = email.replace("{{subdomain}}", activeSubdomain);
-    }
-
-    const IconComp = iconMap[account.iconName] || Key;
-
-    return {
-      roleName: account.roleName,
-      email,
-      desc: account.desc,
-      icon: IconComp,
-      color: account.color,
-      bg: account.bg,
-      border: account.border,
-    };
-  });
-
   return (
     <TooltipProvider>
       <div className="w-full max-w-md mx-auto">
@@ -160,11 +144,11 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
         <Card className="backdrop-blur-lg shadow-2xl border-border/60">
           <CardHeader className="text-center pb-2">
             <div className="mx-auto mb-3 flex justify-center">
-              <BrandLogo subdomain={subdomain} className="h-10 w-auto" />
+              <BrandLogo subdomain={activeSubdomain} className="h-10 w-auto" />
             </div>
             <CardTitle className="text-xl font-bold tracking-tight">Sign In</CardTitle>
             <CardDescription className="text-xs">
-              Enter credentials to access the <strong className="text-foreground">{tenantName}</strong> portal.
+              {activeSubtitle}
             </CardDescription>
           </CardHeader>
 
@@ -253,8 +237,8 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full h-10 text-xs font-bold shadow-lg"
-                style={{ backgroundColor: brandColor, color: "#fff" }}
+                className="w-full h-10 text-xs font-bold shadow-lg transition-all"
+                style={{ backgroundColor: activeBrandColor, color: "#fff" }}
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -278,25 +262,30 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
             {/* Subdomain Filter Tabs */}
             <div className="flex justify-center gap-1 bg-muted/40 p-1 rounded-xl border border-border/50 text-[10px] font-extrabold">
               {[
-                { id: "intel", label: "Intel" },
                 { id: "vti", label: "VTI Org" },
+                { id: "intel", label: "Intel" },
                 { id: "amd", label: "AMD" },
                 { id: "nvidia", label: "NVIDIA" },
                 { id: "wysbryx", label: "Super Admin" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setSelectedTenant(tab.id)}
-                  className={`flex-1 py-1 px-2 rounded-lg transition-all ${
-                    selectedTenant === tab.id
-                      ? "bg-primary text-primary-foreground shadow-sm font-black"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              ].map((tab) => {
+                const isSelected = selectedTenant === tab.id;
+                const tabColor = TENANT_BRANDING_MAP[tab.id]?.color || "#0ea5e9";
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setSelectedTenant(tab.id)}
+                    className={`flex-1 py-1 px-2 rounded-lg transition-all ${
+                      isSelected
+                        ? "text-white shadow-sm font-black"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    }`}
+                    style={isSelected ? { backgroundColor: tabColor } : {}}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Quick Demo Login Grid based on selectedTenant */}
