@@ -10,57 +10,5 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export default async function AdminPlacementPage() {
-  const tenant = await getTenantContext();
-  if (!tenant) redirect("/");
-
-  if (!tenant.isPlacementEnabled) {
-    redirect("/dashboard");
-  }
-
-  const user = await requireAuth(["Owner", "Admin", "Faculty", "Mentor", "Program Manager", "Placement Officer"]);
-
-  // Resolve scoped tenant IDs for hierarchy
-  const scopedTenantIds = await getScopedTenantIds(user.role, user.tenantId || tenant.id);
-
-  // Fetch all jobs (active + inactive)
-  const jobs = await CareerRepository.getJobPostings(scopedTenantIds, false);
-
-  // Build applicants map: jobId -> Applicant[]
-  const applicantsMap: Record<string, any[]> = {};
-  for (const job of jobs) {
-    const applicants = await CareerRepository.getJobApplicationsForJob(scopedTenantIds, job.id);
-    applicantsMap[job.id] = applicants;
-  }
-
-  const dbUser = await dbSubdomainStorage.run(user.subdomain || "wysbryx", async () =>
-    await db.query.users.findFirst({
-      where: eq(users.id, user.userId),
-    })
-  );
-
-  const userData = {
-    userId: user.userId,
-    firstName: dbUser?.firstName || "Placement",
-    lastName: dbUser?.lastName || "Officer",
-    email: dbUser?.email || user.email,
-    role: user.role,
-    subdomain: user.subdomain,
-  };
-
-  return (
-    <DashboardLayout user={userData} tenant={tenant}>
-      <GuestSandboxBanner role={user.role} />
-      
-      <div className="space-y-6">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Placement Console</h1>
-          <p className="text-xs text-muted-foreground">
-            Post job openings, review student applications, manage interview workflows, and release offers.
-          </p>
-        </div>
-
-        <PlacementConsole jobs={jobs} applicantsMap={applicantsMap} userRole={user.role} />
-      </div>
-    </DashboardLayout>
-  );
+  redirect("/admin/admissions");
 }

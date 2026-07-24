@@ -47,6 +47,7 @@ CREATE TABLE "batches" (
 	"capacity" integer DEFAULT 50 NOT NULL,
 	"start_date" timestamp with time zone,
 	"end_date" timestamp with time zone,
+	"status" varchar(50) DEFAULT 'upcoming' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"deleted_at" timestamp with time zone
@@ -83,6 +84,7 @@ CREATE TABLE "students" (
 	"batch_id" uuid NOT NULL,
 	"roll_number" varchar(100) NOT NULL,
 	"admission_number" varchar(100) NOT NULL,
+	"competency_level" varchar(50),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "students_tenant_roll_unq" UNIQUE("tenant_id","roll_number"),

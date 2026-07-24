@@ -91,20 +91,7 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
     e.preventDefault();
     await logoutAction();
     
-    // Redirect to the VT login page dynamically
-    const host = window.location.host;
-    const port = host.split(":")[1] || "";
-    const portSuffix = port ? `:${port}` : "";
-    const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
-    const isVercel = host.endsWith(".vercel.app");
-
-    const vtLoginUrl = isLocal
-      ? `${window.location.protocol}//vt.localhost${portSuffix}/login`
-      : isVercel
-      ? `/login?tenant=vt`
-      : `${window.location.protocol}//vt.${host.replace(/^[^.]+\./, "")}/login`;
-
-    window.location.href = vtLoginUrl;
+    window.location.href = "/login";
   };
 
   const primaryColor = tenant.branding?.primaryColor || "#0ea5e9";
@@ -420,9 +407,6 @@ export function StudentLayout({ children, user, tenant, studentProfile }: Studen
           {children}
         </main>
       </div>
-      
-      {/* Floating Tenant Quick Switcher for administrators */}
-      <TenantQuickSwitcher userRole={user.role} currentSubdomain={tenant.subdomain} />
     </div>
   );
 }

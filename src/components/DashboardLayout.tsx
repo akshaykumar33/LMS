@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { useUIStore, useGamificationStore } from "@/store";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { 
   Home, 
   BookOpen, 
@@ -82,6 +82,19 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, user, tenant, studentProfile, isParentOrg }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get("tab");
+
+  const getIsActive = (itemHref: string) => {
+    if (itemHref.includes("?tab=")) {
+      const itemTab = new URLSearchParams(itemHref.split("?")[1]).get("tab");
+      return pathname === itemHref.split("?")[0] && currentTab === itemTab;
+    }
+    if (itemHref === "/super-admin") {
+      return pathname === "/super-admin" && !currentTab;
+    }
+    return pathname === itemHref || (itemHref !== "/dashboard" && itemHref !== "/faculty" && pathname.startsWith(itemHref));
+  };
 
   // ── Zustand stores (replaces all useState + localStorage useEffects) ─────────
   const {
@@ -120,20 +133,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
     e.preventDefault();
     await logoutAction();
     
-    // Redirect to the VT login page dynamically
-    const host = window.location.host;
-    const port = host.split(":")[1] || "";
-    const portSuffix = port ? `:${port}` : "";
-    const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
-    const isVercel = host.endsWith(".vercel.app");
-
-    const vtLoginUrl = isLocal
-      ? `${window.location.protocol}//vt.localhost${portSuffix}/login`
-      : isVercel
-      ? `/login?tenant=vt`
-      : `${window.location.protocol}//vt.${host.replace(/^[^.]+\./, "")}/login`;
-
-    window.location.href = vtLoginUrl;
+    window.location.href = "/login";
   };
 
   const primaryColor = tenant.branding?.primaryColor || "#f97316";
@@ -158,12 +158,6 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
           ]
         },
         {
-          title: "Career & Placement",
-          items: [
-            { name: "Career Portal", href: "/career", icon: Briefcase },
-          ]
-        },
-        {
           title: "Settings",
           items: [
             { name: "Student Profile", href: "/profile", icon: User },
@@ -185,12 +179,6 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
           title: "Access & Permissions",
           items: [
             { name: "Permission Matrix", href: "/super-admin?tab=permissions", icon: ShieldCheck },
-          ],
-        },
-        {
-          title: "Infrastructure",
-          items: [
-            { name: "DB Health Playground", href: "/super-admin?tab=health", icon: Database },
           ],
         },
       ];
@@ -242,23 +230,6 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
             { name: "Curriculum Manager", href: "/admin/courses", icon: BookOpen },
             { name: "Platform Analytics", href: "/admin/analytics", icon: BarChart3 },
           ]
-        },
-        {
-          title: "Recruiting",
-          items: [
-            { name: "Placement Console", href: "/admin/placement", icon: Briefcase },
-          ]
-        }
-      ];
-    }
-
-    if (user.role === "Placement Officer") {
-      return [
-        {
-          title: "Recruiting & Placements",
-          items: [
-            { name: "Placement Console", href: "/admin/placement", icon: Briefcase },
-          ]
         }
       ];
     }
@@ -289,7 +260,6 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
             { name: "Admissions Hub", href: "/admin/admissions", icon: Users },
             { name: "Curriculum Manager", href: "/admin/courses", icon: BookOpen },
             { name: "Platform Analytics", href: "/admin/analytics", icon: BarChart3 },
-            { name: "Placement Console", href: "/admin/placement", icon: Briefcase },
           ]
         }
       ];
@@ -306,21 +276,22 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
   };
 
   const rawGroups = getNavigationGroups();
-  let filteredGroups = tenant.isPlacementEnabled !== false
-    ? rawGroups
-    : rawGroups
-        .map(group => ({
-          ...group,
-          items: group.items.filter(item => 
-            !item.name.toLowerCase().includes("placement") && 
-            !item.name.toLowerCase().includes("career")
-          )
-        }))
-        .filter(group => 
-          group.items.length > 0 && 
-          !group.title.toLowerCase().includes("placement") && 
-          !group.title.toLowerCase().includes("recruiting")
-        );
+  let filteredGroups = rawGroups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => 
+        !item.name.toLowerCase().includes("placement") && 
+        !item.name.toLowerCase().includes("career") &&
+        !item.href.toLowerCase().includes("/placement") &&
+        !item.href.toLowerCase().includes("/career")
+      )
+    }))
+    .filter(group => 
+      group.items.length > 0 && 
+      !group.title.toLowerCase().includes("placement") && 
+      !group.title.toLowerCase().includes("recruiting") &&
+      !group.title.toLowerCase().includes("career")
+    );
 
   // Filter out library if enableLibrary feature flag is false
   const enableLibrary = tenant.settings?.features?.enableLibrary !== false;
@@ -340,7 +311,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
   // Helper to format breadcrumbs
   const getBreadcrumbs = () => {
     const segments = pathname.split("/").filter(Boolean);
-    if (segments.length === 0) return [{ label: "Home", href: "/dashboard" }];
+    if (segments.length === 0) return [{ label: "Dashboard", href: "/dashboard" }];
 
     const effectiveSegments =
     segments[0] === "admin" && segments.length > 1
@@ -351,7 +322,9 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
       const href = "/" + segments.slice(0, idx + 1).join("/");
       let label = seg.charAt(0).toUpperCase() + seg.slice(1);
       
-      if (seg.length > 20) {
+      if (seg.toLowerCase() === "super-admin") {
+        label = "Dashboard";
+      } else if (seg.length > 20) {
         label = "Details";
       }
       return { label, href };
@@ -424,7 +397,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
                 <div className="space-y-1">
                   {group.items.map((item) => {
                     const Icon = item.icon;
-                    const isActive = pathname === item.href || (item.href !== "/dashboard" && item.href !== "/faculty" && pathname.startsWith(item.href));
+                    const isActive = getIsActive(item.href);
 
                     return (
                       <a
@@ -581,7 +554,7 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
                   <div className="space-y-1">
                     {group.items.map((item) => {
                       const Icon = item.icon;
-                      const isActive = pathname === item.href || (item.href !== "/dashboard" && item.href !== "/faculty" && pathname.startsWith(item.href));
+                      const isActive = getIsActive(item.href);
 
                       return (
                         <a
@@ -644,17 +617,6 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
         <header className="h-16 hidden md:flex items-center justify-between px-8 border-b border-border/40 shrink-0 sticky top-0 bg-background/50 backdrop-blur-md z-30">
           {/* Breadcrumbs */}
           <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground">
-            {/* Clickable domain brand icon home link */}
-            {(user.role === "SuperAdmin" || user.role === "Owner") && (
-              <a 
-                href="/" 
-                className="p-1.5 rounded-lg border border-border/85 hover:bg-secondary bg-card/35 transition-all shadow-sm flex items-center justify-center cursor-pointer shrink-0"
-                title={`Go to ${user.role === "SuperAdmin" ? "Wysbryx" : tenant.name} Homepage`}
-              >
-                <BrandLogo subdomain={tenant.subdomain} iconOnly className="h-4.5 w-auto" />
-              </a>
-            )}
-            
             {getBreadcrumbs().map((b, idx, arr) => (
               <React.Fragment key={b.href}>
                 {idx > 0 && <span className="text-[10px] opacity-40">/</span>}
@@ -754,9 +716,6 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
           {children}
         </main>
       </div>
-      
-      {/* Floating Tenant Quick Switcher for administrators */}
-      <TenantQuickSwitcher userRole={user.role} currentSubdomain={tenant.subdomain} />
     </div>
   );
 }

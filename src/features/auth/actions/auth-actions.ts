@@ -84,37 +84,11 @@ export async function loginAction(formData: any) {
       return { success: false, error: "Invalid email or password." };
     }
 
-    // 3. Root Portal Gate — Only SuperAdmin may login on the root/Wysbryx domain
-    const isRootDomain = !tenant || tenant.subdomain === "wysbryx";
-    if (isRootDomain && user.role !== "SuperAdmin") {
-      return { 
-        success: false, 
-        error: "Access restricted. Only the Wysbryx Super Admin may log in on the root platform portal. Please use your organization's subdomain to sign in." 
-      };
-    }
-
-    // 4. Cross-Tenant Ancestry/Hierarchy Gate — If logging in on a specific tenant subdomain,
-    // verify the user belongs to this tenant OR their home tenant is an ancestor/descendant
-    if (tenant && tenant.subdomain !== "wysbryx" && foundSubdomain) {
-      const userTenant = activeTenants.find(t => t.subdomain === foundSubdomain);
-      if (userTenant && userTenant.id !== tenant.id) {
-        // User's home tenant is different from the login domain
-        const isAncestor = await isAncestorOf(userTenant.id, tenant.id);
-        const isDescendant = await isAncestorOf(tenant.id, userTenant.id);
-        if (!isAncestor && !isDescendant && user.role !== "SuperAdmin") {
-          return {
-            success: false,
-            error: `You are not authorized to access the ${tenant.name} portal.`
-          };
-        }
-      }
-    }
-
-    // 5. Issue JWT access and refresh tokens
+    // 3. Issue JWT access and refresh tokens
     const payload = {
       userId: user.id,
       tenantId: user.tenantId,
-      subdomain: foundSubdomain || "public",
+      subdomain: foundSubdomain || "vt",
       email: user.email,
       role: user.role,
     };

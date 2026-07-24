@@ -41,33 +41,39 @@ export interface TenantContext {
   } | null;
 }
 
+import { verifyAccessToken } from "./jwt";
+
 export async function getTenantContext(): Promise<TenantContext | null> {
   const headersList = await headers();
-  const hasSubdomainHeader = headersList.has("x-tenant-subdomain");
   let subdomain = headersList.get("x-tenant-subdomain");
-
-  // If header exists and is empty, it means we are explicitly on the root/platform domain.
-  if (hasSubdomainHeader && subdomain === "") {
-    return null;
-  }
 
   if (!subdomain) {
     const cookieStore = await cookies();
     subdomain = cookieStore.get("x-tenant-subdomain")?.value || null;
+    if (!subdomain) {
+      const token = cookieStore.get("access_token")?.value;
+      if (token) {
+        const payload = verifyAccessToken(token);
+        if (payload?.subdomain) {
+          subdomain = payload.subdomain;
+        }
+      }
+    }
   }
-
-  if (!subdomain) {
-    return null;
-  }
-
-  // Normalize alias subdomains to canonical form
-  const aliasMap: Record<string, string> = { vti: "vt" };
-  subdomain = aliasMap[subdomain.toLowerCase()] || subdomain;
 
   try {
-    const tenant = await db.query.tenants.findFirst({
-      where: eq(tenants.subdomain, subdomain),
-    });
+    let tenant: any = null;
+    if (subdomain) {
+      tenant = await db.query.tenants.findFirst({
+        where: eq(tenants.subdomain, subdomain.toLowerCase().trim()),
+      });
+    }
+
+    if (!tenant) {
+      tenant = await db.query.tenants.findFirst({
+        where: eq(tenants.status, "active"),
+      });
+    }
 
     if (!tenant) {
       return null;

@@ -2049,9 +2049,6 @@ I can search through our digital library textbooks, research papers, and workshe
                         if (activeLesson) {
                           list.push({ id: "subjective", label: "Subjective Submission", icon: Edit3 });
                         }
-                        if (capstoneProject && enableCapstone) {
-                          list.push({ id: "capstone", label: "Capstone Project", icon: Award });
-                        }
                         return list;
                       })().map((tab) => {
                         const Icon = tab.icon;

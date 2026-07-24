@@ -20,20 +20,7 @@ export function GatewayUserControls({ email, role, showGatewayLink, primaryColor
   const handleLogout = async () => {
     await logoutAction();
     
-    // Redirect to the VT login page dynamically
-    const host = window.location.host;
-    const port = host.split(":")[1] || "";
-    const portSuffix = port ? `:${port}` : "";
-    const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
-    const isVercel = host.endsWith(".vercel.app");
-
-    const vtLoginUrl = isLocal
-      ? `${window.location.protocol}//vt.localhost${portSuffix}/login`
-      : isVercel
-      ? `/login?tenant=vt`
-      : `${window.location.protocol}//vt.${host.replace(/^[^.]+\./, "")}/login`;
-
-    window.location.href = vtLoginUrl;
+    window.location.href = "/login";
   };
 
   const displayInitials = email ? email.substring(0, 2).toUpperCase() : "US";

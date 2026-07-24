@@ -28,7 +28,10 @@ function loadEnv() {
 }
 loadEnv();
 
-const connectionStringBase = process.env.DATABASE_URL || "postgresql://coe_admin:SecretPassword123@127.0.0.1:5433/postgres";
+const connectionStringBase = process.env.DATABASE_URL;
+if (!connectionStringBase) {
+  throw new Error("DATABASE_URL environment variable is required.");
+}
 
 const getDatabaseForSubdomain = (subdomain: string): string => {
   const s = subdomain.toLowerCase();

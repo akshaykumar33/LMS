@@ -19,6 +19,7 @@ import {
   Sparkles,
   ShieldAlert,
   Edit3,
+  BarChart3,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -310,7 +311,7 @@ export function FacultyDashboardClient({
   const TABS = [
     { id: "overview", label: "Overview", icon: Trophy },
     { id: "roster", label: "Cohort Roster", icon: Users },
-    { id: "submissions", label: "Capstone Projects", icon: Trophy },
+    { id: "submissions", label: "Recent Submissions", icon: BarChart3 },
     { id: "subjective", label: "Subjective Grading", icon: Edit3 },
     ...(enableProctoring ? [{ id: "proctoring", label: "Web Proctoring Audits", icon: ShieldAlert }] : []),
     { id: "schedule", label: "Live Classrooms", icon: Video },
@@ -549,9 +550,9 @@ export function FacultyDashboardClient({
             <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-5 space-y-4">
               <div className="border-b border-border/60 pb-3">
                 <h3 className="text-xs font-black uppercase tracking-widest text-foreground flex items-center gap-1.5">
-                  <Trophy className="w-4 h-4 text-primary" style={{ color: primaryColor }} /> Capstone Project Submissions
+                  <BarChart3 className="w-4 h-4 text-primary" style={{ color: primaryColor }} /> Trainee Submissions
                 </h3>
-                <p className="text-[9px] text-muted-foreground">Review, test, and evaluate Capstone Projects submitted by trainees.</p>
+                <p className="text-[9px] text-muted-foreground">Review, test, and evaluate project submissions submitted by trainees.</p>
               </div>
               {submissionsList.length > 0 ? (
                 <div className="overflow-x-auto">

@@ -117,20 +117,7 @@ export function OrganizationHubExplorer({
             const isVercel = host.endsWith(".vercel.app");
             
             const parentSub = parentSubdomain || "vt";
-            const checkPath = `/api/auth/check-session?subdomain=${org.subdomain}&returnTo=/`;
-            const checkUrl = isLocal
-              ? `http://${parentSub}.localhost${portSuffix}${checkPath}`
-              : isVercel
-              ? checkPath
-              : `https://${parentSub}.${host.replace(/^[^.]+\./, "")}${checkPath}`;
-
-            const standardUrl = isLocal
-              ? `http://${org.subdomain}.localhost${portSuffix}`
-              : isVercel
-              ? `/?tenant=${org.subdomain}`
-              : `https://${org.subdomain}.${host}`;
-
-            const devUrl = isLoggedIn ? checkUrl : standardUrl;
+            const devUrl = "/dashboard";
             const pColor = org.branding?.primaryColor || primaryColor;
             const stats = statsMap[org.id] || { courseCount: 0, studentCount: 0, batchCount: 0 };
 
