@@ -83,7 +83,7 @@ if (useJsonDb) {
 
   const getDbClientForDatabase = (dbName: string, customDbUrl?: string): postgres.Sql => {
     // If running on Vercel or single-DB deployment without explicit customDbUrl, reuse defaultClient
-    if (process.env.VERCEL === "1" || process.env.SINGLE_DB_MODE === "true" || (!customDbUrl && !process.env.VT_DB_URL)) {
+    if ((process.env.VERCEL === "1" || process.env.SINGLE_DB_MODE === "true") && !process.env.VT_DB_URL) {
       return defaultClient;
     }
     const key = customDbUrl || dbName;
