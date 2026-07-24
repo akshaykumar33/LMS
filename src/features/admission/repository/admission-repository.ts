@@ -32,11 +32,15 @@ export class AdmissionRepository {
   /**
    * Find an application by ID, ensuring it belongs to the tenant.
    */
-  static async findById(tenantId: string, id: string) {
+  static async findById(tenantId: string | string[], id: string) {
+    const tenantCondition = Array.isArray(tenantId)
+      ? inArray(schema.admissionApplications.tenantId, tenantId)
+      : eq(schema.admissionApplications.tenantId, tenantId);
+
     const application = await db.query.admissionApplications.findFirst({
       where: and(
         eq(schema.admissionApplications.id, id),
-        eq(schema.admissionApplications.tenantId, tenantId)
+        tenantCondition
       ),
       with: {
         documents: true,

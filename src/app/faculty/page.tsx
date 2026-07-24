@@ -4,10 +4,8 @@ import { requireAuth } from "@/features/auth/services/session";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { FacultyRepository } from "@/features/faculty/repository/faculty-repository";
-import { ScheduleClassForm } from "@/features/faculty/components/ScheduleClassForm";
-import { FacultyQuickConfigForm } from "@/features/faculty/components/FacultyQuickConfigForm";
 import { db } from "@/db/db";
-import { courses, users, projectSubmissions, projects } from "@/db/schema";
+import { courses, users, projectSubmissions, projects, subjectiveSubmissions, batchSessions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { FacultyDashboardClient } from "@/features/faculty/components/FacultyDashboardClient";
 
@@ -77,6 +75,31 @@ export default async function FacultyPage({ searchParams }: PageProps) {
     with: { course: true },
   });
 
+  // 7. Fetch subjective submissions
+  const subjectiveSubmissionsList = await db.query.subjectiveSubmissions.findMany({
+    where: eq(subjectiveSubmissions.tenantId, tenant.id),
+    orderBy: (ss: any, { desc }: any) => [desc(ss.submittedAt)],
+    with: {
+      course: true,
+      lesson: true,
+      student: {
+        with: {
+          user: true,
+        },
+      },
+    },
+  });
+
+  // 8. Fetch batch sessions
+  const batchSessionsList = await db.query.batchSessions.findMany({
+    where: eq(batchSessions.tenantId, tenant.id),
+    orderBy: (bs: any, { asc }: any) => [asc(bs.startTime)],
+    with: {
+      batch: true,
+      instructor: true,
+    },
+  });
+
   const dbUser = await db.query.users.findFirst({
     where: eq(users.id, user.userId),
   });
@@ -131,6 +154,8 @@ export default async function FacultyPage({ searchParams }: PageProps) {
         courses={coursesWithModules}
         projectSubmissions={projectSubmissionsList}
         capstoneProjects={capstoneProjects}
+        subjectiveSubmissions={subjectiveSubmissionsList}
+        batchSessions={batchSessionsList}
         userRole={user.role}
         enableProctoring={!!(tenant.settings as any)?.features?.enableProctoring}
       />

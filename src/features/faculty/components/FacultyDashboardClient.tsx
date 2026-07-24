@@ -6,7 +6,8 @@ import { StudentProfileModal } from "./StudentProfileModal";
 import { ScheduleClassForm } from "./ScheduleClassForm";
 import { FacultyQuickConfigForm } from "./FacultyQuickConfigForm";
 import { gradeProjectSubmissionAction } from "../actions/faculty-actions";
-import { formatDate } from "@/utils/date-formatter";
+import { gradeSubjectiveAction } from "@/features/course/actions/subjective-actions";
+import { formatDate, formatReadableDate } from "@/utils/date-formatter";
 import {
   Search,
   Users,
@@ -17,6 +18,7 @@ import {
   ArrowUpRight,
   Sparkles,
   ShieldAlert,
+  Edit3,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -29,6 +31,8 @@ interface FacultyDashboardClientProps {
   courses: any[];
   projectSubmissions?: any[];
   capstoneProjects?: any[];
+  subjectiveSubmissions?: any[];
+  batchSessions?: any[];
   userRole?: string;
   enableProctoring?: boolean;
 }
@@ -42,6 +46,8 @@ export function FacultyDashboardClient({
   courses,
   projectSubmissions = [],
   capstoneProjects = [],
+  subjectiveSubmissions = [],
+  batchSessions = [],
   userRole,
   enableProctoring = false,
 }: FacultyDashboardClientProps) {
@@ -67,12 +73,46 @@ export function FacultyDashboardClient({
     setSubmissionsList(projectSubmissions);
   }, [projectSubmissions, setSubmissionsList]);
 
+  const [subSubmissions, setSubSubmissions] = React.useState<any[]>(subjectiveSubmissions);
+  const [selectedSub, setSelectedSub] = React.useState<any | null>(null);
+  const [isSubModalOpen, setIsSubModalOpen] = React.useState(false);
+  const [subGradeScore, setSubGradeScore] = React.useState(0);
+  const [subGradeFeedback, setSubGradeFeedback] = React.useState("");
+  const [subRubrics, setSubRubrics] = React.useState<any[]>([
+    { criteria: "Technical Correctness", score: 0, maxScore: 40, feedback: "" },
+    { criteria: "Clarity & Structure", score: 0, maxScore: 30, feedback: "" },
+    { criteria: "Completeness", score: 0, maxScore: 30, feedback: "" }
+  ]);
+  const [isSubGradingSubmitting, setIsSubGradingSubmitting] = React.useState(false);
+  const [subGradingMessage, setSubGradingMessage] = React.useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [subSearch, setSubSearch] = React.useState("");
+
+  useEffect(() => {
+    setSubSubmissions(subjectiveSubmissions);
+  }, [subjectiveSubmissions]);
+
+  // Local states for scheduling batch sessions
+  const [localSessions, setLocalSessions] = React.useState<any[]>(batchSessions);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = React.useState(false);
+  const [scheduleBatchId, setScheduleBatchId] = React.useState(selectedBatchId || (batchesList[0]?.id || ""));
+  const [scheduleTitle, setScheduleTitle] = React.useState("");
+  const [scheduleDesc, setScheduleDesc] = React.useState("");
+  const [scheduleStartTime, setScheduleStartTime] = React.useState("");
+  const [scheduleEndTime, setScheduleEndTime] = React.useState("");
+  const [scheduleMeetingUrl, setScheduleMeetingUrl] = React.useState("https://zoom.us");
+  const [isScheduling, setIsScheduling] = React.useState(false);
+  const [scheduleError, setScheduleError] = React.useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalSessions(batchSessions);
+  }, [batchSessions]);
+
   // Sync active tab from URL query param on mount
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get("tab");
-    const validTabs = ["overview", "roster", "schedule", "curriculum", "submissions"];
+    const validTabs = ["overview", "roster", "schedule", "curriculum", "submissions", "subjective"];
     if (enableProctoring) validTabs.push("proctoring");
     if (tabParam && validTabs.includes(tabParam)) {
       setActiveTab(tabParam as any);
@@ -130,10 +170,148 @@ export function FacultyDashboardClient({
     }
   };
 
+  const filteredSubmissions = subSubmissions.filter((s) => {
+    const fullName = `${s.student?.user?.firstName || ""} ${s.student?.user?.lastName || ""}`.toLowerCase();
+    const q = subSearch.toLowerCase();
+    return fullName.includes(q) || s.title.toLowerCase().includes(q) || s.course?.name.toLowerCase().includes(q);
+  });
+
+  const openSubGradeModal = (sub: any) => {
+    setSelectedSub(sub);
+    setSubGradeScore(sub.score || 0);
+    setSubGradeFeedback(sub.feedback || "");
+    if (sub.rubrics && sub.rubrics.length > 0) {
+      setSubRubrics(sub.rubrics);
+    } else {
+      setSubRubrics([
+        { criteria: "Technical Correctness", score: 0, maxScore: 40, feedback: "" },
+        { criteria: "Clarity & Structure", score: 0, maxScore: 30, feedback: "" },
+        { criteria: "Completeness", score: 0, maxScore: 30, feedback: "" }
+      ]);
+    }
+    setSubGradingMessage(null);
+    setIsSubModalOpen(true);
+  };
+
+  const closeSubGradeModal = () => {
+    setIsSubModalOpen(false);
+    setSelectedSub(null);
+  };
+
+  const handleSubGradeScoreChange = (index: number, val: number) => {
+    const next = [...subRubrics];
+    next[index].score = val;
+    setSubRubrics(next);
+    
+    // Auto calculate overall score as sum of rubric scores
+    const sum = next.reduce((acc, r) => acc + (Number(r.score) || 0), 0);
+    setSubGradeScore(sum);
+  };
+
+  const handleSubGradeFeedbackChange = (index: number, val: string) => {
+    const next = [...subRubrics];
+    next[index].feedback = val;
+    setSubRubrics(next);
+  };
+
+  const handleSubGradeSubmission = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSub) return;
+    setIsSubGradingSubmitting(true);
+    setSubGradingMessage(null);
+
+    const res = await gradeSubjectiveAction(selectedSub.id, {
+      score: subGradeScore,
+      feedback: subGradeFeedback,
+      rubrics: subRubrics,
+    });
+
+    setIsSubGradingSubmitting(false);
+    if (res.success) {
+      setSubGradingMessage({ type: "success", text: "Subjective evaluation submitted successfully!" });
+      
+      // Update local state
+      const updatedList = subSubmissions.map((s) => {
+        if (s.id === selectedSub.id) {
+          const historyEntry = {
+            score: subGradeScore,
+            feedback: subGradeFeedback,
+            rubrics: subRubrics,
+            evaluatedBy: userRole || "Faculty",
+            evaluatedAt: new Date().toISOString(),
+          };
+          const updatedHistory = [...(s.history || []), historyEntry];
+          return {
+            ...s,
+            score: subGradeScore,
+            feedback: subGradeFeedback,
+            rubrics: subRubrics,
+            status: "graded",
+            history: updatedHistory,
+          };
+        }
+        return s;
+      });
+      setSubSubmissions(updatedList);
+
+      setTimeout(() => {
+        closeSubGradeModal();
+      }, 1200);
+    } else {
+      setSubGradingMessage({ type: "error", text: res.error || "Failed to submit evaluation." });
+    }
+  };
+
+  const handleScheduleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsScheduling(true);
+    setScheduleError(null);
+
+    try {
+      const { scheduleBatchSessionAction } = await import("../../course/actions/course-actions");
+      const res = await scheduleBatchSessionAction(
+        scheduleBatchId,
+        scheduleTitle,
+        scheduleDesc,
+        new Date(scheduleStartTime),
+        new Date(scheduleEndTime),
+        scheduleMeetingUrl
+      );
+
+      if (res.success) {
+        const targetBatch = batchesList.find(b => b.id === scheduleBatchId);
+        const newSession = {
+          id: Math.random().toString(),
+          title: scheduleTitle,
+          description: scheduleDesc,
+          startTime: new Date(scheduleStartTime).toISOString(),
+          endTime: new Date(scheduleEndTime).toISOString(),
+          meetingUrl: scheduleMeetingUrl,
+          batch: targetBatch ? { name: targetBatch.name } : null,
+          instructor: { firstName: "You", lastName: "" },
+        };
+        setLocalSessions((prev) => [...prev, newSession]);
+
+        setIsScheduleModalOpen(false);
+        setScheduleTitle("");
+        setScheduleDesc("");
+        setScheduleStartTime("");
+        setScheduleEndTime("");
+      } else {
+        setScheduleError(res.error || "Failed to schedule session.");
+      }
+    } catch (err: any) {
+      setScheduleError(err.message || "Failed to schedule session.");
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
   const TABS = [
     { id: "overview", label: "Overview", icon: Trophy },
     { id: "roster", label: "Cohort Roster", icon: Users },
     { id: "submissions", label: "Capstone Projects", icon: Trophy },
+    { id: "subjective", label: "Subjective Grading", icon: Edit3 },
     ...(enableProctoring ? [{ id: "proctoring", label: "Web Proctoring Audits", icon: ShieldAlert }] : []),
     { id: "schedule", label: "Live Classrooms", icon: Video },
     { id: "curriculum", label: "Curriculum Config", icon: Layers },
@@ -231,7 +409,7 @@ export function FacultyDashboardClient({
                               {a.passed ? "PASS" : "FAIL"}
                             </span>
                           </td>
-                          <td className="p-3 text-right text-muted-foreground">{new Date(a.createdAt).toLocaleString()}</td>
+                          <td className="p-3 text-right text-muted-foreground">{formatReadableDate(a.createdAt)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -255,7 +433,19 @@ export function FacultyDashboardClient({
                     <a key={b.id} href={`/faculty?batchId=${b.id}&tab=roster`} className={`block p-3.5 rounded-xl border text-xs transition-all ${b.id === selectedBatchId ? "bg-primary/10 border-primary/30 text-foreground font-bold" : "bg-transparent border-border/50 text-muted-foreground hover:bg-secondary/40 hover:text-foreground"}`}>
                       <div className="flex justify-between items-center">
                         <span className="font-semibold text-xs text-foreground">{b.name}</span>
-                        <span className="text-[9px] font-bold bg-card border border-border px-1.5 py-0.5 rounded text-muted-foreground">{b.studentCount} Students</span>
+                        <div className="flex items-center gap-1.5">
+                          {b.status && (
+                            <span className={`inline-flex items-center text-[7.5px] font-black uppercase px-1 rounded border ${
+                              b.status === "ongoing" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                              b.status === "completed" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                              b.status === "cancelled" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
+                              "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                            }`}>
+                              {b.status}
+                            </span>
+                          )}
+                          <span className="text-[9px] font-bold bg-card border border-border px-1.5 py-0.5 rounded text-muted-foreground">{b.studentCount} Students</span>
+                        </div>
                       </div>
                     </a>
                   )) : <p className="text-xs text-muted-foreground">No batches configured.</p>}
@@ -443,6 +633,77 @@ export function FacultyDashboardClient({
           </div>
         )}
 
+        {/* ── SUBJECTIVE GRADING ── */}
+        {activeTab === "subjective" && (
+          <div className="space-y-6">
+            <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-3">
+                <div className="space-y-0.5">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-foreground flex items-center gap-1.5">
+                    <Edit3 className="w-4 h-4 text-primary" style={{ color: primaryColor }} /> Subjective Assessments Evaluator Portal
+                  </h3>
+                  <p className="text-[9px] text-muted-foreground">Review, score rubrics, and write technical feedback comments for student subjective analysis submissions.</p>
+                </div>
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-2.5" />
+                  <input type="text" placeholder="Search by trainee or assignment..." value={subSearch} onChange={(e) => setSubSearch(e.target.value)} className="w-full h-8 pl-9 pr-3 text-xs bg-muted/20 border border-border/60 rounded-lg focus:outline-none focus:border-primary/50 text-foreground" />
+                </div>
+              </div>
+
+              {filteredSubmissions.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px] text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-border/60 text-muted-foreground font-black uppercase tracking-wider text-[9px]">
+                        <th className="py-3 px-4">Trainee</th>
+                        <th className="py-3 px-4">Subjective Analysis Assignment</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-center">Score</th>
+                        <th className="py-3 px-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40 font-medium">
+                      {filteredSubmissions.map((sub) => {
+                        const studentName = sub.student?.user ? `${sub.student.user.firstName} ${sub.student.user.lastName || ""}` : "Trainee";
+                        return (
+                          <tr key={sub.id} className="hover:bg-secondary/15 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-foreground">{studentName}</div>
+                              <div className="text-[9px] text-muted-foreground font-mono">{sub.student?.rollNumber || "N/A"}</div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-foreground">{sub.title}</div>
+                              <div className="text-[9px] text-muted-foreground">{sub.course?.name || "Course"}</div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase border ${sub.status === "graded" ? "bg-emerald-500/10 text-emerald-450 border-emerald-500/25" : "bg-amber-500/10 text-amber-500 border-amber-500/25 animate-pulse"}`}>
+                                {sub.status}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-bold text-foreground">{sub.score !== null && sub.score !== undefined ? `${sub.score}/100` : "-"}</td>
+                            <td className="py-3.5 px-4 text-right">
+                              <button
+                                disabled={userRole === "Guest"}
+                                onClick={() => openSubGradeModal(sub)}
+                                className="text-[9px] font-black uppercase tracking-wider bg-primary/10 hover:bg-primary text-primary hover:text-white px-3 py-1.5 rounded-lg border border-primary/20 transition-all cursor-pointer disabled:opacity-50"
+                                style={{ borderColor: primaryColor }}
+                              >
+                                {userRole === "Guest" ? "Read Only" : sub.score !== null && sub.score !== undefined ? "Re-evaluate" : "Evaluate"}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-8 text-center bg-muted/5 border border-border/40 rounded-xl text-muted-foreground text-xs font-semibold">No subjective submissions match your query.</div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── PROCTORING ── */}
         {activeTab === "proctoring" && enableProctoring && (
           <div className="space-y-6 animate-in fade-in duration-200">
@@ -487,7 +748,7 @@ export function FacultyDashboardClient({
                             )}
                           </td>
                           <td className="py-3 px-4 text-center font-mono font-black text-foreground">{attempt.infractionCount}</td>
-                          <td className="py-3 px-4 text-muted-foreground font-mono text-[10.5px]">{new Date(attempt.lastUpdated).toLocaleString()}</td>
+                          <td className="py-3 px-4 text-muted-foreground font-mono text-[10.5px]">{formatReadableDate(attempt.lastUpdated)}</td>
                           <td className="py-3 px-4 text-right">
                             <button onClick={() => openProctorAudit(attempt)} className="text-[9px] font-black uppercase tracking-wider bg-primary/10 hover:bg-primary text-primary hover:text-white px-3 py-1.5 rounded-lg border border-primary/20 transition-all cursor-pointer" style={{ borderColor: primaryColor }}>
                               Review Feed
@@ -502,6 +763,74 @@ export function FacultyDashboardClient({
                 <div className="text-center py-12 text-muted-foreground text-xs font-semibold">No matching proctor sessions found.</div>
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === "schedule" && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="flex justify-between items-center flex-wrap gap-4 border-b border-border/60 pb-3">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-foreground flex items-center gap-1.5">
+                  <Video className="w-4 h-4 text-primary" style={{ color: primaryColor }} /> Cohort Live Sessions & Timetables
+                </h3>
+                <p className="text-[10px] text-muted-foreground font-medium">Schedule Zoom calls, setup meeting agendas, and configure trainer session timetables.</p>
+              </div>
+              <button
+                onClick={() => setIsScheduleModalOpen(true)}
+                className="px-3.5 py-2 bg-primary text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-95 shadow-md cursor-pointer transition-all flex items-center gap-1.5"
+                style={{ backgroundColor: primaryColor }}
+              >
+                + Schedule Session
+              </button>
+            </div>
+
+            {localSessions.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {localSessions.map((session) => {
+                  const sTime = new Date(session.startTime);
+                  const eTime = new Date(session.endTime);
+                  return (
+                    <div key={session.id} className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-5 border border-border/40 space-y-4 shadow-sm flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-[8px] font-black uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded" style={{ color: primaryColor, borderColor: `${primaryColor}30` }}>
+                            {session.batch?.name || "All Batches"}
+                          </span>
+                          <span className="text-[9px] font-bold text-muted-foreground font-mono">
+                            {sTime.toLocaleDateString([], { month: "short", day: "numeric" })}
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-extrabold text-foreground leading-snug">{session.title}</h4>
+                        {session.description && (
+                          <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">{session.description}</p>
+                        )}
+                      </div>
+
+                      <div className="pt-3 border-t border-border/50 space-y-3">
+                        <div className="flex justify-between text-[9px] font-semibold text-muted-foreground">
+                          <span>Time: {sTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {eTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>Instructor: {session.instructor ? `${session.instructor.firstName} ${session.instructor.lastName || ""}` : "Unassigned"}</span>
+                        </div>
+                        {session.meetingUrl && (
+                          <a
+                            href={session.meetingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full inline-flex items-center justify-center gap-1 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-[10px] uppercase tracking-wider py-2 rounded-xl transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
+                          >
+                            Join Meeting Link 🎥
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-12 text-center bg-muted/5 border border-border/40 rounded-3xl text-muted-foreground text-xs font-semibold">
+                No sessions or timetables scheduled yet. Click "+ Schedule Session" to setup your first class.
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -570,6 +899,101 @@ export function FacultyDashboardClient({
               <button type="button" onClick={closeGradeModal} className="px-4 py-2 rounded-xl text-xs font-bold bg-secondary hover:bg-secondary/80 border border-border text-muted-foreground hover:text-foreground cursor-pointer">Cancel</button>
               <button type="submit" disabled={isGradingSubmitting} className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-primary cursor-pointer disabled:opacity-50" style={{ backgroundColor: primaryColor }}>
                 {isGradingSubmitting ? "Submitting..." : "Submit Grade"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ── Subjective Grading Modal ── */}
+      {isSubModalOpen && selectedSub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
+          <form onSubmit={handleSubGradeSubmission} className="w-full max-w-2xl bg-card border border-border/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col sexy-border-glow">
+            <div className="p-5 border-b border-border/50 flex items-center justify-between bg-primary/5">
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Manual Subjective Evaluation</h4>
+                <p className="text-[9px] text-muted-foreground mt-0.5">Trainee: {selectedSub.student?.user ? `${selectedSub.student.user.firstName} ${selectedSub.student.user.lastName || ""}` : "Student"}</p>
+              </div>
+              <button type="button" onClick={closeSubGradeModal} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/15 transition-colors cursor-pointer">✕</button>
+            </div>
+
+            <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh] text-left">
+              {subGradingMessage && (
+                <div className={`p-3 rounded-lg text-xs font-semibold ${subGradingMessage.type === "success" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-450" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
+                  {subGradingMessage.text}
+                </div>
+              )}
+
+              <div className="p-4 bg-secondary/15 rounded-xl border border-border/40 space-y-2">
+                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block">Question Prompt / Requirement</span>
+                <p className="text-[10px] text-foreground font-semibold leading-relaxed font-sans">{selectedSub.questionText}</p>
+              </div>
+
+              <div className="p-4 bg-secondary/25 rounded-xl border border-border/50 space-y-2">
+                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block">Trainee Submitted Answer Response</span>
+                <p className="text-[10.5px] text-foreground leading-relaxed whitespace-pre-wrap font-sans bg-card border border-border/30 p-3.5 rounded-xl">{selectedSub.studentAnswer}</p>
+              </div>
+
+              <div className="border-t border-border/60 pt-4 space-y-4">
+                <span className="text-[10px] font-black uppercase text-foreground tracking-widest block">Manual Rubric Grading Evaluation</span>
+                
+                <div className="space-y-3.5">
+                  {subRubrics.map((rub: any, idx: number) => (
+                    <div key={idx} className="p-4 bg-card border border-border/50 rounded-xl space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10.5px] font-black text-foreground">{rub.criteria}</span>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min="0"
+                            max={rub.maxScore}
+                            required
+                            value={rub.score}
+                            onChange={(e) => handleSubGradeScoreChange(idx, parseInt(e.target.value) || 0)}
+                            className="w-16 bg-secondary/35 border border-border rounded-lg p-1.5 text-center text-xs font-bold text-foreground focus:outline-none"
+                          />
+                          <span className="text-[10px] text-muted-foreground font-bold">/ {rub.maxScore} pts</span>
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder={`Critique comment feedback for ${rub.criteria.toLowerCase()}...`}
+                        value={rub.feedback || ""}
+                        onChange={(e) => handleSubGradeFeedbackChange(idx, e.target.value)}
+                        className="w-full bg-secondary/15 border border-border/35 rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border/60 pt-4">
+                <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex flex-col justify-between" style={{ borderColor: `${primaryColor}20`, backgroundColor: `${primaryColor}05` }}>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground block">Aggregated Score</span>
+                  <div className="mt-1 flex items-baseline gap-1">
+                    <span className="text-3xl font-black text-primary" style={{ color: primaryColor }}>{subGradeScore}</span>
+                    <span className="text-xs text-muted-foreground font-bold">/ 100 overall</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1 text-left">
+                  <label className="text-[9px] font-black uppercase text-muted-foreground tracking-wider block">Assessor General Feedback / Comments</label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={subGradeFeedback}
+                    placeholder="Write a summary evaluation overview, highlighting positive findings or details that need attention..."
+                    onChange={(e: any) => setSubGradeFeedback(e.target.value)}
+                    className="w-full bg-secondary/25 border border-border rounded-xl p-2.5 text-xs text-foreground focus:outline-none placeholder:text-muted-foreground/50 leading-relaxed font-sans"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end p-5 border-t border-border/60 bg-muted/5 shrink-0">
+              <button type="button" onClick={closeSubGradeModal} className="px-4 py-2 rounded-xl text-xs font-bold bg-secondary hover:bg-secondary/80 border border-border text-muted-foreground hover:text-foreground cursor-pointer">Cancel</button>
+              <button type="submit" disabled={isSubGradingSubmitting} className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-primary cursor-pointer disabled:opacity-50 shadow-md" style={{ backgroundColor: primaryColor }}>
+                {isSubGradingSubmitting ? "Submitting..." : "Finalize Score"}
               </button>
             </div>
           </form>
@@ -656,6 +1080,106 @@ export function FacultyDashboardClient({
               </div>
             </div>
           </div>
+        </div>
+      )}
+      {/* ── Schedule Session Modal ── */}
+      {isScheduleModalOpen && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleScheduleSubmit} className="bg-popover border border-border p-6 rounded-3xl max-w-md w-full space-y-4 shadow-2xl animate-in zoom-in-95 duration-200 sexy-border-glow">
+            <div className="flex justify-between items-center border-b border-border pb-3 text-left">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-primary" style={{ color: primaryColor }}>Schedule Live Class</h3>
+                <p className="text-[9px] text-muted-foreground mt-0.5 font-medium">Setup meeting slots, times, and agendas.</p>
+              </div>
+              <button type="button" onClick={() => setIsScheduleModalOpen(false)} className="text-muted-foreground hover:text-foreground text-sm font-bold w-6 h-6 flex items-center justify-center rounded-lg border border-border cursor-pointer">✕</button>
+            </div>
+
+            {scheduleError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/25 rounded-xl text-rose-400 text-[10px] font-bold text-left">
+                {scheduleError}
+              </div>
+            )}
+
+            <div className="space-y-3.5 text-xs text-left">
+              <div className="space-y-1">
+                <label className="text-[9px] text-muted-foreground uppercase font-black">Target Cohort Batch</label>
+                <select
+                  required
+                  value={scheduleBatchId}
+                  onChange={(e) => setScheduleBatchId(e.target.value)}
+                  className="w-full bg-secondary/35 border border-border rounded-xl p-2.5 text-foreground focus:outline-none"
+                >
+                  {batchesList.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] text-muted-foreground uppercase font-black">Session Title / Topic</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Intro to UI Design Systems"
+                  value={scheduleTitle}
+                  onChange={(e) => setScheduleTitle(e.target.value)}
+                  className="w-full bg-secondary/35 border border-border rounded-xl p-2.5 text-foreground focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] text-muted-foreground uppercase font-black">Meeting Description / Syllabus</label>
+                <textarea
+                  rows={2}
+                  placeholder="Agenda notes..."
+                  value={scheduleDesc}
+                  onChange={(e) => setScheduleDesc(e.target.value)}
+                  className="w-full bg-secondary/35 border border-border rounded-xl p-2.5 text-foreground focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] text-muted-foreground uppercase font-black">Start Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={scheduleStartTime}
+                    onChange={(e) => setScheduleStartTime(e.target.value)}
+                    className="w-full bg-secondary/35 border border-border rounded-xl p-2.5 text-foreground focus:outline-none text-[10.5px]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] text-muted-foreground uppercase font-black">End Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={scheduleEndTime}
+                    onChange={(e) => setScheduleEndTime(e.target.value)}
+                    className="w-full bg-secondary/35 border border-border rounded-xl p-2.5 text-foreground focus:outline-none text-[10.5px]"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] text-muted-foreground uppercase font-black">Zoom Meeting URL</label>
+                <input
+                  type="url"
+                  required
+                  value={scheduleMeetingUrl}
+                  onChange={(e) => setScheduleMeetingUrl(e.target.value)}
+                  className="w-full bg-secondary/35 border border-border rounded-xl p-2.5 text-foreground focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-3 border-t border-border/60">
+              <button type="button" onClick={() => setIsScheduleModalOpen(false)} className="px-4 py-2 rounded-xl text-xs font-bold bg-secondary hover:bg-secondary/80 border border-border text-muted-foreground hover:text-foreground cursor-pointer">Cancel</button>
+              <button type="submit" disabled={isScheduling} className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-primary cursor-pointer disabled:opacity-50" style={{ backgroundColor: primaryColor }}>
+                {isScheduling ? "Scheduling..." : "Create Slot"}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

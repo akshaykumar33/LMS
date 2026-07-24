@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useAdmissionsStore } from "@/store";
 import { approveApplicationAction, rejectApplicationAction, getApplicationDetailsAction, updateTenantPaymentSettingsAction, updateDocumentStatusAction, manualSignUpStudentAction } from "../actions/admission-actions";
+import { StudentImportModal } from "./StudentImportModal";
 import { formatReadableDate } from "@/utils/date-formatter";
 import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { LogOut, Search, Filter, X, ShieldAlert } from "lucide-react";
@@ -98,6 +99,7 @@ export function AdmissionsDashboard({
   const [docToRejectId, setDocToRejectId] = useState<string | null>(null);
   const [rejectReasonText, setRejectReasonText] = useState("");
   const [showDocRejectModal, setShowDocRejectModal] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const handleSavePaymentSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,15 +274,26 @@ export function AdmissionsDashboard({
           </div>
 
           {(userRole === "Owner" || userRole === "Admin" || userRole === "SuperAdmin") && (
-            <button
-              onClick={() => {
-                const el = document.getElementById("payment-settings-panel");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="inline-flex h-9 items-center justify-center rounded-xl bg-card border border-border px-4 text-xs font-bold text-foreground hover:bg-muted/50 cursor-pointer shadow-sm transition-all"
-            >
-              ⚙️ Payment Settings
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setIsImportModalOpen(true)}
+                className="inline-flex h-9 items-center justify-center rounded-xl text-white px-4 text-xs font-bold hover:opacity-90 cursor-pointer shadow-sm transition-all"
+                style={{ backgroundColor: brandColor }}
+              >
+                📥 Bulk Import Students
+              </button>
+              {/* DISABLED: Payment Settings button — kept for future use
+              <button
+                onClick={() => {
+                  const el = document.getElementById("payment-settings-panel");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="inline-flex h-9 items-center justify-center rounded-xl bg-card border border-border px-4 text-xs font-bold text-foreground hover:bg-muted/50 cursor-pointer shadow-sm transition-all"
+              >
+                ⚙️ Payment Settings
+              </button>
+              */}
+            </div>
           )}
         </div>
         
@@ -300,7 +313,7 @@ export function AdmissionsDashboard({
           ))}
         </div>
 
-        {/* Payment Configuration Card */}
+        {/* DISABLED: Payment Configuration Card — kept for future use
         {(userRole === "Owner" || userRole === "Admin" || userRole === "SuperAdmin") && (
           <div id="payment-settings-panel" className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-6 shadow-sm border border-border/40 space-y-5">
             <div className="space-y-1.5 border-b border-border pb-3">
@@ -413,6 +426,7 @@ export function AdmissionsDashboard({
             </form>
           </div>
         )}
+        */}
 
         {/* Filters and Controls */}
         <div className="sexy-border-glow bg-card/45 backdrop-blur-md rounded-2xl p-4 flex flex-col md:flex-row gap-4 justify-between items-center shadow-sm">
@@ -501,7 +515,14 @@ export function AdmissionsDashboard({
                         <span className="group-hover:text-primary transition-colors">{app.firstName} {app.lastName}</span>
                       </td>
                       <td className="py-4 px-6 text-muted-foreground">{app.email}</td>
-                      <td className="py-4 px-6 font-semibold text-foreground">{app.batch.name}</td>
+                      <td className="py-4 px-6 font-semibold text-foreground">
+                        <div>{app.batch.name}</div>
+                        {(app.batch as any).status && (
+                          <span className={`inline-flex items-center text-[8.5px] font-black uppercase px-1 rounded bg-secondary text-muted-foreground mt-1`}>
+                            {(app.batch as any).status}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-4 px-6 text-muted-foreground">
                         {formatReadableDate(app.createdAt)}
                       </td>
@@ -869,6 +890,17 @@ export function AdmissionsDashboard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <StudentImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        batches={batches}
+        primaryColor={brandColor}
+        onImportSuccess={() => {
+          // reload the page to show newly onboarded students
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }

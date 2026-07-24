@@ -4,7 +4,7 @@ import { requireAuth } from "@/features/auth/services/session";
 import { CourseRepository } from "@/features/course/repository/course-repository";
 import { QuizRepository } from "@/features/quiz/repository/quiz-repository";
 import { db } from "@/db/db";
-import { students, users, quizzes, lessonProgress, projects, projectSubmissions, courseProgress } from "@/db/schema";
+import { students, users, quizzes, lessonProgress, projects, projectSubmissions, courseProgress, subjectiveSubmissions } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkspaceClient } from "@/features/course/components/WorkspaceClient";
@@ -41,15 +41,66 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
     .from(quizzes)
     .where(eq(quizzes.courseId, courseId));
 
-  // Get first lesson as default if nothing is selected
+  // Fetch student profile details
+  let studentProfile: any = null;
+  if (user.role === "Student") {
+    studentProfile = await db.query.students.findFirst({
+      where: eq(students.userId, user.userId),
+      with: {
+        batch: true,
+      },
+    });
+
+    if (!studentProfile) {
+      redirect("/dashboard");
+    }
+  }
+
+  // Fetch course progress (including resume position lastVisitedLessonId)
+  let studentCourseProgress: any = null;
+  if (studentProfile) {
+    studentCourseProgress = await db.query.courseProgress.findFirst({
+      where: and(
+        eq(courseProgress.studentId, studentProfile.id),
+        eq(courseProgress.courseId, courseId)
+      ),
+    });
+  }
+
+  // Get active lesson or quiz
   let activeLessonId = lessonId;
   let activeQuizId = quizId;
 
   if (!activeLessonId && !activeQuizId) {
-    const firstMod = courseDetails.modules[0];
-    const firstLesson = firstMod?.lessons[0];
-    if (firstLesson) {
-      activeLessonId = firstLesson.id;
+    if (studentCourseProgress?.lastVisitedLessonId) {
+      activeLessonId = studentCourseProgress.lastVisitedLessonId;
+    } else {
+      const firstMod = courseDetails.modules[0];
+      const firstLesson = firstMod?.lessons[0];
+      if (firstLesson) {
+        activeLessonId = firstLesson.id;
+      }
+    }
+  }
+
+  // Record/update lastVisitedLessonId on visit
+  if (user.role === "Student" && studentProfile && activeLessonId) {
+    if (studentCourseProgress) {
+      await db
+        .update(courseProgress)
+        .set({
+          lastVisitedLessonId: activeLessonId,
+          updatedAt: new Date(),
+        })
+        .where(eq(courseProgress.id, studentCourseProgress.id));
+    } else {
+      await db.insert(courseProgress).values({
+        studentId: studentProfile.id,
+        courseId: courseId,
+        lastVisitedLessonId: activeLessonId,
+        completed: false,
+        updatedAt: new Date(),
+      });
     }
   }
 
@@ -71,21 +122,6 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
     }
   }
 
-  // Fetch student profile details
-  let studentProfile: any = null;
-  if (user.role === "Student") {
-    studentProfile = await db.query.students.findFirst({
-      where: eq(students.userId, user.userId),
-      with: {
-        batch: true,
-      },
-    });
-
-    if (!studentProfile) {
-      redirect("/dashboard");
-    }
-  }
-
   // Fetch lesson completions for this student
   let completedLessonIds: string[] = [];
   if (studentProfile) {
@@ -96,16 +132,6 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
     completedLessonIds = progresses
       .filter((p) => p.completed)
       .map((p) => p.lessonId);
-  }
-
-  let scormCourseProgress = null;
-  if (courseDetails.scormEnabled && studentProfile) {
-    scormCourseProgress = await db.query.courseProgress.findFirst({
-      where: and(
-        eq(courseProgress.studentId, studentProfile.id),
-        eq(courseProgress.courseId, courseId)
-      ),
-    });
   }
 
   // Fetch capstone project details for this course
@@ -123,6 +149,16 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
     });
   }
 
+  let subjectiveSubmissionsList: any[] = [];
+  if (studentProfile) {
+    subjectiveSubmissionsList = await db.query.subjectiveSubmissions.findMany({
+      where: and(
+        eq(subjectiveSubmissions.courseId, courseId),
+        eq(subjectiveSubmissions.studentId, studentProfile.id)
+      ),
+    });
+  }
+
   const dbUser = await db.query.users.findFirst({
     where: eq(users.id, user.userId),
   });
@@ -133,6 +169,7 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
     lastName: dbUser?.lastName || "",
     email: dbUser?.email || user.email,
     role: user.role,
+    competencyLevel: studentProfile?.competencyLevel || "Beginner",
   };
 
   return (
@@ -143,9 +180,10 @@ export default async function CourseWorkspacePage({ params, searchParams }: Page
         activeLesson={activeLesson}
         activeQuiz={activeQuiz}
         completedLessonIds={completedLessonIds}
-        scormCourseProgress={scormCourseProgress}
+        scormCourseProgress={studentCourseProgress}
         capstoneProject={capstoneProject}
         capstoneSubmission={capstoneSubmission}
+        subjectiveSubmissions={subjectiveSubmissionsList}
         tenantName={tenant.name}
         subdomain={tenant.subdomain}
         primaryColor={tenant.branding?.primaryColor}

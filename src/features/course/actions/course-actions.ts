@@ -721,6 +721,7 @@ export async function saveVideoProgressAction(lessonId: string, currentSeconds: 
     if (existing) {
       // Merge existing scormData
       const prevData = (existing.scormData as any) || {};
+      const newMaxPercent = Math.max(existing.videoMaxWatchedPercent || 0, percentage);
       await db
         .update(schema.lessonProgress)
         .set({
@@ -728,6 +729,9 @@ export async function saveVideoProgressAction(lessonId: string, currentSeconds: 
             ...prevData,
             ...videoProgressData,
           },
+          videoResumeOffsetSeconds: Math.round(currentSeconds),
+          videoMaxWatchedPercent: newMaxPercent,
+          totalTimeSpentSeconds: (existing.totalTimeSpentSeconds || 0) + 8,
           updatedAt: new Date(),
         })
         .where(eq(schema.lessonProgress.id, existing.id));
@@ -737,6 +741,9 @@ export async function saveVideoProgressAction(lessonId: string, currentSeconds: 
         lessonId,
         completed: false,
         scormData: videoProgressData,
+        videoResumeOffsetSeconds: Math.round(currentSeconds),
+        videoMaxWatchedPercent: percentage,
+        totalTimeSpentSeconds: 8,
         updatedAt: new Date(),
       });
     }
@@ -744,6 +751,99 @@ export async function saveVideoProgressAction(lessonId: string, currentSeconds: 
     return { success: true, percentage };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to update video progress." };
+  }
+}
+
+export async function incrementTimeSpentAction(lessonId: string, seconds: number) {
+  try {
+    const user = await requireAuth(["Student"]);
+    verifyWriteAccess(user);
+    const student = await db.query.students.findFirst({
+      where: eq(schema.students.userId, user.userId),
+    });
+
+    if (!student) {
+      return { success: false, error: "Student profile not found." };
+    }
+
+    const existing = await db.query.lessonProgress.findFirst({
+      where: and(
+        eq(schema.lessonProgress.studentId, student.id),
+        eq(schema.lessonProgress.lessonId, lessonId)
+      ),
+    });
+
+    if (existing) {
+      await db
+        .update(schema.lessonProgress)
+        .set({
+          totalTimeSpentSeconds: (existing.totalTimeSpentSeconds || 0) + seconds,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.lessonProgress.id, existing.id));
+    } else {
+      await db.insert(schema.lessonProgress).values({
+        studentId: student.id,
+        lessonId,
+        completed: false,
+        totalTimeSpentSeconds: seconds,
+        updatedAt: new Date(),
+      });
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to increment time spent." };
+  }
+}
+
+export async function logZoomAttendanceAction(lessonId: string) {
+  try {
+    const user = await requireAuth(["Student"]);
+    verifyWriteAccess(user);
+    const student = await db.query.students.findFirst({
+      where: eq(schema.students.userId, user.userId),
+    });
+
+    if (!student) {
+      return { success: false, error: "Student profile not found." };
+    }
+
+    const existing = await db.query.lessonProgress.findFirst({
+      where: and(
+        eq(schema.lessonProgress.studentId, student.id),
+        eq(schema.lessonProgress.lessonId, lessonId)
+      ),
+    });
+
+    const newLog = {
+      joinedAt: new Date().toISOString(),
+      leftAt: new Date(Date.now() + 3600000).toISOString(),
+      durationSeconds: 3600,
+    };
+
+    if (existing) {
+      const logs = (existing.zoomAttendanceLogs as any[]) || [];
+      await db
+        .update(schema.lessonProgress)
+        .set({
+          zoomAttendanceLogs: [...logs, newLog],
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.lessonProgress.id, existing.id));
+    } else {
+      await db.insert(schema.lessonProgress).values({
+        studentId: student.id,
+        lessonId,
+        completed: false,
+        zoomAttendanceLogs: [newLog],
+        updatedAt: new Date(),
+      });
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to log Zoom attendance." };
   }
 }
 
@@ -834,6 +934,110 @@ export async function updateCapstoneProjectAction(
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to update capstone project." };
+  }
+}
+
+export async function updateStudentCompetencyAction(level: string) {
+  try {
+    const user = await requireAuth(["Student"]);
+    verifyWriteAccess(user);
+
+    const student = await db.query.students.findFirst({
+      where: eq(schema.students.userId, user.userId),
+    });
+
+    if (!student) {
+      return { success: false, error: "Student profile not found." };
+    }
+
+    await db
+      .update(schema.students)
+      .set({
+        competencyLevel: level,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.students.id, student.id));
+
+    revalidatePath(`/courses/[courseId]`, "page");
+    revalidatePath("/profile");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to update competency level." };
+  }
+}
+
+export async function updateCourseProgressLastVisitedAction(courseId: string, lessonId: string) {
+  try {
+    const user = await requireAuth(["Student"]);
+    verifyWriteAccess(user);
+
+    const student = await db.query.students.findFirst({
+      where: eq(schema.students.userId, user.userId),
+    });
+
+    if (!student) {
+      return { success: false, error: "Student profile not found." };
+    }
+
+    const existing = await db.query.courseProgress.findFirst({
+      where: and(
+        eq(schema.courseProgress.studentId, student.id),
+        eq(schema.courseProgress.courseId, courseId)
+      ),
+    });
+
+    if (existing) {
+      await db
+        .update(schema.courseProgress)
+        .set({
+          lastVisitedLessonId: lessonId,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.courseProgress.id, existing.id));
+    } else {
+      await db.insert(schema.courseProgress).values({
+        studentId: student.id,
+        courseId: courseId,
+        lastVisitedLessonId: lessonId,
+        completed: false,
+        updatedAt: new Date(),
+      });
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to update last visited lesson." };
+  }
+}
+
+export async function scheduleBatchSessionAction(
+  batchId: string,
+  title: string,
+  description: string,
+  startTime: Date,
+  endTime: Date,
+  meetingUrl: string
+) {
+  try {
+    const user = await requireAuth(["Owner", "Admin", "Faculty", "Mentor", "Program Manager"]);
+    verifyWriteAccess(user);
+
+    await db.insert(schema.batchSessions).values({
+      tenantId: user.tenantId,
+      batchId,
+      title,
+      description,
+      instructorId: user.userId,
+      startTime: startTime,
+      endTime: endTime,
+      meetingUrl,
+    });
+
+    revalidatePath("/faculty");
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to schedule session." };
   }
 }
 

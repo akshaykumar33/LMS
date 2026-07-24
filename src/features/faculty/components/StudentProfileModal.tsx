@@ -213,22 +213,23 @@ export function StudentProfileModal({ studentId, isOpen, onClose, primaryColor }
                 </div>
               </div>
 
-              {/* SCORM Compliance Telemetry */}
+              {/* Course Progress & E-Learning Telemetry */}
               {data.scormTelemetry && data.scormTelemetry.length > 0 && (
                 <div className="space-y-3">
                   <h5 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5" style={{ color: brandColor }} /> SCORM E-Learning Telemetry
+                    <Layers className="w-3.5 h-3.5" style={{ color: brandColor }} /> Detailed Lesson & E-Learning Telemetry
                   </h5>
                   <div className="border border-border/60 rounded-xl overflow-hidden">
                     <div className="max-h-60 overflow-y-auto">
-                      <table className="w-full text-left border-collapse">
+                      <table className="w-full text-left border-collapse text-xs">
                         <thead>
                           <tr className="bg-secondary/40 border-b border-border/60 text-[9px] font-black uppercase tracking-wider text-muted-foreground">
-                            <th className="p-3">Module</th>
+                            <th className="p-3">Lesson Unit</th>
+                            <th className="p-3">Type</th>
                             <th className="p-3 text-center">Status</th>
-                            <th className="p-3 text-center">Score</th>
+                            <th className="p-3 text-center">Progress/Score</th>
                             <th className="p-3 text-center">Time</th>
-                            <th className="p-3 text-right">Bookmark</th>
+                            <th className="p-3 text-right">Bookmark / Zoom Logs</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/40">
@@ -238,6 +239,7 @@ export function StudentProfileModal({ studentId, isOpen, onClose, primaryColor }
                                 <div>{s.lessonTitle}</div>
                                 {s.courseName && <div className="text-[9px] text-muted-foreground">{s.courseName}</div>}
                               </td>
+                              <td className="p-3 uppercase text-[9px] text-muted-foreground font-semibold">{s.contentType || "text"}</td>
                               <td className="p-3 text-center">
                                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${
                                   s.completed
@@ -247,13 +249,31 @@ export function StudentProfileModal({ studentId, isOpen, onClose, primaryColor }
                                   {s.status}
                                 </span>
                               </td>
-                              <td className="p-3 text-center font-mono font-bold">{s.score ?? "—"}</td>
+                              <td className="p-3 text-center">
+                                {s.contentType === "video" ? (
+                                  <span className="font-bold text-foreground font-mono">{s.videoMaxWatchedPercent || 0}% watched</span>
+                                ) : (
+                                  <span className="font-mono font-bold text-foreground">{s.score ?? "—"}</span>
+                                )}
+                              </td>
                               <td className="p-3 text-center font-mono text-muted-foreground">
                                 {s.timeSpentSeconds > 0
                                   ? `${Math.floor(s.timeSpentSeconds / 60)}m ${s.timeSpentSeconds % 60}s`
                                   : "—"}
                               </td>
-                              <td className="p-3 text-right font-mono text-[10px] text-muted-foreground">{s.bookmark || "—"}</td>
+                              <td className="p-3 text-right font-mono text-[10px] text-muted-foreground">
+                                {s.contentType === "live_class" && s.zoomAttendanceLogs && s.zoomAttendanceLogs.length > 0 ? (
+                                  <div className="space-y-0.5 text-[9px]">
+                                    {s.zoomAttendanceLogs.map((log: any, logIdx: number) => (
+                                      <div key={logIdx} className="text-emerald-500">
+                                        Joined: {new Date(log.joinedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({Math.round(log.durationSeconds / 60)}m)
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  s.bookmark || "—"
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>

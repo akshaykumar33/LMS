@@ -10,8 +10,10 @@ import { getRazorpayEnvKeys, getPaymentMode } from "../services/payment-config";
 import { AdmissionRepository } from "../repository/admission-repository";
 import { admissionApplicationSchema, paymentSubmitSchema, documentUploadSchema } from "../schemas/admission-schemas";
 import { db } from "@/db/db";
+import * as schema from "@/db/schema";
 import { batches, tenants } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
+import { getScopedTenantIds } from "@/features/auth/services/tenant";
 import bcrypt from "bcryptjs";
 import { establishSessionAction } from "@/features/auth/actions/auth-actions";
 
@@ -262,7 +264,8 @@ export async function getApplicationDetailsAction(applicationId: string) {
   const user = await requireAuth(["Owner", "Admin", "Program Manager"]);
   
   try {
-    const details = await AdmissionRepository.findById(user.tenantId, applicationId);
+    const scopedTenantIds = await getScopedTenantIds(user.role, user.tenantId);
+    const details = await AdmissionRepository.findById(scopedTenantIds, applicationId);
     if (!details) {
       return { success: false, error: "Application not found." };
     }
@@ -271,16 +274,16 @@ export async function getApplicationDetailsAction(applicationId: string) {
     const existingUser = await db.query.users.findFirst({
       where: and(
         eq(schema.users.email, details.email),
-        eq(schema.users.tenantId, user.tenantId)
+        inArray(schema.users.tenantId, scopedTenantIds)
       ),
     });
 
     return { 
       success: true, 
-      data: {
+      data: JSON.parse(JSON.stringify({
         ...details,
         isEnrolled: !!existingUser
-      } 
+      }))
     };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -338,8 +341,6 @@ export async function registerStudentAction(formData: any) {
     return { success: false, error: error.message || "Failed to register student." };
   }
 }
-
-import * as schema from "@/db/schema";
 
 /**
  * Public Action: Generate Stripe Payment Intent for student application fee.
