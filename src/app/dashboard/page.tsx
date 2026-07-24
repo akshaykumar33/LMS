@@ -9,6 +9,7 @@ import { GuestSandboxBanner } from "@/components/GuestSandboxBanner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { DashboardClient } from "@/features/dashboard/components/DashboardClient";
 import { CourseRepository } from "@/features/course/repository/course-repository";
+import { headers, cookies } from "next/headers";
 
 export default async function DashboardPage() {
   const tenant = await getTenantContext();
@@ -17,6 +18,30 @@ export default async function DashboardPage() {
   }
 
   const user = await requireAuth();
+
+  // Cross-subdomain routing for tenant users accessing the wrong portal subdomain
+  if (user.subdomain && user.subdomain !== tenant.subdomain && user.role !== "SuperAdmin") {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("access_token")?.value;
+    const refreshToken = cookieStore.get("refresh_token")?.value;
+    
+    if (token) {
+      const headersList = await headers();
+      const host = headersList.get("host") || "localhost:3000";
+      const port = host.split(":")[1] || "";
+      const portSuffix = port ? `:${port}` : "";
+      const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+      const isVercel = host.endsWith(".vercel.app");
+
+      const targetUrl = isLocal
+        ? `http://${user.subdomain}.localhost${portSuffix}/api/auth/sync?token=${token}&refresh=${refreshToken || ""}&returnTo=/dashboard`
+        : isVercel
+        ? `/api/auth/sync?token=${token}&refresh=${refreshToken || ""}&returnTo=/dashboard`
+        : `https://${user.subdomain}.${host.replace(/^[^.]+\./, "")}/api/auth/sync?token=${token}&refresh=${refreshToken || ""}&returnTo=/dashboard`;
+
+      redirect(targetUrl);
+    }
+  }
 
   // Redirect operational staff roles first — these work at ALL tenant levels
   if (["Faculty", "Mentor"].includes(user.role)) {

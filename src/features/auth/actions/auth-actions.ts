@@ -93,17 +93,18 @@ export async function loginAction(formData: any) {
       };
     }
 
-    // 4. Cross-Tenant Ancestry Gate — If logging in on a specific tenant subdomain,
-    // verify the user belongs to this tenant OR their home tenant is an ancestor
+    // 4. Cross-Tenant Ancestry/Hierarchy Gate — If logging in on a specific tenant subdomain,
+    // verify the user belongs to this tenant OR their home tenant is an ancestor/descendant
     if (tenant && tenant.subdomain !== "wysbryx" && foundSubdomain) {
       const userTenant = activeTenants.find(t => t.subdomain === foundSubdomain);
       if (userTenant && userTenant.id !== tenant.id) {
         // User's home tenant is different from the login domain
         const isAncestor = await isAncestorOf(userTenant.id, tenant.id);
-        if (!isAncestor && user.role !== "SuperAdmin") {
+        const isDescendant = await isAncestorOf(tenant.id, userTenant.id);
+        if (!isAncestor && !isDescendant && user.role !== "SuperAdmin") {
           return {
             success: false,
-            error: `You are not authorized to access the ${tenant.name} portal. Please log in through your organization's subdomain.`
+            error: `You are not authorized to access the ${tenant.name} portal.`
           };
         }
       }
@@ -178,22 +179,41 @@ export async function logoutAction() {
   const host = headersList.get("host") || "";
   const cookieDomain = getCookieDomain(host);
 
+  // Clear with cookie domain if present
+  if (cookieDomain) {
+    cookieStore.delete({
+      name: "access_token",
+      path: "/",
+      domain: cookieDomain,
+    });
+
+    cookieStore.delete({
+      name: "refresh_token",
+      path: "/",
+      domain: cookieDomain,
+    });
+
+    cookieStore.delete({
+      name: "x-tenant-subdomain",
+      path: "/",
+      domain: cookieDomain,
+    });
+  }
+
+  // Also clear host-only cookies (without domain option) to guarantee removal
   cookieStore.delete({
     name: "access_token",
     path: "/",
-    domain: cookieDomain,
   });
 
   cookieStore.delete({
     name: "refresh_token",
     path: "/",
-    domain: cookieDomain,
   });
 
   cookieStore.delete({
     name: "x-tenant-subdomain",
     path: "/",
-    domain: cookieDomain,
   });
 
   return { success: true };

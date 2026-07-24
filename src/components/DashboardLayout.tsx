@@ -119,7 +119,21 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
   const handleLogout = async (e: React.FormEvent) => {
     e.preventDefault();
     await logoutAction();
-    router.push("/login");
+    
+    // Redirect to the VT login page dynamically
+    const host = window.location.host;
+    const port = host.split(":")[1] || "";
+    const portSuffix = port ? `:${port}` : "";
+    const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+    const isVercel = host.endsWith(".vercel.app");
+
+    const vtLoginUrl = isLocal
+      ? `${window.location.protocol}//vt.localhost${portSuffix}/login`
+      : isVercel
+      ? `/login?tenant=vt`
+      : `${window.location.protocol}//vt.${host.replace(/^[^.]+\./, "")}/login`;
+
+    window.location.href = vtLoginUrl;
   };
 
   const primaryColor = tenant.branding?.primaryColor || "#f97316";
