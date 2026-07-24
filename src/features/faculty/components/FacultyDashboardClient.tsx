@@ -114,7 +114,6 @@ export function FacultyDashboardClient({
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get("tab");
     const validTabs = ["overview", "roster", "schedule", "curriculum", "submissions", "subjective"];
-    if (enableProctoring) validTabs.push("proctoring");
     if (tabParam && validTabs.includes(tabParam)) {
       setActiveTab(tabParam as any);
     }
@@ -313,7 +312,6 @@ export function FacultyDashboardClient({
     { id: "roster", label: "Cohort Roster", icon: Users },
     { id: "submissions", label: "Recent Submissions", icon: BarChart3 },
     { id: "subjective", label: "Subjective Grading", icon: Edit3 },
-    ...(enableProctoring ? [{ id: "proctoring", label: "Web Proctoring Audits", icon: ShieldAlert }] : []),
     { id: "schedule", label: "Live Classrooms", icon: Video },
     { id: "curriculum", label: "Curriculum Config", icon: Layers },
   ] as { id: string; label: string; icon: any }[];
