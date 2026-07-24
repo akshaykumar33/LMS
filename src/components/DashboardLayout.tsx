@@ -136,7 +136,25 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
     window.location.href = "/login";
   };
 
-  const primaryColor = tenant.branding?.primaryColor || "#f97316";
+  const resolveBrandColor = (sub?: string, color?: string) => {
+    if (color && color !== "#f97316") return color;
+    const norm = (sub || "").toLowerCase();
+    if (norm === "vti" || norm === "vt") return "#861F41"; // Virginia Tech Maroon
+    if (norm === "intel" || norm === "intel-oregon") return "#0068B5"; // Intel Blue
+    if (norm === "amd") return "#ED1C24"; // AMD Red
+    if (norm === "nvidia" || norm === "gaming" || norm === "ai" || norm === "mellanox") return "#76B900"; // NVIDIA Green
+    if (norm === "wysbryx") return "#f97316"; // Wysbryx Orange
+    return color || "#861F41";
+  };
+
+  const primaryColor = resolveBrandColor(tenant.subdomain, tenant.branding?.primaryColor);
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined" && primaryColor) {
+      document.documentElement.style.setProperty("--primary", primaryColor);
+      document.documentElement.style.setProperty("--ring", primaryColor);
+    }
+  }, [primaryColor]);
 
   // Dynamically determine parent/admin status
   // isParentOrg is passed from server components that query child tenants

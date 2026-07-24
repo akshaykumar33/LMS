@@ -516,15 +516,47 @@ export function LoginForm({ tenantName, primaryColor, subdomain, isParentDomain,
                     type="button"
                     variant="outline"
                     disabled={loading}
-                    onClick={() => handleQuickLogin("faculty1@gaming.lms.com")}
+                    onClick={() => handleQuickLogin("admin@nvidia.lms.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">NVIDIA Admin</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">admin@nvidia.lms.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("faculty1@nvidia.lms.com")}
                     className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
                   >
                     <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
                       <Briefcase className="w-3.5 h-3.5 text-indigo-600" />
                     </div>
                     <div className="text-left leading-tight min-w-0">
-                      <span className="block font-black text-foreground text-[10px] truncate">Gaming Faculty</span>
-                      <span className="text-[8px] text-muted-foreground font-medium truncate block">faculty1@gaming.lms.com</span>
+                      <span className="block font-black text-foreground text-[10px] truncate">NVIDIA Faculty</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">faculty1@nvidia.lms.com</span>
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin("student1@student.nvidia.com")}
+                    className="h-12 text-[10px] font-bold gap-2 justify-start px-3 bg-secondary/25 hover:bg-secondary/60 border border-border/50 rounded-xl"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
+                      <GraduationCap className="w-3.5 h-3.5 text-teal-600" />
+                    </div>
+                    <div className="text-left leading-tight min-w-0">
+                      <span className="block font-black text-foreground text-[10px] truncate">NVIDIA Student</span>
+                      <span className="text-[8px] text-muted-foreground font-medium truncate block">student1@student.nvidia.com</span>
                     </div>
                   </Button>
 
