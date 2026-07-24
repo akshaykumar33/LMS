@@ -624,8 +624,96 @@ export function WorkspaceClient({
   // AI Chat state
   const [activeBot, setActiveBot] = useState<"tutor" | "book" | "score">("tutor");
   const [aiQuery, setAiQuery] = useState("");
+
+  // Dynamic Course Analysis Helper for AI Assistant Console
+  const getCourseAnalysisAndTopics = () => {
+    const courseName = course?.name || "Course Learning Module";
+    const courseCode = course?.code || "LMS";
+    const courseDesc = course?.description || "";
+    const activeLessonTitle = activeLesson?.title || "";
+    const textLower = `${courseName} ${courseCode} ${courseDesc} ${activeLessonTitle}`.toLowerCase();
+
+    let topics: Array<{ label: string; query: string }> = [];
+
+    if (textLower.includes("cuda") || textLower.includes("parallel") || textLower.includes("gpu")) {
+      topics = [
+        { label: "CUDA Parallel", query: "CUDA" },
+        { label: "GPU Arch", query: "GPU Architecture" },
+        { label: "Kernel Tuning", query: "CUDA Kernels" }
+      ];
+    } else if (textLower.includes("fabrication") || textLower.includes("wafer") || textLower.includes("cleanroom")) {
+      topics = [
+        { label: "Fab Guide", query: "Fabrication" },
+        { label: "Lithography", query: "Lithography" },
+        { label: "CVD & Etch", query: "Etch" }
+      ];
+    } else if (textLower.includes("ray tracing") || textLower.includes("graphics") || textLower.includes("rt core")) {
+      topics = [
+        { label: "Ray Tracing", query: "Ray Tracing" },
+        { label: "RT Cores", query: "Core Synthesis" },
+        { label: "BVH Traversal", query: "BVH" }
+      ];
+    } else if (textLower.includes("interconnect") || textLower.includes("nvlink") || textLower.includes("high-speed")) {
+      topics = [
+        { label: "NVLink Spec", query: "NVLink" },
+        { label: "Interconnects", query: "Interconnects" },
+        { label: "SerDes PHY", query: "SerDes" }
+      ];
+    } else if (textLower.includes("device physics") || textLower.includes("sub-micron") || textLower.includes("quantum")) {
+      topics = [
+        { label: "Device Physics", query: "Device Physics" },
+        { label: "Sub-Micron", query: "Sub-Micron" },
+        { label: "Quantum Effects", query: "Quantum" }
+      ];
+    } else if (textLower.includes("eda") || textLower.includes("synthesis") || textLower.includes("verilog")) {
+      topics = [
+        { label: "EDA Tools", query: "EDA" },
+        { label: "Synthesis", query: "Synthesis" },
+        { label: "DRC Rules", query: "DRC" }
+      ];
+    } else if (textLower.includes("deep learning") || textLower.includes("accelerator")) {
+      topics = [
+        { label: "AI Hardware", query: "Accelerator" },
+        { label: "Tensor Cores", query: "Tensor" },
+        { label: "Systolic Array", query: "Systolic" }
+      ];
+    } else if (textLower.includes("vlsi") || textLower.includes("cmos")) {
+      topics = [
+        { label: "CMOS Design", query: "CMOS" },
+        { label: "VLSI Layout", query: "VLSI" },
+        { label: "Timing Slack", query: "Timing" }
+      ];
+    } else {
+      const words = courseName.split(/[\s&,/–-]+/).filter((w: string) => w.length > 2);
+      const t1 = words[0] || "Core";
+      const t2 = words[1] || "Reference";
+      const t3 = words[2] || "Manuals";
+      topics = [
+        { label: `${t1} Books`, query: t1 },
+        { label: `${t2} Guide`, query: t2 },
+        { label: `${t3} Docs`, query: t3 }
+      ];
+    }
+
+    const topicQueries = topics.map(t => `'${t.query}'`).join(", ");
+    const topicLabels = topics.map(t => t.label).join(" • ");
+
+    const welcomeMessage = `Hello! I am your AI Book Bot Librarian for **${courseName}** (${courseCode}).
+
+I have dynamically analyzed this course syllabus and indexed our digital reference library for **${courseName}**.
+
+📚 **Course Context Analysis**:
+• **Active Focus**: ${activeLessonTitle ? `"${activeLessonTitle}"` : (course.modules?.[0]?.name || courseName)}
+• **Core Subject Domain**: ${topicLabels}
+• **Scope**: ${courseDesc ? courseDesc.substring(0, 120) + "..." : "Advanced technical references & manuals"}
+
+I can search through our digital library textbooks, research papers, and worksheets tailored for **${courseCode}**. Try typing search queries like ${topicQueries} or click one of the quick tools below!`;
+
+    return { topics, welcomeMessage };
+  };
+
   const [aiMessages, setAiMessages] = useState<Array<{ sender: "user" | "ai"; text: string; rag?: any[] }>>([
-    { sender: "ai", text: "Hello! I am your AI Semiconductor Assistant. Ask me anything about today's lesson, or use the shortcuts below to summarize or quiz yourself." }
+    { sender: "ai", text: `Hello! I am your AI Assistant for ${course.name}. Ask me anything about ${activeLesson ? activeLesson.title : "this course"}, or use the shortcuts below to summarize or quiz yourself.` }
   ]);
   const [expandedRagIndices, setExpandedRagIndices] = useState<Record<number, boolean>>({});
   const [aiLoading, setAiLoading] = useState(false);
@@ -676,20 +764,21 @@ export function WorkspaceClient({
     setSpeakingIndex(null);
     if (activeBot === "tutor") {
       setAiMessages([
-        { sender: "ai", text: "Hello! I am your AI Semiconductor Assistant. Ask me anything about today's lesson, or use the shortcuts below to summarize or quiz yourself." }
+        { sender: "ai", text: `Hello! I am your AI Tutor for **${course.name}** (${course.code}). Ask me anything about ${activeLesson ? `"${activeLesson.title}"` : "this course"}, or use the shortcuts below to summarize or quiz yourself.` }
       ]);
     } else if (activeBot === "book") {
+      const { welcomeMessage } = getCourseAnalysisAndTopics();
       setAiMessages([
-        { sender: "ai", text: "Hello! I am your AI Book Bot Librarian. I can search through our digital library textbooks, manuals, and worksheets. Try typing 'CMOS' or 'EUV' or 'transistor' to find reference links." }
+        { sender: "ai", text: welcomeMessage }
       ]);
     } else if (activeBot === "score") {
       setAiMessages([
-        { sender: "ai", text: "Hello! I am your AI Score Bot Coach. I can analyze your roadmap progress, average quiz score grades, and proctoring integrity record. Click 'Analyze Score' below to pull your progress audit report card!" }
+        { sender: "ai", text: `Hello! I am your AI Score Bot Coach for **${course.name}**. I can analyze your roadmap progress, average quiz score grades, and proctoring integrity record for this course. Click 'Analyze Score' below to pull your progress audit report card!` }
       ]);
     }
     setFlashcards([]);
     setCustomQuiz([]);
-  }, [activeBot]);
+  }, [activeBot, course, activeLesson]);
 
   // Chat & Polls state
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; user: string; text: string; time: string; rx?: string }>>([
@@ -2340,24 +2429,16 @@ export function WorkspaceClient({
 
             {activeBot === "book" && (
               <div className="grid grid-cols-3 gap-1.5">
-                <button 
-                  onClick={() => askAI("CMOS VLSI")}
-                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
-                >
-                  CMOS Books
-                </button>
-                <button 
-                  onClick={() => askAI("Lithography")}
-                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
-                >
-                  Lithography
-                </button>
-                <button 
-                  onClick={() => askAI("FinFET")}
-                  className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate"
-                >
-                  FinFET Docs
-                </button>
+                {getCourseAnalysisAndTopics().topics.map((topic, tIdx) => (
+                  <button 
+                    key={tIdx}
+                    onClick={() => askAI(topic.query)}
+                    className="px-2 py-1 text-[9px] font-bold border border-border bg-card hover:bg-secondary rounded-lg text-center truncate cursor-pointer"
+                    title={`Search library for ${topic.label}`}
+                  >
+                    📖 {topic.label}
+                  </button>
+                ))}
               </div>
             )}
 

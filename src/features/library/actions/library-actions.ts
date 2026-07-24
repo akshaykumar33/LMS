@@ -12,6 +12,18 @@ export async function createLibraryItemAction(formData: {
   description: string;
   fileUrl: string;
   category: string;
+  // ── Metadata fields ────────────────────────────────────────────────────
+  tags?: string[];
+  targetCourseIds?: string[];
+  format?: string;
+  metadata?: {
+    readingLevel?: "beginner" | "intermediate" | "advanced";
+    language?: string;
+    pageCount?: number;
+    aiIndexed?: boolean;
+    aiSummary?: string;
+    aiKeywords?: string[];
+  };
 }) {
   try {
     const user = await requireAuth(["Owner", "Admin", "Faculty", "Program Manager"]);
@@ -28,6 +40,10 @@ export async function createLibraryItemAction(formData: {
       description: formData.description || null,
       fileUrl: formData.fileUrl,
       category: formData.category,
+      tags: formData.tags?.length ? formData.tags : null,
+      targetCourseIds: formData.targetCourseIds?.length ? formData.targetCourseIds : null,
+      format: formData.format || null,
+      metadata: formData.metadata || null,
     });
 
     revalidatePath("/library");
@@ -45,6 +61,18 @@ export async function updateLibraryItemAction(
     description: string;
     fileUrl: string;
     category: string;
+    // ── Metadata fields ────────────────────────────────────────────────────
+    tags?: string[];
+    targetCourseIds?: string[];
+    format?: string;
+    metadata?: {
+      readingLevel?: "beginner" | "intermediate" | "advanced";
+      language?: string;
+      pageCount?: number;
+      aiIndexed?: boolean;
+      aiSummary?: string;
+      aiKeywords?: string[];
+    };
   }
 ) {
   try {
@@ -75,6 +103,10 @@ export async function updateLibraryItemAction(
         description: formData.description || null,
         fileUrl: formData.fileUrl,
         category: formData.category,
+        tags: formData.tags?.length ? formData.tags : null,
+        targetCourseIds: formData.targetCourseIds?.length ? formData.targetCourseIds : null,
+        format: formData.format || null,
+        metadata: formData.metadata || null,
       })
       .where(eq(schema.digitalLibrary.id, id));
 
@@ -110,3 +142,4 @@ export async function deleteLibraryItemAction(id: string) {
     return { success: false, error: error.message || "Failed to delete resource." };
   }
 }
+

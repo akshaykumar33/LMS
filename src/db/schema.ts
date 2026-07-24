@@ -509,11 +509,64 @@ export const digitalLibrary = pgTable("digital_library", {
   description: text("description"),
   fileUrl: text("file_url").notNull(),
   category: varchar("category", { length: 100 }).notNull().default("book"), // book, research_paper, manual, worksheet
+  // ── Metadata Extension ──────────────────────────────────────────────────
+  // Free-form tags for search and filtering (e.g. ["VLSI", "CMOS", "beginner"])
+  tags: jsonb("tags").$type<string[]>(),
+  // Course IDs this resource is relevant to — enables per-course library views
+  targetCourseIds: jsonb("target_course_ids").$type<string[]>(),
+  // Physical file format: pdf | video | epub | docx | audio | scorm
+  format: varchar("format", { length: 50 }),
+  // Extensible bag for AI Book Bot context: readingLevel, language, aiIndexed, summary, etc.
+  metadata: jsonb("metadata").$type<{
+    readingLevel?: "beginner" | "intermediate" | "advanced";
+    language?: string;
+    pageCount?: number;
+    aiIndexed?: boolean;   // true once AI Bot has parsed and indexed this resource
+    aiSummary?: string;    // AI-generated abstract for semantic search context
+    aiKeywords?: string[]; // AI-extracted keywords for retrieval
+  }>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const digitalLibraryRelations = relations(digitalLibrary, ({ one }) => ({
+export const digitalLibraryRelations = relations(digitalLibrary, ({ one, many }) => ({
   tenant: one(tenants, { fields: [digitalLibrary.tenantId], references: [tenants.id] }),
+  // Parsed context chunks for AI Book Bot retrieval
+  aiContexts: many(libraryAiContext),
+}));
+
+// 23b. LIBRARY AI CONTEXT TABLE
+// Stores parsed document chunks for AI Book Bot context retrieval.
+// One digital_library item → many chunks (one-to-many).
+// Design decisions:
+//   - chunkText: the raw text segment extracted from the document
+//   - tokenCount: pre-computed for LLM context-window budget planning
+//   - embedding: jsonb placeholder for a float[] vector (swap in pgvector when ready)
+//   - parseJobId: external job queue ID for async parsing pipelines
+//   - status: tracks per-chunk lifecycle (pending → processing → completed | failed)
+export const libraryAiContext = pgTable("library_ai_contexts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  libraryItemId: uuid("library_item_id").notNull().references(() => digitalLibrary.id, { onDelete: "cascade" }),
+  // Ordinal position of this chunk within the document (0-based)
+  chunkIndex: integer("chunk_index").notNull().default(0),
+  // The actual parsed text content of this chunk
+  chunkText: text("chunk_text").notNull(),
+  // Number of tokens in this chunk (useful for LLM context window budgeting)
+  tokenCount: integer("token_count"),
+  // Embedding vector placeholder — store as float[] for future pgvector migration
+  embedding: jsonb("embedding").$type<number[]>(),
+  // External job ID for async parse pipelines (e.g. Celery task ID, queue message ID)
+  parseJobId: varchar("parse_job_id", { length: 255 }),
+  // Per-chunk parse lifecycle status
+  status: varchar("status", { length: 50 }).notNull().default("pending"),
+  // Timestamp when this chunk was successfully parsed
+  parsedAt: timestamp("parsed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const libraryAiContextRelations = relations(libraryAiContext, ({ one }) => ({
+  tenant: one(tenants, { fields: [libraryAiContext.tenantId], references: [tenants.id] }),
+  libraryItem: one(digitalLibrary, { fields: [libraryAiContext.libraryItemId], references: [digitalLibrary.id] }),
 }));
 
 // 24. LESSON PROGRESS TABLE (Real progress tracking)
