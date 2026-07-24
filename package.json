@@ -12,7 +12,11 @@
     "lint": "eslint",
     "db:up": "docker-compose up -d postgres",
     "db:seed-pg": "tsx src/db/seed-postgres.ts",
-    "db:test-pg": "tsx src/db/test-schema-isolation.ts"
+    "db:test-pg": "tsx src/db/test-schema-isolation.ts",
+    "db:export": "tsx scripts/export-database-dump.ts",
+    "db:seed:remote": "tsx scripts/seed-remote-postgres.ts",
+    "docker:build": "docker build -t lms-app .",
+    "docker:run": "docker-compose up -d"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1085.0",
