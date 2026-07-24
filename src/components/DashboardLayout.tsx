@@ -136,18 +136,28 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
     window.location.href = "/login";
   };
 
-  const resolveBrandColor = (sub?: string, color?: string) => {
-    if (color && color !== "#f97316") return color;
-    const norm = (sub || "").toLowerCase();
-    if (norm === "vti" || norm === "vt") return "#861F41"; // Virginia Tech Maroon
-    if (norm === "intel" || norm === "intel-oregon") return "#0068B5"; // Intel Blue
-    if (norm === "amd") return "#ED1C24"; // AMD Red
-    if (norm === "nvidia" || norm === "gaming" || norm === "ai" || norm === "mellanox") return "#76B900"; // NVIDIA Green
-    if (norm === "wysbryx") return "#f97316"; // Wysbryx Orange
-    return color || "#861F41";
+  const isSuperAdmin = user.role === "SuperAdmin" || user.subdomain === "wysbryx";
+
+  const getEffectiveSubdomain = () => {
+    if (isSuperAdmin) return "wysbryx";
+    const sub = (tenant.subdomain || "").toLowerCase();
+    if (["gaming", "ai", "mellanox", "nvidia-graphics", "nvidia"].includes(sub)) return "nvidia";
+    if (["intel", "intel-oregon", "amd", "qualcomm", "vt", "vti"].includes(sub)) return "vti";
+    return sub;
   };
 
-  const primaryColor = resolveBrandColor(tenant.subdomain, tenant.branding?.primaryColor);
+  const effectiveSubdomain = getEffectiveSubdomain();
+
+  const resolveBrandColor = () => {
+    if (isSuperAdmin) return "#f97316"; // Wysbryx Orange for SuperAdmin
+    const norm = (tenant.subdomain || "").toLowerCase();
+    if (["nvidia", "gaming", "ai", "mellanox", "nvidia-graphics"].includes(norm)) return "#76B900"; // NVIDIA Green
+    if (["vti", "vt", "intel", "intel-oregon", "amd", "qualcomm"].includes(norm)) return "#861F41"; // Virginia Tech Maroon
+    if (norm === "wysbryx") return "#f97316"; // Wysbryx Orange
+    return tenant.branding?.primaryColor || "#861F41";
+  };
+
+  const primaryColor = resolveBrandColor();
 
   React.useEffect(() => {
     if (typeof window !== "undefined" && primaryColor) {
@@ -387,11 +397,11 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
             <div className="flex items-center gap-3 overflow-hidden">
               {!isSidebarCollapsed ? (
                 <div className="flex items-center gap-2 truncate pr-6">
-                  <BrandLogo subdomain={tenant.subdomain} className="h-6 w-auto" href={logoHref} />
+                  <BrandLogo subdomain={effectiveSubdomain} className="h-6 w-auto" href={logoHref} />
                 </div>
               ) : (
                 <div className="w-full flex justify-center">
-                  <BrandLogo subdomain={tenant.subdomain} iconOnly href={logoHref} />
+                  <BrandLogo subdomain={effectiveSubdomain} iconOnly href={logoHref} />
                 </div>
               )}
             </div>
@@ -473,8 +483,8 @@ export function DashboardLayout({ children, user, tenant, studentProfile, isPare
 
             {!isSidebarCollapsed && (
               <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
-                <span className="truncate max-w-[130px] font-medium" title={tenant.name}>
-                  {user.role === "Student" ? (studentProfile?.batch?.name || "No cohort") : getShortTenantName(tenant.name, tenant.subdomain)}
+                <span className="truncate max-w-[130px] font-medium" title={isSuperAdmin ? "Wysbryx Platform" : tenant.name}>
+                  {isSuperAdmin ? "Wysbryx Platform" : user.role === "Student" ? (studentProfile?.batch?.name || "No cohort") : getShortTenantName(tenant.name, tenant.subdomain)}
                 </span>
                 <form onSubmit={handleLogout}>
                   <button 

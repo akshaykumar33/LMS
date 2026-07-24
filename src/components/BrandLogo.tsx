@@ -9,7 +9,11 @@ interface BrandLogoProps {
 }
 
 export function BrandLogo({ subdomain, className = "h-8 w-auto", href, iconOnly = false }: BrandLogoProps) {
-  const normSubdomain = subdomain.toLowerCase() === "vti" ? "vt" : subdomain.toLowerCase();
+  const normSubdomain = ["vti", "intel", "intel-oregon", "amd", "qualcomm"].includes(subdomain.toLowerCase())
+    ? "vt"
+    : ["gaming", "ai", "mellanox", "nvidia-graphics"].includes(subdomain.toLowerCase())
+    ? "nvidia"
+    : subdomain.toLowerCase();
 
   const renderLogo = () => {
     if (normSubdomain === "wysbryx" || normSubdomain === "localhost" || normSubdomain === "") {
